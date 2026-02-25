@@ -98,3 +98,26 @@ function formatHandoffChain(handoffs: Handoff[]): string {
     `**Stage ${i + 1}: ${h.stage}** (${h.agent})\n${h.summary}`
   ).join('\n\n')
 }
+
+export function constructWorkshopPrompt(params: {
+  projectName: string
+  sessionSummaries: string
+  artifactList: string
+  pipelineState: string
+}): string {
+  const templatePath = path.join(TEMPLATES_DIR, 'workshop-agent.md')
+  let template = fs.readFileSync(templatePath, 'utf-8')
+
+  const replacements: Record<string, string> = {
+    '{{project_name}}': params.projectName,
+    '{{session_summaries}}': params.sessionSummaries || 'No previous sessions.',
+    '{{artifact_list}}': params.artifactList || 'No artifacts yet.',
+    '{{pipeline_state}}': params.pipelineState || 'No active pipeline tasks.',
+  }
+
+  for (const [placeholder, value] of Object.entries(replacements)) {
+    template = template.replaceAll(placeholder, value)
+  }
+
+  return template
+}
