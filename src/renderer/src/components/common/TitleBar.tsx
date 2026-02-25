@@ -1,0 +1,53 @@
+export function TitleBar() {
+  return (
+    <div
+      className="flex items-center justify-between w-full h-8 bg-surface select-none shrink-0"
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+    >
+      {/* Left: wordmark */}
+      <span className="pl-20 text-xs font-semibold tracking-widest text-accent-teal opacity-70">
+        CLAWFLOW
+      </span>
+
+      {/* Right: window controls */}
+      <div
+        className="flex items-center h-full"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
+        {/* Minimize */}
+        <button
+          onClick={() => window.api.window.minimize()}
+          className="h-full w-11 flex items-center justify-center text-text-muted hover:bg-white/10 hover:text-text-primary transition-colors"
+          aria-label="Minimize"
+        >
+          <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor">
+            <rect width="10" height="1" />
+          </svg>
+        </button>
+
+        {/* Maximize / Restore */}
+        <button
+          onClick={() => window.api.window.maximize()}
+          className="h-full w-11 flex items-center justify-center text-text-muted hover:bg-white/10 hover:text-text-primary transition-colors"
+          aria-label="Maximize"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1">
+            <rect x="0.5" y="0.5" width="9" height="9" />
+          </svg>
+        </button>
+
+        {/* Close */}
+        <button
+          onClick={() => window.api.window.close()}
+          className="h-full w-11 flex items-center justify-center text-text-muted hover:bg-accent-red hover:text-white transition-colors"
+          aria-label="Close"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.2">
+            <line x1="0" y1="0" x2="10" y2="10" />
+            <line x1="10" y1="0" x2="0" y2="10" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}

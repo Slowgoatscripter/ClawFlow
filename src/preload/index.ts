@@ -38,5 +38,10 @@ contextBridge.exposeInMainWorld('api', {
   },
   fs: {
     pickDirectory: () => ipcRenderer.invoke('fs:pick-directory')
+  },
+  window: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    close: () => ipcRenderer.invoke('window:close')
   }
 })

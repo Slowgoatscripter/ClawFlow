@@ -14,7 +14,7 @@ export function ProjectSelector() {
   }, [loadProjects])
 
   return (
-    <div className="h-screen bg-bg flex flex-col items-center justify-center px-6">
+    <div className="h-full bg-bg flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-2xl flex flex-col items-center">
         {/* Wordmark */}
         <h1 className="text-3xl font-bold tracking-widest text-accent-teal mb-1">CLAWFLOW</h1>

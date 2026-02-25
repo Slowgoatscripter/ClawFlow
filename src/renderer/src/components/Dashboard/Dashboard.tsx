@@ -41,7 +41,7 @@ export function Dashboard() {
   }, [])
 
   return (
-    <div className="h-screen bg-bg flex flex-col">
+    <div className="h-full bg-bg flex flex-col">
       <TopBar />
       <MetricsRow />
       <div className="flex flex-1 min-h-0">

@@ -9,6 +9,7 @@ import { StageTabs } from './StageTabs'
 import { HandoffChain } from './HandoffChain'
 import { AgentLog } from './AgentLog'
 import { InterventionPanel } from '../InterventionPanel/InterventionPanel'
+import { ApprovalDialog } from '../common/ApprovalDialog'
 
 const tierClasses: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
@@ -37,6 +38,7 @@ export function TaskDetail() {
   const selectedTaskId = useTaskStore((s) => s.selectedTaskId)
   const streaming = usePipelineStore((s) => s.streaming)
   const streamEvents = usePipelineStore((s) => s.streamEvents)
+  const approvalRequest = usePipelineStore((s) => s.approvalRequest)
   const streamEndRef = useRef<HTMLDivElement>(null)
 
   const task = tasks.find((t) => t.id === selectedTaskId)
@@ -91,7 +93,7 @@ export function TaskDetail() {
 
   if (!task) {
     return (
-      <div className="h-screen bg-bg flex items-center justify-center">
+      <div className="h-full bg-bg flex items-center justify-center">
         <div className="text-center">
           <p className="text-text-muted text-lg">Task not found</p>
           <button
@@ -111,7 +113,7 @@ export function TaskDetail() {
   const showLiveOutput = streaming || streamEvents.length > 0
 
   return (
-    <div className="h-screen bg-bg overflow-y-auto">
+    <div className="h-full bg-bg overflow-y-auto">
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         {/* Header row */}
         <div className="flex items-center gap-4 flex-wrap">
@@ -191,6 +193,9 @@ export function TaskDetail() {
 
         {/* Intervention Panel */}
         <InterventionPanel task={task} />
+
+        {/* Tool Approval Dialog */}
+        {approvalRequest && approvalRequest.taskId === task.id && <ApprovalDialog />}
 
         {/* Live Output */}
         {showLiveOutput && (
