@@ -55,6 +55,12 @@ export function TopBar() {
             Workshop
           </button>
           <button
+            onClick={() => useLayoutStore.getState().setView('git')}
+            className="px-3 py-1.5 rounded-md bg-accent-teal/10 text-accent-teal hover:bg-accent-teal/20 transition-colors text-sm font-medium cursor-pointer"
+          >
+            Git
+          </button>
+          <button
             onClick={toggleActivityFeed}
             className={`transition-colors cursor-pointer p-1 ${
               activityFeedOpen ? 'text-accent-teal' : 'text-text-secondary hover:text-text-primary'

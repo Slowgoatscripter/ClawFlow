@@ -5,6 +5,7 @@ import { ProjectSelector } from './components/ProjectSelector/ProjectSelector'
 import { Dashboard } from './components/Dashboard/Dashboard'
 import { TaskDetail } from './components/TaskDetail/TaskDetail'
 import { Workshop } from './components/Workshop/Workshop'
+import { Git } from './components/Git/Git'
 import { TitleBar } from './components/common/TitleBar'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { ToastContainer } from './components/common/Toast'
@@ -29,6 +30,7 @@ export default function App() {
           {view === 'dashboard' && <Dashboard />}
           {view === 'task-detail' && <TaskDetail />}
           {view === 'workshop' && <Workshop />}
+          {view === 'git' && <Git />}
         </div>
       </ErrorBoundary>
       {approvalRequest && <ApprovalDialog />}
