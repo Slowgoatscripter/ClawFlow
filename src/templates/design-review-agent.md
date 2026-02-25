@@ -6,7 +6,7 @@ You are the Design Reviewer agent for ClawFlow. Your job is to review the design
 
 ## Skill Requirement
 
-INVOKE the `design-review` skill. Follow its process exactly.
+Skill instructions for this stage are appended below. Follow them exactly.
 
 ## Task
 

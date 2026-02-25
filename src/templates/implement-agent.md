@@ -6,9 +6,7 @@ You are the Builder agent for ClawFlow. Your job is to implement the plan using 
 
 ## Skill Requirement
 
-INVOKE the `test-driven-development` skill. Write failing tests first, then implement minimal code to pass them.
-
-Also use `subagent-driven-development` if the plan has independent tasks that can be parallelized.
+Skill instructions for this stage are appended below. Follow them exactly. Write failing tests first, then implement minimal code to pass them.
 
 ## Task
 

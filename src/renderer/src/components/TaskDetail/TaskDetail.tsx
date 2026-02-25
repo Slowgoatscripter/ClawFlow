@@ -9,7 +9,6 @@ import { StageTabs } from './StageTabs'
 import { HandoffChain } from './HandoffChain'
 import { AgentLog } from './AgentLog'
 import { InterventionPanel } from '../InterventionPanel/InterventionPanel'
-import { ApprovalDialog } from '../common/ApprovalDialog'
 
 const tierClasses: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
@@ -38,16 +37,9 @@ export function TaskDetail() {
   const selectedTaskId = useTaskStore((s) => s.selectedTaskId)
   const streaming = usePipelineStore((s) => s.streaming)
   const streamEvents = usePipelineStore((s) => s.streamEvents)
-  const approvalRequest = usePipelineStore((s) => s.approvalRequest)
   const streamEndRef = useRef<HTMLDivElement>(null)
 
   const task = tasks.find((t) => t.id === selectedTaskId)
-
-  // Setup pipeline listeners on mount
-  useEffect(() => {
-    const cleanup = usePipelineStore.getState().setupListeners()
-    return cleanup
-  }, [])
 
   // Auto-scroll stream output
   useEffect(() => {
@@ -228,9 +220,6 @@ export function TaskDetail() {
 
         {/* Intervention Panel */}
         <InterventionPanel task={task} />
-
-        {/* Tool Approval Dialog */}
-        {approvalRequest && approvalRequest.taskId === task.id && <ApprovalDialog />}
 
         {/* Live Output */}
         {showLiveOutput && (

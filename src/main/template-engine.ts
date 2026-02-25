@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { homedir } from 'os'
 import type { Task, Handoff } from '../shared/types'
 import type { PipelineStage } from '../shared/types'
 import { STAGE_CONFIGS } from '../shared/constants'
@@ -50,9 +51,67 @@ export function fillTemplate(template: string, task: Task): string {
   return filled
 }
 
+function loadSkillContent(skillName: string): string {
+  try {
+    const home = homedir()
+
+    // 1. Superpowers plugin cache — find latest version directory
+    const superpowersCacheBase = path.join(
+      home,
+      '.claude',
+      'plugins',
+      'cache',
+      'superpowers-dev',
+      'superpowers'
+    )
+    if (fs.existsSync(superpowersCacheBase)) {
+      try {
+        const versionDirs = fs
+          .readdirSync(superpowersCacheBase)
+          .filter((d) => fs.statSync(path.join(superpowersCacheBase, d)).isDirectory())
+          .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+
+        for (const ver of versionDirs) {
+          const skillPath = path.join(superpowersCacheBase, ver, 'skills', skillName, 'SKILL.md')
+          if (fs.existsSync(skillPath)) {
+            return fs.readFileSync(skillPath, 'utf-8')
+          }
+        }
+      } catch {
+        // Ignore errors reading superpowers cache
+      }
+    }
+
+    // 2. User skills directory form
+    const userSkillDir = path.join(home, '.claude', 'skills', skillName, 'SKILL.md')
+    if (fs.existsSync(userSkillDir)) {
+      return fs.readFileSync(userSkillDir, 'utf-8')
+    }
+
+    // 3. User skills flat form
+    const userSkillFlat = path.join(home, '.claude', 'skills', `${skillName}.md`)
+    if (fs.existsSync(userSkillFlat)) {
+      return fs.readFileSync(userSkillFlat, 'utf-8')
+    }
+
+    return ''
+  } catch {
+    return ''
+  }
+}
+
 export function constructPrompt(stage: PipelineStage, task: Task): string {
   const template = loadTemplate(stage)
-  return fillTemplate(template, task)
+  const config = STAGE_CONFIGS[stage]
+  const skillContent = loadSkillContent(config.skill)
+
+  let prompt = fillTemplate(template, task)
+
+  if (skillContent) {
+    prompt += `\n\n---\n\n## Skill Instructions: ${config.skill}\n\nFollow these instructions for this stage:\n\n${skillContent}`
+  }
+
+  return prompt
 }
 
 export function parseHandoff(output: string): Partial<Handoff> | null {

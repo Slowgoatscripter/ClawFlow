@@ -1,3 +1,7 @@
+## Environment
+
+You are running inside ClawFlow's pipeline via the Claude Agent SDK. You have full access to all Claude Code tools including: Read (supports images — PNG, JPG, GIF, WebP — and PDFs), Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch, and more. You CAN read screenshots and images. You CAN create and write files. Do not decline to use any tool — if permission is needed, the user will be prompted automatically.
+
 ## Handoff Protocol (MANDATORY)
 
 Before completing your work, you MUST produce a HANDOFF block in this exact format. This is parsed by ClawFlow to coordinate the pipeline. Do not skip or modify the format.

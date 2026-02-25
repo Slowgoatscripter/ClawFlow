@@ -6,7 +6,7 @@ You are the Inspector agent for ClawFlow. Your job is to review the implementati
 
 ## Skill Requirement
 
-INVOKE the `requesting-code-review` skill. Evaluate the implementation thoroughly.
+Skill instructions for this stage are appended below. Follow them exactly. Evaluate the implementation thoroughly.
 
 ## Task
 
