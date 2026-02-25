@@ -152,30 +152,35 @@ function registerPipelineIpc() {
   })
 }
 
+function ensureWorkshopEngine(dbPath: string, projectPath: string, projectId: string, projectName: string): WorkshopEngine {
+  if (!currentWorkshopEngine || currentWorkshopEngine['dbPath'] !== dbPath) {
+    currentWorkshopEngine = new WorkshopEngine(dbPath, projectPath, projectId, projectName)
+    const sdkRunner = createSdkRunner(mainWindow!)
+    currentWorkshopEngine.setSdkRunner(sdkRunner)
+
+    currentWorkshopEngine.on('stream', (event) => {
+      mainWindow?.webContents.send('workshop:stream', event)
+    })
+    currentWorkshopEngine.on('artifact:created', (artifact) => {
+      mainWindow?.webContents.send('workshop:tool-event', { type: 'artifact_created', artifact })
+    })
+    currentWorkshopEngine.on('artifact:updated', (data) => {
+      mainWindow?.webContents.send('workshop:tool-event', { type: 'artifact_updated', ...data })
+    })
+    currentWorkshopEngine.on('tasks:suggested', (data) => {
+      mainWindow?.webContents.send('workshop:tool-event', { type: 'tasks_suggested', ...data })
+    })
+    currentWorkshopEngine.on('task:created', (data) => {
+      mainWindow?.webContents.send('workshop:tool-event', { type: 'task_created', ...data })
+    })
+  }
+  return currentWorkshopEngine
+}
+
 function registerWorkshopIpc() {
   ipcMain.handle('workshop:start-session', (_e, dbPath, projectPath, projectId, projectName, title?) => {
-    if (!currentWorkshopEngine || currentWorkshopEngine['dbPath'] !== dbPath) {
-      currentWorkshopEngine = new WorkshopEngine(dbPath, projectPath, projectId, projectName)
-      const sdkRunner = createSdkRunner(mainWindow!)
-      currentWorkshopEngine.setSdkRunner(sdkRunner)
-
-      currentWorkshopEngine.on('stream', (event) => {
-        mainWindow?.webContents.send('workshop:stream', event)
-      })
-      currentWorkshopEngine.on('artifact:created', (artifact) => {
-        mainWindow?.webContents.send('workshop:tool-event', { type: 'artifact_created', artifact })
-      })
-      currentWorkshopEngine.on('artifact:updated', (data) => {
-        mainWindow?.webContents.send('workshop:tool-event', { type: 'artifact_updated', ...data })
-      })
-      currentWorkshopEngine.on('tasks:suggested', (data) => {
-        mainWindow?.webContents.send('workshop:tool-event', { type: 'tasks_suggested', ...data })
-      })
-      currentWorkshopEngine.on('task:created', (data) => {
-        mainWindow?.webContents.send('workshop:tool-event', { type: 'task_created', ...data })
-      })
-    }
-    return currentWorkshopEngine.startSession(title)
+    const engine = ensureWorkshopEngine(dbPath, projectPath, projectId, projectName)
+    return engine.startSession(title)
   })
 
   ipcMain.handle('workshop:end-session', async (_e, sessionId) => {
@@ -183,10 +188,8 @@ function registerWorkshopIpc() {
   })
 
   ipcMain.handle('workshop:list-sessions', (_e, dbPath, projectPath, projectId, projectName) => {
-    if (!currentWorkshopEngine) {
-      currentWorkshopEngine = new WorkshopEngine(dbPath, projectPath, projectId, projectName)
-    }
-    return currentWorkshopEngine.listSessions()
+    const engine = ensureWorkshopEngine(dbPath, projectPath, projectId, projectName)
+    return engine.listSessions()
   })
 
   ipcMain.handle('workshop:get-session', (_e, sessionId) => {
