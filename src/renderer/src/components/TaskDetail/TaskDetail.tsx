@@ -8,6 +8,7 @@ import { TaskTimeline } from './TaskTimeline'
 import { StageTabs } from './StageTabs'
 import { HandoffChain } from './HandoffChain'
 import { AgentLog } from './AgentLog'
+import { InterventionPanel } from '../InterventionPanel/InterventionPanel'
 
 const tierClasses: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
@@ -187,6 +188,9 @@ export function TaskDetail() {
             Delete
           </button>
         </div>
+
+        {/* Intervention Panel */}
+        <InterventionPanel task={task} />
 
         {/* Live Output */}
         {showLiveOutput && (

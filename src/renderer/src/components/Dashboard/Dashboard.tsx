@@ -2,11 +2,14 @@ import { useEffect } from 'react'
 import { TopBar } from './TopBar'
 import { MetricsRow } from './MetricsRow'
 import { KanbanBoard } from '../KanbanBoard/KanbanBoard'
+import { ActivityFeed } from '../ActivityFeed/ActivityFeed'
 import { useProjectStore } from '../../stores/projectStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { usePipelineStore } from '../../stores/pipelineStore'
+import { useLayoutStore } from '../../stores/layoutStore'
 
 export function Dashboard() {
+  const activityFeedOpen = useLayoutStore((s) => s.activityFeedOpen)
   useEffect(() => {
     const project = useProjectStore.getState().currentProject
     if (!project) return
@@ -41,7 +44,10 @@ export function Dashboard() {
     <div className="h-screen bg-bg flex flex-col">
       <TopBar />
       <MetricsRow />
-      <KanbanBoard />
+      <div className="flex flex-1 min-h-0">
+        <KanbanBoard />
+        {activityFeedOpen && <ActivityFeed />}
+      </div>
     </div>
   )
 }

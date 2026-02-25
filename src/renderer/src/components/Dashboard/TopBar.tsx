@@ -7,6 +7,8 @@ export function TopBar() {
   const currentProject = useProjectStore((s) => s.currentProject)
   const clearCurrentProject = useProjectStore((s) => s.clearCurrentProject)
   const setView = useLayoutStore((s) => s.setView)
+  const activityFeedOpen = useLayoutStore((s) => s.activityFeedOpen)
+  const toggleActivityFeed = useLayoutStore((s) => s.toggleActivityFeed)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const handleBack = () => {
@@ -46,6 +48,27 @@ export function TopBar() {
 
         {/* Right side */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleActivityFeed}
+            className={`transition-colors cursor-pointer p-1 ${
+              activityFeedOpen ? 'text-accent-teal' : 'text-text-secondary hover:text-text-primary'
+            }`}
+            aria-label="Toggle activity feed"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+          </button>
           <button
             onClick={() => setShowCreateModal(true)}
             className="text-text-secondary hover:text-text-primary transition-colors cursor-pointer p-1"
