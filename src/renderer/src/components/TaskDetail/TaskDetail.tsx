@@ -81,6 +81,33 @@ export function TaskDetail() {
     }
   }
 
+  const handleRestart = async () => {
+    if (!task) return
+    const project = useProjectStore.getState().currentProject
+    if (!project) return
+    await window.api.tasks.update(project.dbPath, task.id, {
+      status: 'backlog',
+      currentAgent: null,
+      startedAt: null,
+      completedAt: null,
+      brainstormOutput: null,
+      designReview: null,
+      plan: null,
+      planReviewCount: 0,
+      implementationNotes: null,
+      reviewComments: null,
+      reviewScore: null,
+      implReviewCount: 0,
+      testResults: null,
+      verifyResult: null,
+      commitHash: null,
+      handoffs: [],
+      agentLog: []
+    })
+    await useTaskStore.getState().loadTasks(project.dbPath)
+    usePipelineStore.getState().clearStream()
+  }
+
   const handleDelete = async () => {
     if (!task) return
     const project = useProjectStore.getState().currentProject
@@ -181,6 +208,14 @@ export function TaskDetail() {
               className="px-4 py-2 bg-accent-teal text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
             >
               Step
+            </button>
+          )}
+          {!isBacklog && !isDone && (
+            <button
+              onClick={handleRestart}
+              className="px-4 py-2 border border-accent-gold text-accent-gold rounded-lg text-sm font-medium hover:bg-accent-gold/10 transition-colors"
+            >
+              Restart
             </button>
           )}
           <button
