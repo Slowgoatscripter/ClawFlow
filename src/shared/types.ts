@@ -150,14 +150,20 @@ export type IpcChannel =
   | 'tasks:get'
   | 'tasks:update'
   | 'tasks:delete'
+  | 'tasks:stats'
+  | 'pipeline:init'
   | 'pipeline:start'
   | 'pipeline:step'
   | 'pipeline:approve'
   | 'pipeline:reject'
-  | 'pipeline:intervene'
+  | 'pipeline:resolve-approval'
   | 'pipeline:stream'
   | 'pipeline:status'
   | 'pipeline:approval-request'
+  | 'fs:pick-directory'
+  | 'window:minimize'
+  | 'window:maximize'
+  | 'window:close'
 
 // --- SDK Streaming ---
 
