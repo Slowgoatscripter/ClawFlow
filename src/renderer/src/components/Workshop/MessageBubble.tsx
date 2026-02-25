@@ -21,6 +21,13 @@ export function MessageBubble({
 
   const isUser = message.role === 'user'
 
+  // Strip tool_call XML blocks from assistant messages (they get parsed separately by the engine)
+  const displayContent = isUser
+    ? message.content
+    : message.content.replace(/<tool_call name="\w+">\s*[\s\S]*?<\/tool_call>/g, '').trim()
+
+  if (!displayContent) return null
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -31,11 +38,11 @@ export function MessageBubble({
         }`}
       >
         {isUser ? (
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+          <p className="text-sm whitespace-pre-wrap">{displayContent}</p>
         ) : (
           <div className="prose prose-sm prose-invert max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message.content}
+              {displayContent}
             </ReactMarkdown>
           </div>
         )}

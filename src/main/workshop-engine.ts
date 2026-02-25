@@ -157,7 +157,9 @@ export class WorkshopEngine extends EventEmitter {
 
       await this.handleToolCalls(sessionId, result)
 
-      createWorkshopMessage(this.dbPath, sessionId, 'assistant', result.output ?? '')
+      // Strip tool_call XML blocks from the displayed message
+      const cleanOutput = (result.output ?? '').replace(/<tool_call name="\w+">\s*[\s\S]*?<\/tool_call>/g, '').trim()
+      createWorkshopMessage(this.dbPath, sessionId, 'assistant', cleanOutput)
 
       this.emit('stream', { type: 'done', sessionId } as WorkshopStreamEvent)
     } catch (error: any) {
