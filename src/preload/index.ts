@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('api', {
     step: (taskId: number) => ipcRenderer.invoke('pipeline:step', taskId),
     approve: (taskId: number) => ipcRenderer.invoke('pipeline:approve', taskId),
     reject: (taskId: number, feedback: string) => ipcRenderer.invoke('pipeline:reject', taskId, feedback),
+    respond: (taskId: number, response: string) => ipcRenderer.invoke('pipeline:respond', taskId, response),
     resolveApproval: (requestId: string, approved: boolean, message?: string) =>
       ipcRenderer.invoke('pipeline:resolve-approval', requestId, approved, message),
     onStream: (callback: (event: any) => void) => {

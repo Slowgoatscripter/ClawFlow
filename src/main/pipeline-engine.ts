@@ -14,6 +14,7 @@ export interface SdkRunnerParams {
   cwd: string
   taskId: number
   autoMode: boolean
+  resumeSessionId?: string
   onStream: (content: string, type: string) => void
   onApprovalRequest: (requestId: string, toolName: string, toolInput: Record<string, unknown>) => void
 }
@@ -33,6 +34,8 @@ export class PipelineEngine extends EventEmitter {
   private dbPath: string
   private projectPath: string
   private sdkRunner: SdkRunner | null = null
+  // Track active session IDs per task for resume support
+  private sessionIds = new Map<number, string>()
 
   constructor(dbPath: string, projectPath: string) {
     super()
@@ -254,12 +257,45 @@ export class PipelineEngine extends EventEmitter {
     return this.getTaskOrThrow(taskId)
   }
 
+  /**
+   * Resume the current stage's session with the user's answer to open questions.
+   * Uses SDK session resume to continue where the agent left off.
+   */
+  async respondToQuestions(taskId: number, response: string): Promise<Task> {
+    const task = this.getTaskOrThrow(taskId)
+    const currentStage = task.currentAgent as PipelineStage
+
+    if (!currentStage) {
+      throw new Error(`Task ${taskId} has no current stage`)
+    }
+
+    const sessionId = this.sessionIds.get(taskId)
+
+    appendAgentLog(this.dbPath, taskId, {
+      timestamp: new Date().toISOString(),
+      agent: 'pipeline-engine',
+      model: 'system',
+      action: 'respond',
+      details: `User response to questions at stage ${currentStage}`
+    })
+
+    if (sessionId) {
+      // Resume the existing session with the user's answer
+      await this.runStage(taskId, currentStage, undefined, sessionId, response)
+    } else {
+      // No session to resume — re-run stage with the answer as feedback
+      await this.runStage(taskId, currentStage, response)
+    }
+
+    return this.getTaskOrThrow(taskId)
+  }
+
   // --- Private Methods ---
 
   /**
    * Construct prompt, call SDK runner, parse handoff, store output, handle errors.
    */
-  private async runStage(taskId: number, stage: PipelineStage, feedback?: string): Promise<void> {
+  private async runStage(taskId: number, stage: PipelineStage, feedback?: string, resumeSessionId?: string, userResponse?: string): Promise<void> {
     if (!this.sdkRunner) {
       throw new Error('SDK runner not set. Call setSdkRunner() before running stages.')
     }
@@ -273,15 +309,29 @@ export class PipelineEngine extends EventEmitter {
       timestamp: new Date().toISOString(),
       agent: stage,
       model: stageConfig.model,
-      action: 'stage:start',
-      details: feedback ? `Running with feedback: ${feedback}` : `Running stage: ${stage}`
+      action: resumeSessionId ? 'stage:resume' : 'stage:start',
+      details: resumeSessionId
+        ? `Resuming session with user response`
+        : feedback ? `Running with feedback: ${feedback}` : `Running stage: ${stage}`
     })
 
-    let prompt = constructPrompt(stage, task)
+    let prompt: string
 
-    // Append feedback if provided (rejection re-run)
-    if (feedback) {
-      prompt += `\n\n---\n\n## Reviewer Feedback (Address This)\n\n${feedback}`
+    if (resumeSessionId && userResponse) {
+      // Resuming an existing session — just send the user's answer
+      prompt = userResponse
+    } else {
+      prompt = constructPrompt(stage, task)
+
+      // Auto mode: inject autonomous decision-making instructions
+      if (task.autoMode) {
+        prompt += `\n\n---\n\n## Autonomous Mode\n\nYou are running autonomously without a human in the loop. When a skill or workflow asks for user input, make reasonable decisions based on the task description and context. Document all decisions you make in the handoff block. Do NOT pause or ask questions — keep moving forward.`
+      }
+
+      // Append feedback if provided (rejection re-run)
+      if (feedback) {
+        prompt += `\n\n---\n\n## Reviewer Feedback (Address This)\n\n${feedback}`
+      }
     }
 
     try {
@@ -292,6 +342,7 @@ export class PipelineEngine extends EventEmitter {
         cwd: this.projectPath,
         taskId,
         autoMode: task.autoMode,
+        resumeSessionId,
         onStream: (content: string, type: string) => {
           this.emit('stream', { taskId, stage, content, type })
         },
@@ -299,6 +350,11 @@ export class PipelineEngine extends EventEmitter {
           this.emit('approval-request', { taskId, stage, requestId, toolName, toolInput })
         }
       })
+
+      // Store session ID for potential resume
+      if (result.sessionId) {
+        this.sessionIds.set(taskId, result.sessionId)
+      }
 
       // Parse handoff from output
       const handoff = parseHandoff(result.output)

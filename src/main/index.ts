@@ -140,6 +140,11 @@ function registerPipelineIpc() {
     await currentEngine.rejectStage(taskId, feedback)
   })
 
+  ipcMain.handle('pipeline:respond', async (_e, taskId: number, response: string) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    await currentEngine.respondToQuestions(taskId, response)
+  })
+
   ipcMain.handle('pipeline:resolve-approval', (_e, requestId: string, approved: boolean, message?: string) => {
     resolveApproval(requestId, approved, message)
   })

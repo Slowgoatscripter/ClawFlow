@@ -156,6 +156,7 @@ export type IpcChannel =
   | 'pipeline:step'
   | 'pipeline:approve'
   | 'pipeline:reject'
+  | 'pipeline:respond'
   | 'pipeline:resolve-approval'
   | 'pipeline:stream'
   | 'pipeline:status'

@@ -19,6 +19,7 @@ interface WindowApi {
     step: (taskId: number) => Promise<void>
     approve: (taskId: number) => Promise<void>
     reject: (taskId: number, feedback: string) => Promise<void>
+    respond: (taskId: number, response: string) => Promise<void>
     resolveApproval: (requestId: string, approved: boolean, message?: string) => Promise<void>
     onStream: (callback: (event: any) => void) => () => void
     onApprovalRequest: (callback: (event: any) => void) => () => void

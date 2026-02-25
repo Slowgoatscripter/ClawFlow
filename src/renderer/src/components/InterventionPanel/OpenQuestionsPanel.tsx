@@ -26,7 +26,7 @@ export function OpenQuestionsPanel({ task }: Props) {
     if (!response.trim()) return
     setSubmitting(true)
     try {
-      await usePipelineStore.getState().rejectStage(task.id, response.trim())
+      await usePipelineStore.getState().respondToQuestions(task.id, response.trim())
       await refreshTasks()
       setResponse('')
     } finally {

@@ -107,6 +107,7 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
         permissionMode: params.autoMode ? 'bypassPermissions' : 'default',
         allowDangerouslySkipPermissions: params.autoMode,
         includePartialMessages: true,
+        ...(params.resumeSessionId ? { resume: params.resumeSessionId } : {}),
         canUseTool: params.autoMode ? undefined : async (toolName, toolInput, options) => {
           // Auto-approve reads and searches
           const readOnlyTools = ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch']

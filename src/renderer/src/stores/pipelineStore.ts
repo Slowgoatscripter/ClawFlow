@@ -10,6 +10,7 @@ interface PipelineState {
   stepPipeline: (taskId: number) => Promise<void>
   approveStage: (taskId: number) => Promise<void>
   rejectStage: (taskId: number, feedback: string) => Promise<void>
+  respondToQuestions: (taskId: number, response: string) => Promise<void>
   resolveApproval: (requestId: string, approved: boolean, message?: string) => Promise<void>
   addStreamEvent: (event: StreamEvent) => void
   setApprovalRequest: (request: ApprovalRequest | null) => void
@@ -39,6 +40,11 @@ export const usePipelineStore = create<PipelineState>((set) => ({
 
   rejectStage: async (taskId, feedback) => {
     await window.api.pipeline.reject(taskId, feedback)
+  },
+
+  respondToQuestions: async (taskId, response) => {
+    set({ activeTaskId: taskId, streaming: true })
+    await window.api.pipeline.respond(taskId, response)
   },
 
   addStreamEvent: (event) => set(state => ({
