@@ -28,22 +28,31 @@ function getGlobalDb(): Database.Database {
       path TEXT NOT NULL,
       db_path TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      last_opened TEXT NOT NULL DEFAULT (datetime('now'))
+      last_opened TEXT NOT NULL DEFAULT (datetime('now')),
+      default_base_branch TEXT NOT NULL DEFAULT 'main',
+      git_enabled INTEGER NOT NULL DEFAULT 1
     )
   `)
+  migrateProjectsTable(globalDb)
   return globalDb
+}
+
+function rowToProject(r: any): Project {
+  return {
+    name: r.name,
+    path: r.path,
+    dbPath: r.db_path,
+    createdAt: r.created_at,
+    lastOpened: r.last_opened,
+    defaultBaseBranch: r.default_base_branch ?? 'main',
+    gitEnabled: r.git_enabled !== 0
+  }
 }
 
 export function listProjects(): Project[] {
   const db = getGlobalDb()
   const rows = db.prepare('SELECT * FROM projects ORDER BY last_opened DESC').all() as any[]
-  return rows.map(r => ({
-    name: r.name,
-    path: r.path,
-    dbPath: r.db_path,
-    createdAt: r.created_at,
-    lastOpened: r.last_opened
-  }))
+  return rows.map(rowToProject)
 }
 
 export function registerProject(name: string, projectPath: string): Project {
@@ -65,7 +74,7 @@ export function registerProject(name: string, projectPath: string): Project {
     JSON.stringify({ name, registeredAt: now }, null, 2)
   )
 
-  return { name, path: projectPath, dbPath, createdAt: now, lastOpened: now }
+  return { name, path: projectPath, dbPath, createdAt: now, lastOpened: now, defaultBaseBranch: 'main', gitEnabled: true }
 }
 
 export function openProject(name: string): void {
@@ -114,10 +123,14 @@ function initProjectDb(dbPath: string): Database.Database {
       test_results TEXT,
       verify_result TEXT,
       commit_hash TEXT,
+      branch_name TEXT,
+      worktree_path TEXT,
+      pr_url TEXT,
       handoffs TEXT NOT NULL DEFAULT '[]',
       agent_log TEXT NOT NULL DEFAULT '[]'
     )
   `)
+  migrateTasksTable(db)
   db.exec(`
     CREATE TABLE IF NOT EXISTS workshop_sessions (
       id TEXT PRIMARY KEY,
@@ -214,6 +227,7 @@ export function updateTask(dbPath: string, taskId: number, updates: Partial<Reco
 
 export function deleteTask(dbPath: string, taskId: number): void {
   const db = getProjectDb(dbPath)
+  db.prepare('DELETE FROM workshop_task_links WHERE task_id = ?').run(taskId)
   db.prepare('DELETE FROM tasks WHERE id = ?').run(taskId)
 }
 
@@ -304,6 +318,13 @@ export function updateWorkshopSession(dbPath: string, id: string, updates: Parti
   return getWorkshopSession(dbPath, id)
 }
 
+export function deleteWorkshopSession(dbPath: string, sessionId: string): void {
+  const db = getProjectDb(dbPath)
+  db.prepare('DELETE FROM workshop_task_links WHERE session_id = ?').run(sessionId)
+  db.prepare('DELETE FROM workshop_messages WHERE session_id = ?').run(sessionId)
+  db.prepare('DELETE FROM workshop_sessions WHERE id = ?').run(sessionId)
+}
+
 // --- Workshop Messages ---
 
 export function createWorkshopMessage(dbPath: string, sessionId: string, role: WorkshopMessageRole, content: string, messageType?: WorkshopMessageType, metadata?: Record<string, unknown> | null): WorkshopMessage {
@@ -386,7 +407,28 @@ export function getWorkshopTaskLinks(dbPath: string, taskId: number): WorkshopTa
   return rows.map(rowToWorkshopTaskLink)
 }
 
+export function getAllTasks(dbPath: string): Task[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare('SELECT * FROM tasks ORDER BY id').all() as any[]
+  return rows.map(rowToTask)
+}
+
 // --- Helpers ---
+
+function migrateTasksTable(db: Database.Database): void {
+  const cols = db.pragma('table_info(tasks)') as { name: string }[]
+  const colNames = new Set(cols.map(c => c.name))
+  if (!colNames.has('branch_name')) db.prepare('ALTER TABLE tasks ADD COLUMN branch_name TEXT').run()
+  if (!colNames.has('worktree_path')) db.prepare('ALTER TABLE tasks ADD COLUMN worktree_path TEXT').run()
+  if (!colNames.has('pr_url')) db.prepare('ALTER TABLE tasks ADD COLUMN pr_url TEXT').run()
+}
+
+function migrateProjectsTable(db: Database.Database): void {
+  const cols = db.pragma('table_info(projects)') as { name: string }[]
+  const colNames = new Set(cols.map(c => c.name))
+  if (!colNames.has('default_base_branch')) db.prepare("ALTER TABLE projects ADD COLUMN default_base_branch TEXT NOT NULL DEFAULT 'main'").run()
+  if (!colNames.has('git_enabled')) db.prepare('ALTER TABLE projects ADD COLUMN git_enabled INTEGER NOT NULL DEFAULT 1').run()
+}
 
 function rowToTask(row: any): Task {
   return {
@@ -412,6 +454,9 @@ function rowToTask(row: any): Task {
     testResults: safeJsonParse(row.test_results),
     verifyResult: row.verify_result,
     commitHash: row.commit_hash,
+    branchName: row.branch_name,
+    worktreePath: row.worktree_path,
+    prUrl: row.pr_url,
     handoffs: safeJsonParse(row.handoffs) ?? [],
     agentLog: safeJsonParse(row.agent_log) ?? []
   }
