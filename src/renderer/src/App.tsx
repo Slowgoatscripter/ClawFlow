@@ -1,7 +1,15 @@
+import { useLayoutStore } from './stores/layoutStore'
+import { ProjectSelector } from './components/ProjectSelector/ProjectSelector'
+import { Dashboard } from './components/Dashboard/Dashboard'
+
 export default function App() {
+  const view = useLayoutStore((s) => s.view)
+
+  if (view === 'projects') return <ProjectSelector />
+  if (view === 'dashboard') return <Dashboard />
   return (
-    <div style={{ color: '#cdd6f4', background: '#1a1b26', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <h1>ClawFlow</h1>
+    <div className="text-text-primary bg-bg h-screen flex items-center justify-center">
+      Task Detail (coming soon)
     </div>
   )
 }
