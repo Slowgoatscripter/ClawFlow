@@ -33,6 +33,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   openProject: async (project) => {
     await window.api.projects.open(project.name)
+    await window.api.pipeline.init(project.dbPath, project.path)
     const stats = await window.api.tasks.stats(project.dbPath)
     set({ currentProject: project, stats })
   },

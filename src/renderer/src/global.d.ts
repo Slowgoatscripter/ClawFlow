@@ -14,6 +14,7 @@ interface WindowApi {
     stats: (dbPath: string) => Promise<import('../../../shared/types').ProjectStats>
   }
   pipeline: {
+    init: (dbPath: string, projectPath: string) => Promise<boolean>
     start: (taskId: number) => Promise<void>
     step: (taskId: number) => Promise<void>
     approve: (taskId: number) => Promise<void>

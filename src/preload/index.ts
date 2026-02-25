@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
     stats: (dbPath: string) => ipcRenderer.invoke('tasks:stats', dbPath)
   },
   pipeline: {
+    init: (dbPath: string, projectPath: string) => ipcRenderer.invoke('pipeline:init', dbPath, projectPath),
     start: (taskId: number) => ipcRenderer.invoke('pipeline:start', taskId),
     step: (taskId: number) => ipcRenderer.invoke('pipeline:step', taskId),
     approve: (taskId: number) => ipcRenderer.invoke('pipeline:approve', taskId),
