@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-type View = 'projects' | 'dashboard' | 'task-detail'
+type View = 'projects' | 'dashboard' | 'task-detail' | 'workshop'
 
 interface LayoutState {
   view: View

@@ -4,6 +4,7 @@ import { usePipelineStore } from './stores/pipelineStore'
 import { ProjectSelector } from './components/ProjectSelector/ProjectSelector'
 import { Dashboard } from './components/Dashboard/Dashboard'
 import { TaskDetail } from './components/TaskDetail/TaskDetail'
+import { Workshop } from './components/Workshop/Workshop'
 import { TitleBar } from './components/common/TitleBar'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { ToastContainer } from './components/common/Toast'
@@ -27,6 +28,7 @@ export default function App() {
           {view === 'projects' && <ProjectSelector />}
           {view === 'dashboard' && <Dashboard />}
           {view === 'task-detail' && <TaskDetail />}
+          {view === 'workshop' && <Workshop />}
         </div>
       </ErrorBoundary>
       {approvalRequest && <ApprovalDialog />}
