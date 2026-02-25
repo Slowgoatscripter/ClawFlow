@@ -6,10 +6,12 @@ import { closeAllDbs, listWorkshopMessages } from './db'
 import { PipelineEngine } from './pipeline-engine'
 import { WorkshopEngine } from './workshop-engine'
 import { createSdkRunner, resolveApproval } from './sdk-manager'
+import { GitEngine } from './git-engine'
 
 let mainWindow: BrowserWindow | null = null
 let currentEngine: PipelineEngine | null = null
 let currentWorkshopEngine: WorkshopEngine | null = null
+let currentGitEngine: GitEngine | null = null
 
 // --- Window state persistence ---
 
@@ -108,6 +110,54 @@ function createWindow() {
   }
 }
 
+function ensureGitEngine(dbPath: string, projectPath: string): GitEngine {
+  if (!currentGitEngine || currentGitEngine['dbPath'] !== dbPath) {
+    currentGitEngine = new GitEngine(dbPath, projectPath)
+    // Bridge events to renderer
+    currentGitEngine.on('branch:created', (data) =>
+      mainWindow?.webContents.send('git:branch-created', data))
+    currentGitEngine.on('commit:complete', (data) =>
+      mainWindow?.webContents.send('git:commit-complete', data))
+    currentGitEngine.on('push:complete', (data) =>
+      mainWindow?.webContents.send('git:push-complete', data))
+    currentGitEngine.on('merge:complete', (data) =>
+      mainWindow?.webContents.send('git:merge-complete', data))
+    currentGitEngine.on('git:error', (data) =>
+      mainWindow?.webContents.send('git:error', data))
+    // Init repo detection
+    currentGitEngine.initRepo().catch(err =>
+      console.warn('Git init failed:', err.message))
+  }
+  return currentGitEngine
+}
+
+function registerGitIpc() {
+  ipcMain.handle('git:get-branches', async (_e, dbPath, projectPath) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.getBranches()
+  })
+  ipcMain.handle('git:get-branch-detail', async (_e, dbPath, projectPath, taskId) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.getBranchDetail(taskId)
+  })
+  ipcMain.handle('git:push', async (_e, dbPath, projectPath, taskId) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.push(taskId)
+  })
+  ipcMain.handle('git:merge', async (_e, dbPath, projectPath, taskId, targetBranch?) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.merge(taskId, targetBranch)
+  })
+  ipcMain.handle('git:delete-branch', async (_e, dbPath, projectPath, taskId) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.deleteBranch(taskId)
+  })
+  ipcMain.handle('git:commit', async (_e, dbPath, projectPath, taskId, message) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.stageCommit(taskId, message)
+  })
+}
+
 function registerPipelineIpc() {
   ipcMain.handle('pipeline:init', (_e, dbPath: string, projectPath: string) => {
     currentEngine = new PipelineEngine(dbPath, projectPath)
@@ -118,6 +168,9 @@ function registerPipelineIpc() {
     currentEngine.on('stage:complete', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'complete', ...data }))
     currentEngine.on('stage:error', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'error', ...data }))
     currentEngine.on('circuit-breaker', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'circuit-breaker', ...data }))
+
+    const gitEngine = ensureGitEngine(dbPath, projectPath)
+    currentEngine.setGitEngine(gitEngine)
 
     return true
   })
@@ -187,6 +240,14 @@ function registerWorkshopIpc() {
     await currentWorkshopEngine?.endSession(sessionId)
   })
 
+  ipcMain.handle('workshop:stop-session', (_e, sessionId) => {
+    currentWorkshopEngine?.stopSession(sessionId)
+  })
+
+  ipcMain.handle('workshop:delete-session', (_e, sessionId) => {
+    currentWorkshopEngine?.deleteSession(sessionId)
+  })
+
   ipcMain.handle('workshop:list-sessions', (_e, dbPath, projectPath, projectId, projectName) => {
     const engine = ensureWorkshopEngine(dbPath, projectPath, projectId, projectName)
     return engine.listSessions()
@@ -243,6 +304,7 @@ app.whenReady().then(() => {
   registerIpcHandlers()
   registerPipelineIpc()
   registerWorkshopIpc()
+  registerGitIpc()
   registerWindowIpc()
   createWindow()
 })

@@ -45,6 +45,10 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('workshop:start-session', dbPath, projectPath, projectId, projectName, title),
     endSession: (sessionId: string) =>
       ipcRenderer.invoke('workshop:end-session', sessionId),
+    stopSession: (sessionId: string) =>
+      ipcRenderer.invoke('workshop:stop-session', sessionId),
+    deleteSession: (sessionId: string) =>
+      ipcRenderer.invoke('workshop:delete-session', sessionId),
     listSessions: (dbPath: string, projectPath: string, projectId: string, projectName: string) =>
       ipcRenderer.invoke('workshop:list-sessions', dbPath, projectPath, projectId, projectName),
     getSession: (sessionId: string) =>
@@ -68,6 +72,45 @@ contextBridge.exposeInMainWorld('api', {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('workshop:tool-event', handler)
       return () => { ipcRenderer.removeListener('workshop:tool-event', handler) }
+    }
+  },
+  git: {
+    getBranches: (dbPath: string, projectPath: string) =>
+      ipcRenderer.invoke('git:get-branches', dbPath, projectPath),
+    getBranchDetail: (dbPath: string, projectPath: string, taskId: number) =>
+      ipcRenderer.invoke('git:get-branch-detail', dbPath, projectPath, taskId),
+    push: (dbPath: string, projectPath: string, taskId: number) =>
+      ipcRenderer.invoke('git:push', dbPath, projectPath, taskId),
+    merge: (dbPath: string, projectPath: string, taskId: number, targetBranch?: string) =>
+      ipcRenderer.invoke('git:merge', dbPath, projectPath, taskId, targetBranch),
+    deleteBranch: (dbPath: string, projectPath: string, taskId: number) =>
+      ipcRenderer.invoke('git:delete-branch', dbPath, projectPath, taskId),
+    commit: (dbPath: string, projectPath: string, taskId: number, message: string) =>
+      ipcRenderer.invoke('git:commit', dbPath, projectPath, taskId, message),
+    onBranchCreated: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('git:branch-created', handler)
+      return () => { ipcRenderer.removeListener('git:branch-created', handler) }
+    },
+    onCommitComplete: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('git:commit-complete', handler)
+      return () => { ipcRenderer.removeListener('git:commit-complete', handler) }
+    },
+    onPushComplete: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('git:push-complete', handler)
+      return () => { ipcRenderer.removeListener('git:push-complete', handler) }
+    },
+    onMergeComplete: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('git:merge-complete', handler)
+      return () => { ipcRenderer.removeListener('git:merge-complete', handler) }
+    },
+    onError: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('git:error', handler)
+      return () => { ipcRenderer.removeListener('git:error', handler) }
     }
   },
   fs: {
