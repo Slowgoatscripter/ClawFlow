@@ -1,5 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { useTaskStore } from '../../stores/taskStore'
 import { useLayoutStore } from '../../stores/layoutStore'
+import { useProjectStore } from '../../stores/projectStore'
+import { usePipelineStore } from '../../stores/pipelineStore'
 import { colors } from '../../theme'
 import { TaskTimeline } from './TaskTimeline'
 import { StageTabs } from './StageTabs'
@@ -19,17 +22,70 @@ const priorityClasses: Record<string, string> = {
   critical: 'bg-accent-red/20 text-accent-red'
 }
 
+const eventTypeColors: Record<string, string> = {
+  text: 'bg-accent-teal/20 text-accent-teal',
+  tool_use: 'bg-accent-mauve/20 text-accent-mauve',
+  tool_result: 'bg-accent-green/20 text-accent-green',
+  status: 'bg-accent-gold/20 text-accent-gold',
+  error: 'bg-accent-red/20 text-accent-red',
+  complete: 'bg-accent-green/20 text-accent-green'
+}
+
 export function TaskDetail() {
   const tasks = useTaskStore((s) => s.tasks)
   const selectedTaskId = useTaskStore((s) => s.selectedTaskId)
-  const selectTask = useTaskStore((s) => s.selectTask)
-  const setView = useLayoutStore((s) => s.setView)
+  const streaming = usePipelineStore((s) => s.streaming)
+  const streamEvents = usePipelineStore((s) => s.streamEvents)
+  const streamEndRef = useRef<HTMLDivElement>(null)
 
   const task = tasks.find((t) => t.id === selectedTaskId)
 
-  const handleBack = () => {
-    selectTask(null)
-    setView('dashboard')
+  // Setup pipeline listeners on mount
+  useEffect(() => {
+    const cleanup = usePipelineStore.getState().setupListeners()
+    return cleanup
+  }, [])
+
+  // Auto-scroll stream output
+  useEffect(() => {
+    streamEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [streamEvents])
+
+  const handleBack = async () => {
+    const project = useProjectStore.getState().currentProject
+    if (project) {
+      await useTaskStore.getState().loadTasks(project.dbPath)
+    }
+    useTaskStore.getState().selectTask(null)
+    useLayoutStore.getState().setView('dashboard')
+  }
+
+  const handleStartPipeline = async () => {
+    if (!task) return
+    await usePipelineStore.getState().startPipeline(task.id)
+    const project = useProjectStore.getState().currentProject
+    if (project) {
+      await useTaskStore.getState().loadTasks(project.dbPath)
+    }
+  }
+
+  const handleStep = async () => {
+    if (!task) return
+    await usePipelineStore.getState().stepPipeline(task.id)
+    const project = useProjectStore.getState().currentProject
+    if (project) {
+      await useTaskStore.getState().loadTasks(project.dbPath)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!task) return
+    const project = useProjectStore.getState().currentProject
+    if (project) {
+      await useTaskStore.getState().deleteTask(project.dbPath, task.id)
+    }
+    useTaskStore.getState().selectTask(null)
+    useLayoutStore.getState().setView('dashboard')
   }
 
   if (!task) {
@@ -51,6 +107,7 @@ export function TaskDetail() {
   const isBacklog = task.status === 'backlog'
   const isDone = task.status === 'done'
   const isActive = !isBacklog && !isDone && task.status !== 'blocked'
+  const showLiveOutput = streaming || streamEvents.length > 0
 
   return (
     <div className="h-screen bg-bg overflow-y-auto">
@@ -108,19 +165,54 @@ export function TaskDetail() {
         {/* Action buttons */}
         <div className="flex items-center gap-3">
           {isBacklog && (
-            <button className="px-4 py-2 bg-accent-green text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+            <button
+              onClick={handleStartPipeline}
+              className="px-4 py-2 bg-accent-green text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
               Start Pipeline
             </button>
           )}
           {isActive && (
-            <button className="px-4 py-2 bg-accent-teal text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+            <button
+              onClick={handleStep}
+              className="px-4 py-2 bg-accent-teal text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
               Step
             </button>
           )}
-          <button className="px-4 py-2 border border-accent-red text-accent-red rounded-lg text-sm font-medium hover:bg-accent-red/10 transition-colors">
+          <button
+            onClick={handleDelete}
+            className="px-4 py-2 border border-accent-red text-accent-red rounded-lg text-sm font-medium hover:bg-accent-red/10 transition-colors"
+          >
             Delete
           </button>
         </div>
+
+        {/* Live Output */}
+        {showLiveOutput && (
+          <div>
+            <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-3">
+              Live Output
+              {streaming && (
+                <span className="ml-2 inline-block w-2 h-2 rounded-full bg-accent-green animate-pulse" />
+              )}
+            </h2>
+            <div className="bg-elevated rounded-lg p-4 font-mono text-sm max-h-[300px] overflow-y-auto">
+              {streamEvents.map((event, i) => (
+                <div key={i} className="flex items-start gap-2 py-1">
+                  <span className="text-text-muted text-xs whitespace-nowrap shrink-0">
+                    {new Date(event.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${eventTypeColors[event.type] ?? 'bg-text-muted/20 text-text-muted'}`}>
+                    {event.type}
+                  </span>
+                  <span className="text-text-secondary break-all">{event.content}</span>
+                </div>
+              ))}
+              <div ref={streamEndRef} />
+            </div>
+          </div>
+        )}
 
         {/* Timeline */}
         <TaskTimeline task={task} />

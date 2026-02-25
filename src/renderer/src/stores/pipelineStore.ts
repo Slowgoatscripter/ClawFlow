@@ -13,6 +13,7 @@ interface PipelineState {
   addStreamEvent: (event: StreamEvent) => void
   setApprovalRequest: (request: ApprovalRequest | null) => void
   clearStream: () => void
+  setupListeners: () => () => void
 }
 
 export const usePipelineStore = create<PipelineState>((set) => ({
@@ -45,5 +46,26 @@ export const usePipelineStore = create<PipelineState>((set) => ({
 
   setApprovalRequest: (request) => set({ approvalRequest: request }),
 
-  clearStream: () => set({ streamEvents: [], streaming: false, activeTaskId: null })
+  clearStream: () => set({ streamEvents: [], streaming: false, activeTaskId: null }),
+
+  setupListeners: () => {
+    const cleanupStream = window.api.pipeline.onStream((event) => {
+      set(state => ({
+        streamEvents: [...state.streamEvents, event]
+      }))
+    })
+    const cleanupApproval = window.api.pipeline.onApprovalRequest((request) => {
+      set({ approvalRequest: request })
+    })
+    const cleanupStatus = window.api.pipeline.onStatusChange((event) => {
+      if (event.type === 'complete' || event.type === 'error' || event.type === 'pause' || event.type === 'circuit-breaker') {
+        set({ streaming: false })
+      }
+    })
+    return () => {
+      cleanupStream()
+      cleanupApproval()
+      cleanupStatus()
+    }
+  }
 }))
