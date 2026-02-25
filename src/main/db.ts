@@ -2,7 +2,8 @@ import Database from 'better-sqlite3'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff } from '../shared/types'
+import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff, WorkshopSession, WorkshopMessage, WorkshopArtifact, WorkshopTaskLink, WorkshopMessageRole, WorkshopMessageType, WorkshopArtifactType } from '../shared/types'
+import crypto from 'crypto'
 
 const CLAWFLOW_DIR = path.join(os.homedir(), '.clawflow')
 const DBS_DIR = path.join(CLAWFLOW_DIR, 'dbs')
@@ -117,6 +118,49 @@ function initProjectDb(dbPath: string): Database.Database {
       agent_log TEXT NOT NULL DEFAULT '[]'
     )
   `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workshop_sessions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT 'New Session',
+      summary TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workshop_messages (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES workshop_sessions(id),
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      message_type TEXT NOT NULL DEFAULT 'text',
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workshop_artifacts (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      current_version INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workshop_task_links (
+      id TEXT PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES tasks(id),
+      session_id TEXT REFERENCES workshop_sessions(id),
+      artifact_id TEXT REFERENCES workshop_artifacts(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
   return db
 }
 
@@ -216,6 +260,132 @@ export function closeAllDbs(): void {
   projectDbs.clear()
 }
 
+// --- Workshop Sessions ---
+
+export function createWorkshopSession(dbPath: string, projectId: string, title?: string): WorkshopSession {
+  const db = getProjectDb(dbPath)
+  const id = crypto.randomUUID()
+  db.prepare(`
+    INSERT INTO workshop_sessions (id, project_id, title)
+    VALUES (?, ?, ?)
+  `).run(id, projectId, title ?? 'New Session')
+  return getWorkshopSession(dbPath, id)!
+}
+
+export function getWorkshopSession(dbPath: string, id: string): WorkshopSession | null {
+  const db = getProjectDb(dbPath)
+  const row = db.prepare('SELECT * FROM workshop_sessions WHERE id = ?').get(id) as any
+  return row ? rowToWorkshopSession(row) : null
+}
+
+export function listWorkshopSessions(dbPath: string, projectId: string): WorkshopSession[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare('SELECT * FROM workshop_sessions WHERE project_id = ? ORDER BY updated_at DESC').all(projectId) as any[]
+  return rows.map(rowToWorkshopSession)
+}
+
+export function updateWorkshopSession(dbPath: string, id: string, updates: Partial<Record<string, any>>): WorkshopSession | null {
+  const db = getProjectDb(dbPath)
+  const setClauses: string[] = []
+  const values: any[] = []
+
+  for (const [key, value] of Object.entries(updates)) {
+    const dbKey = camelToSnake(key)
+    setClauses.push(`${dbKey} = ?`)
+    values.push(typeof value === 'object' && value !== null ? JSON.stringify(value) : value)
+  }
+
+  setClauses.push('updated_at = datetime(\'now\')')
+
+  if (setClauses.length === 1) return getWorkshopSession(dbPath, id)
+
+  values.push(id)
+  db.prepare(`UPDATE workshop_sessions SET ${setClauses.join(', ')} WHERE id = ?`).run(...values)
+  return getWorkshopSession(dbPath, id)
+}
+
+// --- Workshop Messages ---
+
+export function createWorkshopMessage(dbPath: string, sessionId: string, role: WorkshopMessageRole, content: string, messageType?: WorkshopMessageType, metadata?: Record<string, unknown> | null): WorkshopMessage {
+  const db = getProjectDb(dbPath)
+  const id = crypto.randomUUID()
+  db.prepare(`
+    INSERT INTO workshop_messages (id, session_id, role, content, message_type, metadata)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, sessionId, role, content, messageType ?? 'text', metadata ? JSON.stringify(metadata) : null)
+  const row = db.prepare('SELECT * FROM workshop_messages WHERE id = ?').get(id) as any
+  return rowToWorkshopMessage(row)
+}
+
+export function listWorkshopMessages(dbPath: string, sessionId: string): WorkshopMessage[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare('SELECT * FROM workshop_messages WHERE session_id = ? ORDER BY created_at ASC').all(sessionId) as any[]
+  return rows.map(rowToWorkshopMessage)
+}
+
+// --- Workshop Artifacts ---
+
+export function createWorkshopArtifact(dbPath: string, projectId: string, name: string, type: WorkshopArtifactType, filePath: string): WorkshopArtifact {
+  const db = getProjectDb(dbPath)
+  const id = crypto.randomUUID()
+  db.prepare(`
+    INSERT INTO workshop_artifacts (id, project_id, name, type, file_path)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, projectId, name, type, filePath)
+  return getWorkshopArtifact(dbPath, id)!
+}
+
+export function listWorkshopArtifacts(dbPath: string, projectId: string): WorkshopArtifact[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare('SELECT * FROM workshop_artifacts WHERE project_id = ? ORDER BY updated_at DESC').all(projectId) as any[]
+  return rows.map(rowToWorkshopArtifact)
+}
+
+export function getWorkshopArtifact(dbPath: string, id: string): WorkshopArtifact | null {
+  const db = getProjectDb(dbPath)
+  const row = db.prepare('SELECT * FROM workshop_artifacts WHERE id = ?').get(id) as any
+  return row ? rowToWorkshopArtifact(row) : null
+}
+
+export function updateWorkshopArtifact(dbPath: string, id: string, updates: Partial<Record<string, any>>): WorkshopArtifact | null {
+  const db = getProjectDb(dbPath)
+  const setClauses: string[] = []
+  const values: any[] = []
+
+  for (const [key, value] of Object.entries(updates)) {
+    const dbKey = camelToSnake(key)
+    setClauses.push(`${dbKey} = ?`)
+    values.push(typeof value === 'object' && value !== null ? JSON.stringify(value) : value)
+  }
+
+  setClauses.push('updated_at = datetime(\'now\')')
+
+  if (setClauses.length === 1) return getWorkshopArtifact(dbPath, id)
+
+  values.push(id)
+  db.prepare(`UPDATE workshop_artifacts SET ${setClauses.join(', ')} WHERE id = ?`).run(...values)
+  return getWorkshopArtifact(dbPath, id)
+}
+
+// --- Workshop Task Links ---
+
+export function createWorkshopTaskLink(dbPath: string, taskId: number, sessionId?: string | null, artifactId?: string | null): WorkshopTaskLink {
+  const db = getProjectDb(dbPath)
+  const id = crypto.randomUUID()
+  db.prepare(`
+    INSERT INTO workshop_task_links (id, task_id, session_id, artifact_id)
+    VALUES (?, ?, ?, ?)
+  `).run(id, taskId, sessionId ?? null, artifactId ?? null)
+  const row = db.prepare('SELECT * FROM workshop_task_links WHERE id = ?').get(id) as any
+  return rowToWorkshopTaskLink(row)
+}
+
+export function getWorkshopTaskLinks(dbPath: string, taskId: number): WorkshopTaskLink[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare('SELECT * FROM workshop_task_links WHERE task_id = ?').all(taskId) as any[]
+  return rows.map(rowToWorkshopTaskLink)
+}
+
 // --- Helpers ---
 
 function rowToTask(row: any): Task {
@@ -244,6 +414,53 @@ function rowToTask(row: any): Task {
     commitHash: row.commit_hash,
     handoffs: safeJsonParse(row.handoffs) ?? [],
     agentLog: safeJsonParse(row.agent_log) ?? []
+  }
+}
+
+function rowToWorkshopSession(row: any): WorkshopSession {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    title: row.title,
+    summary: row.summary,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }
+}
+
+function rowToWorkshopMessage(row: any): WorkshopMessage {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    role: row.role,
+    content: row.content,
+    messageType: row.message_type,
+    metadata: safeJsonParse(row.metadata),
+    createdAt: row.created_at
+  }
+}
+
+function rowToWorkshopArtifact(row: any): WorkshopArtifact {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    name: row.name,
+    type: row.type,
+    filePath: row.file_path,
+    currentVersion: row.current_version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }
+}
+
+function rowToWorkshopTaskLink(row: any): WorkshopTaskLink {
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    sessionId: row.session_id,
+    artifactId: row.artifact_id,
+    createdAt: row.created_at
   }
 }
 
