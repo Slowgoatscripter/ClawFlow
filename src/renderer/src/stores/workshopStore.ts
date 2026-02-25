@@ -15,6 +15,7 @@ interface WorkshopState {
   artifacts: WorkshopArtifact[]
   selectedArtifactId: string | null
   artifactContent: string | null
+  artifactLoading: boolean
   streamingContent: string
   isStreaming: boolean
   pendingSuggestions: WorkshopSuggestedTask[] | null
@@ -29,7 +30,9 @@ interface WorkshopState {
   loadArtifacts: () => Promise<void>
   selectArtifact: (artifactId: string) => Promise<void>
   clearArtifactSelection: () => void
-  approveSuggestions: (sessionId: string, tasks: WorkshopSuggestedTask[]) => Promise<void>
+  stopSession: (sessionId: string) => void
+  deleteSession: (sessionId: string) => void
+  approveSuggestions: (sessionId: string, tasks: WorkshopSuggestedTask[], autoMode?: boolean) => Promise<void>
   dismissSuggestions: () => void
   toggleAutoMode: () => void
   setupListeners: () => () => void
@@ -43,6 +46,7 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   artifacts: [],
   selectedArtifactId: null,
   artifactContent: null,
+  artifactLoading: false,
   streamingContent: '',
   isStreaming: false,
   pendingSuggestions: null,
@@ -107,20 +111,50 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
     await window.api.workshop.sendMessage(sessionId, content)
   },
 
+  stopSession: (sessionId) => {
+    window.api.workshop.stopSession(sessionId)
+    set({ isStreaming: false, streamingContent: '' })
+  },
+
+  deleteSession: (sessionId) => {
+    window.api.workshop.deleteSession(sessionId)
+    set((state) => {
+      const sessions = state.sessions.filter((s) => s.id !== sessionId)
+      const isCurrentDeleted = state.currentSessionId === sessionId
+      return {
+        sessions,
+        currentSessionId: isCurrentDeleted ? null : state.currentSessionId,
+        currentSession: isCurrentDeleted ? null : state.currentSession,
+        messages: isCurrentDeleted ? [] : state.messages,
+        isStreaming: isCurrentDeleted ? false : state.isStreaming,
+        streamingContent: isCurrentDeleted ? '' : state.streamingContent,
+      }
+    })
+  },
+
   loadArtifacts: async () => {
+    const prev = get().artifacts
     const artifacts = await window.api.workshop.listArtifacts()
+    if (artifacts.length === 0 && prev.length > 0) {
+      return
+    }
     set({ artifacts })
   },
 
   selectArtifact: async (artifactId) => {
-    const artifact = await window.api.workshop.getArtifact(artifactId)
-    set({ selectedArtifactId: artifactId, artifactContent: artifact.content ?? null })
+    set({ selectedArtifactId: artifactId, artifactLoading: true, artifactContent: null })
+    try {
+      const result = await window.api.workshop.getArtifact(artifactId)
+      set({ artifactContent: result.content ?? null, artifactLoading: false })
+    } catch {
+      set({ artifactLoading: false })
+    }
   },
 
-  clearArtifactSelection: () => set({ selectedArtifactId: null, artifactContent: null }),
+  clearArtifactSelection: () => set({ selectedArtifactId: null, artifactContent: null, artifactLoading: false }),
 
-  approveSuggestions: async (sessionId, tasks) => {
-    await window.api.workshop.createTasks(sessionId, tasks)
+  approveSuggestions: async (sessionId, tasks, autoMode) => {
+    await window.api.workshop.createTasks(sessionId, tasks.map((t) => ({ ...t, autoMode })))
     set({ pendingSuggestions: null, suggestionsSessionId: null })
   },
 

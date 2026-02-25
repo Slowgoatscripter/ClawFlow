@@ -5,6 +5,7 @@ import type { WorkshopSession } from '../../../../shared/types'
 export function SessionList() {
   const sessions = useWorkshopStore((s) => s.sessions)
   const currentSessionId = useWorkshopStore((s) => s.currentSessionId)
+  const isStreaming = useWorkshopStore((s) => s.isStreaming)
   const currentProject = useProjectStore((s) => s.currentProject)
 
   const handleNewSession = async () => {
@@ -20,6 +21,16 @@ export function SessionList() {
   const handleSelectSession = async (sessionId: string) => {
     if (!currentProject) return
     await useWorkshopStore.getState().selectSession(currentProject.dbPath, sessionId)
+  }
+
+  const handleStopSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation()
+    useWorkshopStore.getState().stopSession(sessionId)
+  }
+
+  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation()
+    useWorkshopStore.getState().deleteSession(sessionId)
   }
 
   return (
@@ -38,7 +49,10 @@ export function SessionList() {
             key={session.id}
             session={session}
             isActive={session.id === currentSessionId}
+            isStreamingHere={isStreaming && session.id === currentSessionId}
             onClick={() => handleSelectSession(session.id)}
+            onStop={(e) => handleStopSession(e, session.id)}
+            onDelete={(e) => handleDeleteSession(e, session.id)}
           />
         ))}
         {sessions.length === 0 && (
@@ -54,11 +68,17 @@ export function SessionList() {
 function SessionItem({
   session,
   isActive,
+  isStreamingHere,
   onClick,
+  onStop,
+  onDelete,
 }: {
   session: WorkshopSession
   isActive: boolean
+  isStreamingHere: boolean
   onClick: () => void
+  onStop: (e: React.MouseEvent) => void
+  onDelete: (e: React.MouseEvent) => void
 }) {
   const date = new Date(session.createdAt)
   const timeStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -66,17 +86,44 @@ function SessionItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-3 border-b border-border/50 transition-colors ${
+      className={`group w-full text-left px-3 py-3 border-b border-border/50 transition-colors ${
         isActive ? 'bg-accent-teal/10 border-l-2 border-l-accent-teal' : 'hover:bg-surface'
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className={`text-sm font-medium truncate ${isActive ? 'text-accent-teal' : 'text-text'}`}>
+        <span className={`text-sm font-medium truncate flex-1 ${isActive ? 'text-accent-teal' : 'text-text'}`}>
+          {isStreamingHere && (
+            <span className="inline-block w-2 h-2 rounded-full bg-accent-teal animate-pulse mr-1.5 align-middle" />
+          )}
           {session.title}
         </span>
-        {session.status === 'ended' && (
-          <span className="text-xs text-text-muted ml-1">ended</span>
-        )}
+        <div className="flex items-center gap-1 ml-1 shrink-0">
+          {isStreamingHere && (
+            <span
+              onClick={onStop}
+              title="Stop generation"
+              className="p-0.5 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="3" y="3" width="10" height="10" rx="1" />
+              </svg>
+            </span>
+          )}
+          {!isStreamingHere && (
+            <span
+              onClick={onDelete}
+              title="Delete session"
+              className="p-0.5 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1M2 4h12M6 7v5M10 7v5M3 4l1 9a1 1 0 001 1h6a1 1 0 001-1l1-9" />
+              </svg>
+            </span>
+          )}
+          {session.status === 'ended' && (
+            <span className="text-xs text-text-muted">ended</span>
+          )}
+        </div>
       </div>
       <p className="text-xs text-text-muted mt-1">{timeStr}</p>
       {session.summary && (

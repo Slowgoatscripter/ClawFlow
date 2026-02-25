@@ -6,6 +6,7 @@ import {
   getWorkshopSession,
   listWorkshopSessions,
   updateWorkshopSession,
+  deleteWorkshopSession,
   createWorkshopMessage,
   listWorkshopMessages,
   createWorkshopArtifact,
@@ -16,7 +17,8 @@ import {
   listTasks,
   createTask,
 } from './db'
-import { constructWorkshopPrompt } from './template-engine'
+import { abortSession } from './sdk-manager'
+import { constructWorkshopPrompt, loadSkillContent } from './template-engine'
 import type {
   WorkshopSession,
   WorkshopArtifact,
@@ -101,6 +103,18 @@ export class WorkshopEngine extends EventEmitter {
     this.emit('session:ended', { sessionId })
   }
 
+  stopSession(sessionId: string): void {
+    abortSession(sessionId)
+    this.emit('stream', { type: 'done', sessionId } as WorkshopStreamEvent)
+  }
+
+  deleteSession(sessionId: string): void {
+    abortSession(sessionId)
+    this.sessionIds.delete(sessionId)
+    deleteWorkshopSession(this.dbPath, sessionId)
+    this.emit('session:deleted', { sessionId })
+  }
+
   listSessions(): WorkshopSession[] {
     return listWorkshopSessions(this.dbPath, this.projectId)
   }
@@ -130,6 +144,7 @@ export class WorkshopEngine extends EventEmitter {
         taskId: 0,
         autoMode: true,
         resumeSessionId,
+        sessionKey: sessionId,
         onStream: (streamContent: string, streamType: string) => {
           if (streamType === 'tool_use') {
             // Emit tool calls as a separate event type so the UI can render them differently
@@ -249,6 +264,22 @@ export class WorkshopEngine extends EventEmitter {
             sessionId,
           } as WorkshopStreamEvent)
           break
+        case 'load_skill': {
+          const skillName = toolInput.skill_name
+          const skillContent = loadSkillContent(skillName)
+          const message = skillContent
+            ? `## Skill Loaded: ${skillName}\n\nFollow these instructions:\n\n${skillContent}`
+            : `Skill not found: ${skillName}`
+          createWorkshopMessage(
+            this.dbPath,
+            sessionId,
+            'system',
+            message,
+            'system_event',
+            { skillName }
+          )
+          break
+        }
       }
     }
   }
@@ -325,12 +356,13 @@ export class WorkshopEngine extends EventEmitter {
     }
   }
 
-  async createPipelineTask(sessionId: string, task: WorkshopSuggestedTask): Promise<void> {
+  async createPipelineTask(sessionId: string, task: WorkshopSuggestedTask & { autoMode?: boolean }): Promise<void> {
     const created = createTask(this.dbPath, {
       title: task.title,
       description: task.description,
       tier: task.tier,
-      priority: 'medium',
+      priority: task.priority ?? 'medium',
+      autoMode: task.autoMode,
     })
 
     createWorkshopTaskLink(this.dbPath, created.id, sessionId)

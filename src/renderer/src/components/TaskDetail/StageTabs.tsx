@@ -7,34 +7,24 @@ interface StageData {
   content: string | null
 }
 
+/** Extract readable text from a stage output (may be a string or { output, cost, sessionId } object) */
+function extractOutput(value: unknown): string | null {
+  if (!value) return null
+  if (typeof value === 'string') return value
+  if (typeof value === 'object' && value !== null && 'output' in value) {
+    return (value as { output: string }).output ?? null
+  }
+  return JSON.stringify(value, null, 2)
+}
+
 function getStageData(task: Task): StageData[] {
   const stages: StageData[] = [
     { stage: 'brainstorm', label: 'Brainstorm', content: task.brainstormOutput ?? null },
-    {
-      stage: 'design_review',
-      label: 'Design Review',
-      content: task.designReview ? JSON.stringify(task.designReview, null, 2) : null
-    },
-    {
-      stage: 'plan',
-      label: 'Plan',
-      content: task.plan ? JSON.stringify(task.plan, null, 2) : null
-    },
-    {
-      stage: 'implement',
-      label: 'Implement',
-      content: task.implementationNotes ? JSON.stringify(task.implementationNotes, null, 2) : null
-    },
-    {
-      stage: 'code_review',
-      label: 'Code Review',
-      content: task.reviewComments ? JSON.stringify(task.reviewComments, null, 2) : null
-    },
-    {
-      stage: 'verify',
-      label: 'Verify',
-      content: task.verifyResult ?? null
-    }
+    { stage: 'design_review', label: 'Design Review', content: extractOutput(task.designReview) },
+    { stage: 'plan', label: 'Plan', content: extractOutput(task.plan) },
+    { stage: 'implement', label: 'Implement', content: extractOutput(task.implementationNotes) },
+    { stage: 'code_review', label: 'Code Review', content: extractOutput(task.reviewComments) },
+    { stage: 'verify', label: 'Verify', content: task.verifyResult ?? null }
   ]
   return stages
 }

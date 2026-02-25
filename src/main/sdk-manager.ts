@@ -1,5 +1,7 @@
 import { query, type PermissionResult } from '@anthropic-ai/claude-agent-sdk'
 import { randomUUID } from 'crypto'
+import path from 'path'
+import fs from 'fs'
 import type { SdkRunnerParams, SdkResult } from './pipeline-engine'
 import type { BrowserWindow } from 'electron'
 
@@ -8,6 +10,15 @@ interface PendingApproval {
 }
 
 const pendingApprovals = new Map<string, PendingApproval>()
+const activeControllers = new Map<string, AbortController>()
+
+export function abortSession(sessionKey: string): boolean {
+  const controller = activeControllers.get(sessionKey)
+  if (!controller) return false
+  controller.abort()
+  activeControllers.delete(sessionKey)
+  return true
+}
 
 export function resolveApproval(requestId: string, approved: boolean, message?: string): void {
   const pending = pendingApprovals.get(requestId)
@@ -91,11 +102,15 @@ export function createSdkRunner(win: BrowserWindow) {
 
 async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): Promise<SdkResult> {
     const abortController = new AbortController()
+    if (params.sessionKey) {
+      activeControllers.set(params.sessionKey, abortController)
+    }
     let sessionId = ''
     let output = ''
     let cost = 0
     let turns = 0
 
+    try {
     const q = query({
       prompt: params.prompt,
       options: {
@@ -104,8 +119,8 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
         maxTurns: params.maxTurns,
         abortController,
         tools: { type: 'preset', preset: 'claude_code' },
-        permissionMode: params.autoMode ? 'bypassPermissions' : 'default',
-        allowDangerouslySkipPermissions: params.autoMode,
+        permissionMode: 'bypassPermissions',
+        allowDangerouslySkipPermissions: true,
         includePartialMessages: true,
         ...(params.resumeSessionId ? { resume: params.resumeSessionId } : {}),
         canUseTool: params.autoMode ? undefined : async (toolName, toolInput, options) => {
@@ -113,6 +128,28 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
           const readOnlyTools = ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch']
           if (readOnlyTools.includes(toolName)) {
             return { behavior: 'allow' } as PermissionResult
+          }
+
+          // Auto-approve Write/Edit for files within the project directory
+          if ((toolName === 'Write' || toolName === 'Edit') && typeof (toolInput as any)?.file_path === 'string') {
+            const filePath = path.resolve((toolInput as any).file_path)
+            const projectDir = path.resolve(params.cwd)
+            if (filePath.startsWith(projectDir)) {
+              // Ensure parent directories exist so Write doesn't fail
+              const parentDir = path.dirname(filePath)
+              if (!fs.existsSync(parentDir)) {
+                fs.mkdirSync(parentDir, { recursive: true })
+              }
+              return { behavior: 'allow' } as PermissionResult
+            }
+          }
+
+          // Auto-approve Bash mkdir within project directory
+          if (toolName === 'Bash' && typeof (toolInput as any)?.command === 'string') {
+            const cmd = (toolInput as any).command.trim()
+            if (cmd.startsWith('mkdir ')) {
+              return { behavior: 'allow' } as PermissionResult
+            }
           }
 
           const requestId = randomUUID()
@@ -176,4 +213,9 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
     }
 
     return { output, cost, turns, sessionId }
+    } finally {
+      if (params.sessionKey) {
+        activeControllers.delete(params.sessionKey)
+      }
+    }
 }

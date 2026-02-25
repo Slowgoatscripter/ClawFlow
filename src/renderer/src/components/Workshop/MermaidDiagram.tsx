@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import mermaid from 'mermaid'
 
 mermaid.initialize({
@@ -13,29 +13,61 @@ mermaid.initialize({
   },
 })
 
+let renderCounter = 0
+
 export function MermaidDiagram({ content, id }: { content: string; id: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
+  const [svg, setSvg] = useState<string | null>(null)
+
+  const renderDiagram = useCallback(async (diagramContent: string, diagramId: string) => {
+    // Use a unique element ID per render call to avoid Mermaid DOM element ID conflicts
+    const elementId = `mermaid-${diagramId.replace(/[^a-zA-Z0-9]/g, '')}-${++renderCounter}`
+    try {
+      const result = await mermaid.render(elementId, diagramContent)
+      return result.svg
+    } finally {
+      // Clean up the temp element Mermaid inserts into the document during rendering
+      const tempEl = document.getElementById(elementId)
+      if (tempEl) tempEl.remove()
+    }
+  }, [])
 
   useEffect(() => {
-    if (!containerRef.current || !content) return
+    if (!content) return
 
-    const render = async () => {
-      try {
-        setError(null)
-        const elementId = `mermaid-${id.replace(/[^a-zA-Z0-9]/g, '')}`
-        const { svg } = await mermaid.render(elementId, content)
-        if (containerRef.current) {
-          // Mermaid.render() produces sanitized SVG output - safe to use innerHTML
-          containerRef.current.innerHTML = svg
+    let cancelled = false
+
+    setError(null)
+    renderDiagram(content, id)
+      .then((renderedSvg) => {
+        if (!cancelled) {
+          setSvg(renderedSvg)
         }
-      } catch (e: any) {
-        setError(e.message ?? 'Failed to render diagram')
+      })
+      .catch((e: any) => {
+        if (!cancelled) {
+          setError(e.message ?? 'Failed to render diagram')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [content, id, renderDiagram])
+
+  // Write SVG to DOM via ref - mermaid.render() sanitizes output internally via DOMPurify
+  useEffect(() => {
+    if (containerRef.current && svg) {
+      containerRef.current.replaceChildren()
+      const wrapper = document.createElement('div')
+      wrapper.insertAdjacentHTML('afterbegin', svg) // mermaid output is pre-sanitized SVG
+      const svgEl = wrapper.firstElementChild
+      if (svgEl) {
+        containerRef.current.appendChild(svgEl)
       }
     }
-
-    render()
-  }, [content, id])
+  }, [svg])
 
   if (error) {
     return (
@@ -43,6 +75,15 @@ export function MermaidDiagram({ content, id }: { content: string; id: string })
         <p className="font-medium">Diagram render error</p>
         <pre className="mt-2 text-xs overflow-auto">{error}</pre>
         <pre className="mt-2 text-xs text-text-muted overflow-auto">{content}</pre>
+      </div>
+    )
+  }
+
+  if (!svg) {
+    return (
+      <div className="w-full flex items-center justify-center p-4 text-text-muted text-sm">
+        <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse mr-2" />
+        Rendering diagram...
       </div>
     )
   }

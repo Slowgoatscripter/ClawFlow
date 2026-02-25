@@ -131,6 +131,13 @@ export function TaskDetail() {
   const isActive = !isBacklog && !isDone && task.status !== 'blocked'
   const showLiveOutput = streaming || streamEvents.length > 0
 
+  // Check if the intervention panel is showing open questions
+  const lastHandoff = task.handoffs.length > 0 ? task.handoffs[task.handoffs.length - 1] : null
+  const hasOpenQuestions =
+    lastHandoff?.openQuestions != null &&
+    lastHandoff.openQuestions !== 'none' &&
+    lastHandoff.openQuestions.trim() !== ''
+
   return (
     <div className="h-full bg-bg overflow-y-auto">
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
@@ -194,12 +201,12 @@ export function TaskDetail() {
               Start Pipeline
             </button>
           )}
-          {isActive && (
+          {isActive && !hasOpenQuestions && (
             <button
               onClick={handleStep}
               className="px-4 py-2 bg-accent-teal text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
             >
-              Step
+              Retry Stage
             </button>
           )}
           {!isBacklog && !isDone && (

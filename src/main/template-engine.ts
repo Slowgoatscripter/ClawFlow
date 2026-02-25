@@ -25,13 +25,15 @@ export function loadTemplate(stage: PipelineStage): string {
   return template
 }
 
-export function fillTemplate(template: string, task: Task): string {
+export function fillTemplate(template: string, task: Task, projectPath?: string): string {
   const replacements: Record<string, string> = {
     '{{title}}': task.title,
     '{{description}}': task.description,
     '{{tier}}': task.tier,
     '{{priority}}': task.priority,
     '{{timestamp}}': new Date().toISOString(),
+    '{{project_path}}': projectPath ?? process.cwd(),
+    '{{platform}}': process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux',
     '{{brainstorm_output}}': task.brainstormOutput ?? 'N/A',
     '{{design_review}}': task.designReview ? JSON.stringify(task.designReview, null, 2) : 'N/A',
     '{{plan}}': task.plan ? JSON.stringify(task.plan, null, 2) : 'N/A',
@@ -51,7 +53,7 @@ export function fillTemplate(template: string, task: Task): string {
   return filled
 }
 
-function loadSkillContent(skillName: string): string {
+export function loadSkillContent(skillName: string): string {
   try {
     const home = homedir()
 
@@ -100,12 +102,12 @@ function loadSkillContent(skillName: string): string {
   }
 }
 
-export function constructPrompt(stage: PipelineStage, task: Task): string {
+export function constructPrompt(stage: PipelineStage, task: Task, projectPath?: string): string {
   const template = loadTemplate(stage)
   const config = STAGE_CONFIGS[stage]
   const skillContent = loadSkillContent(config.skill)
 
-  let prompt = fillTemplate(template, task)
+  let prompt = fillTemplate(template, task, projectPath)
 
   if (skillContent) {
     prompt += `\n\n---\n\n## Skill Instructions: ${config.skill}\n\nFollow these instructions for this stage:\n\n${skillContent}`
@@ -125,11 +127,15 @@ export function parseHandoff(output: string): Partial<Handoff> | null {
     return match ? match[1].trim() : ''
   }
 
+  // Normalize openQuestions: treat "none", "none — ...", "n/a", etc. as empty
+  const rawQuestions = extract('Open Questions')
+  const openQuestions = /^none\b|^n\/?a\b/i.test(rawQuestions) ? '' : rawQuestions
+
   return {
     status: extract('Status') as Handoff['status'] || 'completed',
     summary: extract('Summary'),
     keyDecisions: extract('Key Decisions'),
-    openQuestions: extract('Open Questions'),
+    openQuestions,
     filesModified: extract('Files Modified'),
     nextStageNeeds: extract('Next Stage Needs'),
     warnings: extract('Warnings')
