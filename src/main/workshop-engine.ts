@@ -130,12 +130,21 @@ export class WorkshopEngine extends EventEmitter {
         taskId: 0,
         autoMode: true,
         resumeSessionId,
-        onStream: (streamContent: string, _type: string) => {
-          this.emit('stream', {
-            type: 'text',
-            content: streamContent,
-            sessionId,
-          } as WorkshopStreamEvent)
+        onStream: (streamContent: string, streamType: string) => {
+          if (streamType === 'tool_use') {
+            // Emit tool calls as a separate event type so the UI can render them differently
+            this.emit('stream', {
+              type: 'tool_call',
+              toolName: streamContent.replace('Tool: ', ''),
+              sessionId,
+            } as WorkshopStreamEvent)
+          } else {
+            this.emit('stream', {
+              type: 'text',
+              content: streamContent,
+              sessionId,
+            } as WorkshopStreamEvent)
+          }
         },
         onApprovalRequest: () => {
           return { behavior: 'allow' as const }
