@@ -94,6 +94,9 @@ export interface Task {
   testResults: TestResults | null
   verifyResult: string | null
   commitHash: string | null
+  branchName: string | null
+  worktreePath: string | null
+  prUrl: string | null
   handoffs: Handoff[]
   agentLog: AgentLogEntry[]
 }
@@ -114,6 +117,8 @@ export interface Project {
   dbPath: string
   createdAt: string
   lastOpened: string
+  defaultBaseBranch: string
+  gitEnabled: boolean
 }
 
 export interface ProjectStats {
@@ -189,6 +194,36 @@ export interface WorkshopArtifact {
   updatedAt: string
 }
 
+// Git types
+export interface GitBranch {
+  taskId: number
+  taskTitle: string
+  branchName: string
+  status: 'active' | 'completed' | 'stale' | 'merged'
+  commitCount: number
+  lastCommitMessage: string
+  lastCommitDate: string
+  aheadOfBase: number
+  behindBase: number
+  worktreeActive: boolean
+  pushed: boolean
+}
+
+export interface GitCommitResult {
+  hash: string
+  message: string
+  taskId: number
+  stage: string
+}
+
+export interface GitMergeResult {
+  success: boolean
+  conflicts: boolean
+  message: string
+}
+
+export type GitBranchStatus = 'active' | 'completed' | 'stale' | 'merged'
+
 export interface WorkshopTaskLink {
   id: string
   taskId: number
@@ -216,6 +251,7 @@ export interface WorkshopSuggestedTask {
   title: string
   description: string
   tier: 'L1' | 'L2' | 'L3'
+  priority?: Priority
   linkedArtifactIds?: string[]
 }
 
@@ -253,6 +289,10 @@ export type IpcChannel =
   | 'workshop:create-tasks'
   | 'workshop:stream'
   | 'workshop:tool-event'
+  | 'git:get-branches' | 'git:get-branch-detail' | 'git:push'
+  | 'git:merge' | 'git:delete-branch' | 'git:commit'
+  | 'git:branch-created' | 'git:commit-complete'
+  | 'git:push-complete' | 'git:merge-complete' | 'git:error'
   | 'fs:pick-directory'
   | 'window:minimize'
   | 'window:maximize'
