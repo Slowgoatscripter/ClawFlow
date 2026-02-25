@@ -21,8 +21,75 @@ export function resolveApproval(requestId: string, approved: boolean, message?: 
   }
 }
 
+// --- Retry Logic ---
+
+const MAX_RETRIES = 3
+const BASE_DELAY_MS = 1000
+const DEFAULT_RATE_LIMIT_WAIT_MS = 30000
+
+const RETRYABLE_NETWORK_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED', 'EAI_AGAIN'])
+const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404, 422])
+
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const code = (error as any).code
+    if (code && RETRYABLE_NETWORK_CODES.has(code)) return true
+    const status = (error as any).status ?? (error as any).statusCode
+    if (status === 429) return true
+    if (status && NON_RETRYABLE_STATUS_CODES.has(status)) return false
+    if (status && status >= 500) return true
+  }
+  return false
+}
+
+function getRetryDelay(error: unknown, attempt: number): number {
+  const status = (error as any)?.status ?? (error as any)?.statusCode
+  if (status === 429) {
+    const retryAfter = (error as any)?.headers?.['retry-after']
+    if (retryAfter) {
+      const parsed = parseInt(retryAfter, 10)
+      if (!isNaN(parsed)) return parsed * 1000
+    }
+    return DEFAULT_RATE_LIMIT_WAIT_MS
+  }
+  return BASE_DELAY_MS * Math.pow(2, attempt)
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export function createSdkRunner(win: BrowserWindow) {
   return async function runSdkSession(params: SdkRunnerParams): Promise<SdkResult> {
+    let lastError: unknown
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        const delay = getRetryDelay(lastError, attempt - 1)
+        console.log(`[sdk-manager] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms...`)
+        await sleep(delay)
+      }
+
+      try {
+        return await runSdkSessionOnce(win, params)
+      } catch (error) {
+        lastError = error
+        const errorMessage = error instanceof Error ? error.message : String(error)
+
+        if (!isRetryableError(error) || attempt === MAX_RETRIES) {
+          console.error(`[sdk-manager] Non-retryable error or max retries reached: ${errorMessage}`)
+          throw error
+        }
+
+        console.warn(`[sdk-manager] Retryable error (attempt ${attempt + 1}/${MAX_RETRIES}): ${errorMessage}`)
+      }
+    }
+
+    throw lastError
+  }
+}
+
+async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): Promise<SdkResult> {
     const abortController = new AbortController()
     let sessionId = ''
     let output = ''
@@ -108,5 +175,4 @@ export function createSdkRunner(win: BrowserWindow) {
     }
 
     return { output, cost, turns, sessionId }
-  }
 }

@@ -90,6 +90,20 @@ export class PipelineEngine extends EventEmitter {
       throw new Error(`Task ${taskId} has no current stage`)
     }
 
+    // If task is blocked due to an error, restore it to the appropriate status for retry
+    if (task.status === 'blocked') {
+      const retryStatus = STAGE_TO_STATUS[currentStage] as TaskStatus
+      updateTask(this.dbPath, taskId, { status: retryStatus })
+
+      appendAgentLog(this.dbPath, taskId, {
+        timestamp: new Date().toISOString(),
+        agent: 'pipeline-engine',
+        model: 'system',
+        action: 'retry',
+        details: `Retrying blocked stage: ${currentStage}`
+      })
+    }
+
     await this.runStage(taskId, currentStage)
     return this.getTaskOrThrow(taskId)
   }
@@ -363,6 +377,9 @@ export class PipelineEngine extends EventEmitter {
         action: 'stage:error',
         details: `Error: ${errorMessage}`
       })
+
+      // Set task to blocked so it can be retried via stepTask()
+      updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
 
       this.emit('stage:error', { taskId, stage, error: errorMessage })
     }
