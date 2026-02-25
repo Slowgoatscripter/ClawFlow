@@ -138,6 +138,87 @@ export interface StageConfig {
   template: string
 }
 
+// --- Workshop ---
+
+export type WorkshopSessionStatus = 'active' | 'ended'
+
+export type WorkshopMessageType =
+  | 'text'
+  | 'choice'
+  | 'confirmation'
+  | 'artifact_preview'
+  | 'system_event'
+
+export type WorkshopMessageRole = 'user' | 'assistant' | 'system'
+
+export type WorkshopArtifactType =
+  | 'design_doc'
+  | 'diagram'
+  | 'task_breakdown'
+  | 'spec'
+  | 'architecture'
+
+export interface WorkshopSession {
+  id: string
+  projectId: string
+  title: string
+  summary: string | null
+  status: WorkshopSessionStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkshopMessage {
+  id: string
+  sessionId: string
+  role: WorkshopMessageRole
+  content: string
+  messageType: WorkshopMessageType
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
+
+export interface WorkshopArtifact {
+  id: string
+  projectId: string
+  name: string
+  type: WorkshopArtifactType
+  filePath: string
+  currentVersion: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkshopTaskLink {
+  id: string
+  taskId: number
+  sessionId: string | null
+  artifactId: string | null
+  createdAt: string
+}
+
+export interface WorkshopStreamEvent {
+  type: 'text' | 'tool_call' | 'tool_result' | 'done' | 'error'
+  content?: string
+  toolName?: string
+  toolInput?: Record<string, unknown>
+  toolResult?: unknown
+  sessionId?: string
+  error?: string
+}
+
+export interface WorkshopToolCall {
+  name: string
+  input: Record<string, unknown>
+}
+
+export interface WorkshopSuggestedTask {
+  title: string
+  description: string
+  tier: 'L1' | 'L2' | 'L3'
+  linkedArtifactIds?: string[]
+}
+
 // --- IPC ---
 
 export type IpcChannel =
@@ -161,6 +242,17 @@ export type IpcChannel =
   | 'pipeline:stream'
   | 'pipeline:status'
   | 'pipeline:approval-request'
+  | 'workshop:start-session'
+  | 'workshop:end-session'
+  | 'workshop:list-sessions'
+  | 'workshop:get-session'
+  | 'workshop:send-message'
+  | 'workshop:list-messages'
+  | 'workshop:list-artifacts'
+  | 'workshop:get-artifact'
+  | 'workshop:create-tasks'
+  | 'workshop:stream'
+  | 'workshop:tool-event'
   | 'fs:pick-directory'
   | 'window:minimize'
   | 'window:maximize'
