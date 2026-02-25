@@ -25,16 +25,49 @@ contextBridge.exposeInMainWorld('api', {
     resolveApproval: (requestId: string, approved: boolean, message?: string) =>
       ipcRenderer.invoke('pipeline:resolve-approval', requestId, approved, message),
     onStream: (callback: (event: any) => void) => {
-      ipcRenderer.on('pipeline:stream', (_e, data) => callback(data))
-      return () => ipcRenderer.removeAllListeners('pipeline:stream')
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:stream', handler)
+      return () => { ipcRenderer.removeListener('pipeline:stream', handler) }
     },
     onApprovalRequest: (callback: (event: any) => void) => {
-      ipcRenderer.on('pipeline:approval-request', (_e, data) => callback(data))
-      return () => ipcRenderer.removeAllListeners('pipeline:approval-request')
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:approval-request', handler)
+      return () => { ipcRenderer.removeListener('pipeline:approval-request', handler) }
     },
     onStatusChange: (callback: (event: any) => void) => {
-      ipcRenderer.on('pipeline:status', (_e, data) => callback(data))
-      return () => ipcRenderer.removeAllListeners('pipeline:status')
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:status', handler)
+      return () => { ipcRenderer.removeListener('pipeline:status', handler) }
+    }
+  },
+  workshop: {
+    startSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title?: string) =>
+      ipcRenderer.invoke('workshop:start-session', dbPath, projectPath, projectId, projectName, title),
+    endSession: (sessionId: string) =>
+      ipcRenderer.invoke('workshop:end-session', sessionId),
+    listSessions: (dbPath: string, projectPath: string, projectId: string, projectName: string) =>
+      ipcRenderer.invoke('workshop:list-sessions', dbPath, projectPath, projectId, projectName),
+    getSession: (sessionId: string) =>
+      ipcRenderer.invoke('workshop:get-session', sessionId),
+    sendMessage: (sessionId: string, content: string) =>
+      ipcRenderer.invoke('workshop:send-message', sessionId, content),
+    listMessages: (dbPath: string, sessionId: string) =>
+      ipcRenderer.invoke('workshop:list-messages', dbPath, sessionId),
+    listArtifacts: () =>
+      ipcRenderer.invoke('workshop:list-artifacts'),
+    getArtifact: (artifactId: string) =>
+      ipcRenderer.invoke('workshop:get-artifact', artifactId),
+    createTasks: (sessionId: string, tasks: any[]) =>
+      ipcRenderer.invoke('workshop:create-tasks', sessionId, tasks),
+    onStream: (callback: (event: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('workshop:stream', handler)
+      return () => { ipcRenderer.removeListener('workshop:stream', handler) }
+    },
+    onToolEvent: (callback: (event: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('workshop:tool-event', handler)
+      return () => { ipcRenderer.removeListener('workshop:tool-event', handler) }
     }
   },
   fs: {

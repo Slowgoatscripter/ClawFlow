@@ -25,6 +25,19 @@ interface WindowApi {
     onApprovalRequest: (callback: (event: any) => void) => () => void
     onStatusChange: (callback: (event: any) => void) => () => void
   }
+  workshop: {
+    startSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title?: string) => Promise<any>
+    endSession: (sessionId: string) => Promise<void>
+    listSessions: (dbPath: string, projectPath: string, projectId: string, projectName: string) => Promise<any[]>
+    getSession: (sessionId: string) => Promise<any>
+    sendMessage: (sessionId: string, content: string) => Promise<void>
+    listMessages: (dbPath: string, sessionId: string) => Promise<any[]>
+    listArtifacts: () => Promise<any[]>
+    getArtifact: (artifactId: string) => Promise<{ artifact: any; content: string | null }>
+    createTasks: (sessionId: string, tasks: any[]) => Promise<void>
+    onStream: (callback: (event: any) => void) => () => void
+    onToolEvent: (callback: (event: any) => void) => () => void
+  }
   fs: {
     pickDirectory: () => Promise<string | null>
   }

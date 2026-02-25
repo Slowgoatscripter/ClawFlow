@@ -2,12 +2,14 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { registerIpcHandlers } from './ipc-handlers'
-import { closeAllDbs } from './db'
+import { closeAllDbs, listWorkshopMessages } from './db'
 import { PipelineEngine } from './pipeline-engine'
+import { WorkshopEngine } from './workshop-engine'
 import { createSdkRunner, resolveApproval } from './sdk-manager'
 
 let mainWindow: BrowserWindow | null = null
 let currentEngine: PipelineEngine | null = null
+let currentWorkshopEngine: WorkshopEngine | null = null
 
 // --- Window state persistence ---
 
@@ -150,6 +152,74 @@ function registerPipelineIpc() {
   })
 }
 
+function registerWorkshopIpc() {
+  ipcMain.handle('workshop:start-session', (_e, dbPath, projectPath, projectId, projectName, title?) => {
+    if (!currentWorkshopEngine || currentWorkshopEngine['dbPath'] !== dbPath) {
+      currentWorkshopEngine = new WorkshopEngine(dbPath, projectPath, projectId, projectName)
+      const sdkRunner = createSdkRunner(mainWindow!)
+      currentWorkshopEngine.setSdkRunner(sdkRunner)
+
+      currentWorkshopEngine.on('stream', (event) => {
+        mainWindow?.webContents.send('workshop:stream', event)
+      })
+      currentWorkshopEngine.on('artifact:created', (artifact) => {
+        mainWindow?.webContents.send('workshop:tool-event', { type: 'artifact_created', artifact })
+      })
+      currentWorkshopEngine.on('artifact:updated', (data) => {
+        mainWindow?.webContents.send('workshop:tool-event', { type: 'artifact_updated', ...data })
+      })
+      currentWorkshopEngine.on('tasks:suggested', (data) => {
+        mainWindow?.webContents.send('workshop:tool-event', { type: 'tasks_suggested', ...data })
+      })
+      currentWorkshopEngine.on('task:created', (data) => {
+        mainWindow?.webContents.send('workshop:tool-event', { type: 'task_created', ...data })
+      })
+    }
+    return currentWorkshopEngine.startSession(title)
+  })
+
+  ipcMain.handle('workshop:end-session', async (_e, sessionId) => {
+    await currentWorkshopEngine?.endSession(sessionId)
+  })
+
+  ipcMain.handle('workshop:list-sessions', (_e, dbPath, projectPath, projectId, projectName) => {
+    if (!currentWorkshopEngine) {
+      currentWorkshopEngine = new WorkshopEngine(dbPath, projectPath, projectId, projectName)
+    }
+    return currentWorkshopEngine.listSessions()
+  })
+
+  ipcMain.handle('workshop:get-session', (_e, sessionId) => {
+    return currentWorkshopEngine?.getSession(sessionId) ?? null
+  })
+
+  ipcMain.handle('workshop:send-message', async (_e, sessionId, content) => {
+    await currentWorkshopEngine?.sendMessage(sessionId, content)
+  })
+
+  ipcMain.handle('workshop:list-messages', (_e, dbPath, sessionId) => {
+    return listWorkshopMessages(dbPath, sessionId)
+  })
+
+  ipcMain.handle('workshop:list-artifacts', (_e) => {
+    return currentWorkshopEngine?.listArtifacts() ?? []
+  })
+
+  ipcMain.handle('workshop:get-artifact', (_e, artifactId) => {
+    const content = currentWorkshopEngine?.getArtifactContent(artifactId) ?? null
+    const artifacts = currentWorkshopEngine?.listArtifacts() ?? []
+    const artifact = artifacts.find(a => a.id === artifactId) ?? null
+    return { artifact, content }
+  })
+
+  ipcMain.handle('workshop:create-tasks', async (_e, sessionId, tasks) => {
+    if (!currentWorkshopEngine) return
+    for (const task of tasks) {
+      await currentWorkshopEngine.createPipelineTask(sessionId, task)
+    }
+  })
+}
+
 function registerWindowIpc() {
   ipcMain.handle('window:minimize', () => {
     mainWindow?.minimize()
@@ -169,6 +239,7 @@ function registerWindowIpc() {
 app.whenReady().then(() => {
   registerIpcHandlers()
   registerPipelineIpc()
+  registerWorkshopIpc()
   registerWindowIpc()
   createWindow()
 })
