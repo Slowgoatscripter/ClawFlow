@@ -1,0 +1,371 @@
+import { EventEmitter } from 'events'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import path from 'node:path'
+import fs from 'node:fs'
+import { getTask, updateTask, getAllTasks } from './db'
+import type { GitBranch, GitCommitResult, GitMergeResult } from '../shared/types'
+
+const execFileAsync = promisify(execFile)
+
+export class GitEngine extends EventEmitter {
+  private projectPath: string
+  private dbPath: string
+  private baseBranch: string = 'main'
+  private activeWorktrees = new Map<number, string>() // taskId -> worktree path
+
+  constructor(dbPath: string, projectPath: string) {
+    super()
+    this.dbPath = dbPath
+    this.projectPath = projectPath
+  }
+
+  /**
+   * Safe git helper — uses execFileAsync (no shell) with timeout and buffer limits.
+   * Emits 'git:error' on failure and rethrows.
+   */
+  private async git(args: string[], cwd?: string): Promise<string> {
+    try {
+      const { stdout } = await execFileAsync('git', args, {
+        cwd: cwd ?? this.projectPath,
+        timeout: 30_000,
+        maxBuffer: 10 * 1024 * 1024
+      })
+      return stdout.trim()
+    } catch (err: any) {
+      this.emit('git:error', { args, error: err.message ?? String(err) })
+      throw err
+    }
+  }
+
+  /**
+   * Verify the project is a git repo, detect the base branch, and scan existing worktrees.
+   */
+  async initRepo(): Promise<void> {
+    // Verify this is a git repo
+    await this.git(['rev-parse', '--git-dir'])
+
+    // Detect base branch: try main, then master, then current HEAD
+    for (const candidate of ['main', 'master']) {
+      try {
+        await this.git(['rev-parse', '--verify', `refs/heads/${candidate}`])
+        this.baseBranch = candidate
+        return await this.scanWorktrees()
+      } catch {
+        // candidate doesn't exist, try next
+      }
+    }
+
+    // Fallback: use whatever HEAD points to
+    try {
+      const head = await this.git(['symbolic-ref', '--short', 'HEAD'])
+      this.baseBranch = head
+    } catch {
+      // detached HEAD — keep default 'main'
+    }
+
+    await this.scanWorktrees()
+  }
+
+  /**
+   * Create a git worktree for a task: branch + worktree directory.
+   */
+  async createWorktree(taskId: number, taskTitle: string): Promise<string> {
+    const slug = taskTitle
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40)
+
+    const branchName = `task/${taskId}-${slug}`
+    const worktreePath = path.join(this.projectPath, '.clawflow', 'worktrees', String(taskId))
+
+    // Ensure parent dir exists
+    fs.mkdirSync(path.dirname(worktreePath), { recursive: true })
+
+    // Create branch and worktree in one step
+    await this.git(['worktree', 'add', '-b', branchName, worktreePath, this.baseBranch])
+
+    this.activeWorktrees.set(taskId, worktreePath)
+
+    // Update the task record
+    updateTask(this.dbPath, taskId, { branchName, worktreePath })
+
+    this.emit('worktree:created', { taskId, branchName, worktreePath })
+    this.emit('branch:created', { taskId, branchName })
+
+    return worktreePath
+  }
+
+  /**
+   * Stage all changes and commit for a pipeline stage.
+   */
+  async stageCommit(taskId: number, stageName: string): Promise<GitCommitResult | null> {
+    const task = getTask(this.dbPath, taskId)
+    if (!task?.worktreePath) return null
+
+    const cwd = task.worktreePath
+
+    // Check for changes
+    const status = await this.git(['status', '--porcelain'], cwd)
+    if (!status) return null // nothing to commit
+
+    // Stage everything and commit
+    await this.git(['add', '-A'], cwd)
+    const message = `task/${taskId}: complete ${stageName} stage`
+    await this.git(['commit', '-m', message], cwd)
+
+    // Get the commit hash
+    const hash = await this.git(['rev-parse', 'HEAD'], cwd)
+
+    // Update the task record
+    updateTask(this.dbPath, taskId, { commitHash: hash })
+
+    const result: GitCommitResult = { hash, message, taskId, stage: stageName }
+    this.emit('commit:complete', result)
+    return result
+  }
+
+  /**
+   * Remove a worktree for a task.
+   */
+  async cleanupWorktree(taskId: number): Promise<void> {
+    const worktreePath = this.activeWorktrees.get(taskId)
+    if (!worktreePath) return
+
+    await this.git(['worktree', 'remove', '--force', worktreePath])
+
+    this.activeWorktrees.delete(taskId)
+    updateTask(this.dbPath, taskId, { worktreePath: null })
+
+    this.emit('worktree:removed', { taskId })
+  }
+
+  /**
+   * Push the task's branch to origin.
+   */
+  async push(taskId: number): Promise<void> {
+    const task = getTask(this.dbPath, taskId)
+    if (!task?.branchName) throw new Error(`Task ${taskId} has no branch`)
+
+    await this.git(['push', '-u', 'origin', task.branchName])
+
+    this.emit('push:complete', { taskId, branchName: task.branchName })
+  }
+
+  /**
+   * Merge a task's branch into the target branch (default: baseBranch).
+   * Returns merge result. On conflict: aborts, emits 'merge:conflict'.
+   */
+  async merge(taskId: number, targetBranch?: string): Promise<GitMergeResult> {
+    const task = getTask(this.dbPath, taskId)
+    if (!task?.branchName) throw new Error(`Task ${taskId} has no branch`)
+
+    const target = targetBranch ?? this.baseBranch
+
+    try {
+      await this.git(['checkout', target])
+      await this.git(['merge', '--no-ff', task.branchName])
+
+      const result: GitMergeResult = {
+        success: true,
+        conflicts: false,
+        message: `Merged ${task.branchName} into ${target}`
+      }
+      this.emit('merge:complete', { taskId, ...result })
+      return result
+    } catch (err: any) {
+      // Check if it's a merge conflict
+      if (err.message?.includes('CONFLICT') || err.stderr?.includes('CONFLICT')) {
+        await this.git(['merge', '--abort']).catch(() => {})
+
+        const result: GitMergeResult = {
+          success: false,
+          conflicts: true,
+          message: `Merge conflicts detected merging ${task.branchName} into ${target}`
+        }
+        this.emit('merge:conflict', { taskId, ...result })
+        return result
+      }
+
+      throw err
+    }
+  }
+
+  /**
+   * Delete a task's branch. Cleans up worktree first if active.
+   */
+  async deleteBranch(taskId: number): Promise<void> {
+    const task = getTask(this.dbPath, taskId)
+    if (!task?.branchName) return
+
+    // Cleanup worktree if active
+    if (this.activeWorktrees.has(taskId)) {
+      await this.cleanupWorktree(taskId)
+    }
+
+    await this.git(['branch', '-D', task.branchName])
+
+    updateTask(this.dbPath, taskId, { branchName: null })
+
+    this.emit('branch:deleted', { taskId, branchName: task.branchName })
+  }
+
+  /**
+   * Get branch details for all tasks that have a branchName.
+   */
+  async getBranches(): Promise<GitBranch[]> {
+    const tasks = getAllTasks(this.dbPath)
+    const withBranch = tasks.filter((t) => t.branchName)
+
+    const branches: GitBranch[] = []
+    for (const task of withBranch) {
+      try {
+        const detail = await this.getBranchDetail(task.id)
+        if (detail) branches.push(detail)
+      } catch {
+        // branch may have been deleted externally — skip
+      }
+    }
+
+    return branches
+  }
+
+  /**
+   * Get detailed branch info for a single task.
+   */
+  async getBranchDetail(taskId: number): Promise<GitBranch | null> {
+    const task = getTask(this.dbPath, taskId)
+    if (!task?.branchName) return null
+
+    const branch = task.branchName
+
+    // Verify branch exists
+    try {
+      await this.git(['rev-parse', '--verify', `refs/heads/${branch}`])
+    } catch {
+      return null
+    }
+
+    // Ahead/behind relative to base
+    let aheadOfBase = 0
+    let behindBase = 0
+    try {
+      const ahead = await this.git(['rev-list', '--count', `${this.baseBranch}..${branch}`])
+      aheadOfBase = parseInt(ahead, 10) || 0
+      const behind = await this.git(['rev-list', '--count', `${branch}..${this.baseBranch}`])
+      behindBase = parseInt(behind, 10) || 0
+    } catch {
+      // base branch might not exist yet
+    }
+
+    // Last commit info
+    let lastCommitMessage = ''
+    let lastCommitDate = ''
+    try {
+      lastCommitMessage = await this.git(['log', '-1', '--format=%s', branch])
+      lastCommitDate = await this.git(['log', '-1', '--format=%aI', branch])
+    } catch {
+      // empty branch
+    }
+
+    // Commit count
+    let commitCount = 0
+    try {
+      const count = await this.git(['rev-list', '--count', `${this.baseBranch}..${branch}`])
+      commitCount = parseInt(count, 10) || 0
+    } catch {
+      // fallback
+    }
+
+    // Check if pushed (does origin/<branch> exist?)
+    let pushed = false
+    try {
+      await this.git(['rev-parse', '--verify', `origin/${branch}`])
+      pushed = true
+    } catch {
+      // not pushed
+    }
+
+    // Determine status
+    let status: GitBranch['status'] = 'active'
+    if (task.status === 'done') {
+      // Check if merged into base
+      try {
+        const merged = await this.git(['branch', '--merged', this.baseBranch])
+        if (merged.split('\n').some((b) => b.trim() === branch)) {
+          status = 'merged'
+        } else {
+          status = 'completed'
+        }
+      } catch {
+        status = 'completed'
+      }
+    } else if (task.status === 'backlog' || task.status === 'blocked') {
+      // Consider stale if no commits ahead
+      if (aheadOfBase === 0) {
+        status = 'stale'
+      }
+    }
+
+    return {
+      taskId,
+      taskTitle: task.title,
+      branchName: branch,
+      status,
+      commitCount,
+      lastCommitMessage,
+      lastCommitDate,
+      aheadOfBase,
+      behindBase,
+      worktreeActive: this.activeWorktrees.has(taskId),
+      pushed
+    }
+  }
+
+  /**
+   * Scan existing worktrees and populate the activeWorktrees map.
+   */
+  private async scanWorktrees(): Promise<void> {
+    this.activeWorktrees.clear()
+
+    let output: string
+    try {
+      output = await this.git(['worktree', 'list', '--porcelain'])
+    } catch {
+      return // no worktrees or git error
+    }
+
+    if (!output) return
+
+    const tasks = getAllTasks(this.dbPath)
+    const taskByWorktree = new Map<string, number>()
+    for (const t of tasks) {
+      if (t.worktreePath) {
+        taskByWorktree.set(path.resolve(t.worktreePath), t.id)
+      }
+    }
+
+    // Parse porcelain output: blocks separated by blank lines
+    // Each block has: worktree <path>\nHEAD <hash>\nbranch <ref>\n
+    const blocks = output.split('\n\n')
+    for (const block of blocks) {
+      const lines = block.trim().split('\n')
+      const worktreeLine = lines.find((l) => l.startsWith('worktree '))
+      if (!worktreeLine) continue
+
+      const wtPath = path.resolve(worktreeLine.slice('worktree '.length).trim())
+      const taskId = taskByWorktree.get(wtPath)
+      if (taskId !== undefined) {
+        this.activeWorktrees.set(taskId, wtPath)
+      }
+    }
+  }
+
+  /**
+   * Getter for the detected base branch.
+   */
+  getBaseBranch(): string {
+    return this.baseBranch
+  }
+}
