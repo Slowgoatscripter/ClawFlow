@@ -71,6 +71,10 @@ export class GitEngine extends EventEmitter {
    * Create a git worktree for a task: branch + worktree directory.
    */
   async createWorktree(taskId: number, taskTitle: string): Promise<string> {
+    if (this.activeWorktrees.has(taskId)) {
+      return this.activeWorktrees.get(taskId)!
+    }
+
     const slug = taskTitle
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -133,11 +137,14 @@ export class GitEngine extends EventEmitter {
     const worktreePath = this.activeWorktrees.get(taskId)
     if (!worktreePath) return
 
-    await this.git(['worktree', 'remove', '--force', worktreePath])
+    try {
+      await this.git(['worktree', 'remove', '--force', worktreePath])
+    } catch {
+      // worktree may have been removed externally; proceed with cleanup
+    }
 
     this.activeWorktrees.delete(taskId)
     updateTask(this.dbPath, taskId, { worktreePath: null })
-
     this.emit('worktree:removed', { taskId })
   }
 
@@ -162,10 +169,13 @@ export class GitEngine extends EventEmitter {
     if (!task?.branchName) throw new Error(`Task ${taskId} has no branch`)
 
     const target = targetBranch ?? this.baseBranch
+    const originalBranch = await this.git(['symbolic-ref', '--short', 'HEAD']).catch(() => null)
 
     try {
       await this.git(['checkout', target])
       await this.git(['merge', '--no-ff', task.branchName])
+
+      if (originalBranch) await this.git(['checkout', originalBranch]).catch(() => {})
 
       const result: GitMergeResult = {
         success: true,
@@ -175,8 +185,14 @@ export class GitEngine extends EventEmitter {
       this.emit('merge:complete', { taskId, ...result })
       return result
     } catch (err: any) {
+      if (originalBranch) await this.git(['checkout', originalBranch]).catch(() => {})
+
       // Check if it's a merge conflict
-      if (err.message?.includes('CONFLICT') || err.stderr?.includes('CONFLICT')) {
+      if (
+        err.stdout?.includes('CONFLICT') ||
+        err.stderr?.includes('CONFLICT') ||
+        err.message?.includes('CONFLICT')
+      ) {
         await this.git(['merge', '--abort']).catch(() => {})
 
         const result: GitMergeResult = {
