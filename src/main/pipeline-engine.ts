@@ -4,6 +4,7 @@ import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS } from '../shared/constants
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
 import { getTask, updateTask, appendAgentLog, appendHandoff } from './db'
 import { constructPrompt, parseHandoff } from './template-engine'
+import { GitEngine } from './git-engine'
 
 // --- Exported SDK Types ---
 
@@ -15,6 +16,7 @@ export interface SdkRunnerParams {
   taskId: number
   autoMode: boolean
   resumeSessionId?: string
+  sessionKey?: string
   onStream: (content: string, type: string) => void
   onApprovalRequest: (requestId: string, toolName: string, toolInput: Record<string, unknown>) => void
 }
@@ -34,6 +36,8 @@ export class PipelineEngine extends EventEmitter {
   private dbPath: string
   private projectPath: string
   private sdkRunner: SdkRunner | null = null
+  private gitEngine: GitEngine | null = null
+  private taskWorktrees = new Map<number, string>() // taskId -> worktree cwd
   // Track active session IDs per task for resume support
   private sessionIds = new Map<number, string>()
 
@@ -45,6 +49,10 @@ export class PipelineEngine extends EventEmitter {
 
   setSdkRunner(runner: SdkRunner): void {
     this.sdkRunner = runner
+  }
+
+  setGitEngine(engine: GitEngine): void {
+    this.gitEngine = engine
   }
 
   /**
@@ -73,6 +81,17 @@ export class PipelineEngine extends EventEmitter {
       action: 'start',
       details: `Task started. Moving to stage: ${firstStage}`
     })
+
+    // Create git worktree for task isolation
+    if (this.gitEngine) {
+      try {
+        const worktreePath = await this.gitEngine.createWorktree(taskId, task.title)
+        this.taskWorktrees.set(taskId, worktreePath)
+      } catch (err: any) {
+        // Git not available or not a repo — continue without isolation
+        console.warn(`Git worktree creation failed for task ${taskId}: ${err.message}`)
+      }
+    }
 
     await this.runStage(taskId, firstStage)
     return this.getTaskOrThrow(taskId)
@@ -321,7 +340,7 @@ export class PipelineEngine extends EventEmitter {
       // Resuming an existing session — just send the user's answer
       prompt = userResponse
     } else {
-      prompt = constructPrompt(stage, task)
+      prompt = constructPrompt(stage, task, this.projectPath)
 
       // Auto mode: inject autonomous decision-making instructions
       if (task.autoMode) {
@@ -339,7 +358,7 @@ export class PipelineEngine extends EventEmitter {
         prompt,
         model: stageConfig.model,
         maxTurns: stageConfig.maxTurns,
-        cwd: this.projectPath,
+        cwd: this.taskWorktrees.get(taskId) ?? this.projectPath,
         taskId,
         autoMode: task.autoMode,
         resumeSessionId,
@@ -377,7 +396,7 @@ export class PipelineEngine extends EventEmitter {
       appendHandoff(this.dbPath, taskId, handoffRecord)
 
       // Store stage-specific output in the appropriate DB column
-      this.storeStageOutput(taskId, stage, result)
+      await this.storeStageOutput(taskId, stage, result)
 
       appendAgentLog(this.dbPath, taskId, {
         timestamp: new Date().toISOString(),
@@ -444,7 +463,7 @@ export class PipelineEngine extends EventEmitter {
   /**
    * Map stage results to the appropriate DB columns.
    */
-  private storeStageOutput(taskId: number, stage: PipelineStage, result: SdkResult): void {
+  private async storeStageOutput(taskId: number, stage: PipelineStage, result: SdkResult): Promise<void> {
     const updates: Record<string, any> = {}
 
     switch (stage) {
@@ -493,6 +512,25 @@ export class PipelineEngine extends EventEmitter {
 
     if (Object.keys(updates).length > 0) {
       updateTask(this.dbPath, taskId, updates)
+    }
+
+    // Auto-commit stage work
+    if (this.gitEngine) {
+      try {
+        await this.gitEngine.stageCommit(taskId, stage)
+      } catch (err: any) {
+        console.warn(`Git stage commit failed for task ${taskId}/${stage}: ${err.message}`)
+      }
+    }
+
+    // Clean up worktree on task completion (keeps branch)
+    if (stage === 'done' && this.gitEngine) {
+      try {
+        await this.gitEngine.cleanupWorktree(taskId)
+        this.taskWorktrees.delete(taskId)
+      } catch (err: any) {
+        console.warn(`Git worktree cleanup failed for task ${taskId}: ${err.message}`)
+      }
     }
   }
 
