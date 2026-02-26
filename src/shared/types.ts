@@ -283,6 +283,20 @@ export interface WorkshopToolCall {
   input: Record<string, unknown>
 }
 
+export interface ToolCallData {
+  id: string
+  toolName: string
+  toolInput?: Record<string, unknown>
+  toolResult?: unknown
+  timestamp: string
+}
+
+export type MessageSegment =
+  | { type: 'text'; content: string }
+  | { type: 'thinking' }
+  | { type: 'tool_call'; tool: ToolCallData }
+  | { type: 'tool_group'; toolName: string; tools: ToolCallData[] }
+
 export interface WorkshopSuggestedTask {
   title: string
   description: string
