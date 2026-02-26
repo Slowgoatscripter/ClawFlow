@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 import path from 'node:path'
 import fs from 'node:fs'
 import { getTask, updateTask, getAllTasks } from './db'
-import type { GitBranch, GitCommitResult, GitMergeResult } from '../shared/types'
+import type { GitBranch, GitCommitResult, GitMergeResult, FileStatus } from '../shared/types'
 
 const execFileAsync = promisify(execFile)
 
@@ -175,11 +175,22 @@ export class GitEngine extends EventEmitter {
    */
   async push(taskId: number): Promise<void> {
     const task = getTask(this.dbPath, taskId)
-    if (!task?.branchName) throw new Error(`Task ${taskId} has no branch`)
+    if (!task?.branchName) throw new Error('Task has no branch')
 
-    await this.git(['push', '-u', 'origin', task.branchName])
+    try {
+      await this.git(['push', '-u', 'origin', task.branchName])
+      this.emit('push:complete', { taskId, branchName: task.branchName })
+    } catch (err: any) {
+      const errText = [err.stdout, err.stderr, err.message].filter(Boolean).join(' ')
 
-    this.emit('push:complete', { taskId, branchName: task.branchName })
+      if (errText.includes('does not appear to be a git repository')) {
+        throw new Error('No remote "origin" configured. Add a remote before pushing.')
+      }
+      if (errText.includes('rejected') || errText.includes('non-fast-forward')) {
+        throw new Error('Push rejected: remote has newer changes. Pull or fetch first.')
+      }
+      throw err
+    }
   }
 
   /**
@@ -207,23 +218,33 @@ export class GitEngine extends EventEmitter {
       this.emit('merge:complete', { taskId, ...result })
       return result
     } catch (err: any) {
-      if (originalBranch) await this.git(['checkout', originalBranch]).catch(() => {})
+      // Always try to restore original branch
+      if (originalBranch) {
+        await this.git(['checkout', originalBranch]).catch(() => {})
+      }
 
-      // Check if it's a merge conflict
-      if (
-        err.stdout?.includes('CONFLICT') ||
-        err.stderr?.includes('CONFLICT') ||
-        err.message?.includes('CONFLICT')
-      ) {
+      const errText = [err.stdout, err.stderr, err.message].filter(Boolean).join(' ')
+
+      if (errText.includes('CONFLICT')) {
         await this.git(['merge', '--abort']).catch(() => {})
+        this.emit('merge:conflict', { taskId, branchName: task.branchName })
+        return { success: false, conflicts: true, message: 'Merge conflicts detected. Resolve manually.' }
+      }
 
-        const result: GitMergeResult = {
+      if (errText.includes('untracked working tree files would be overwritten')) {
+        return {
           success: false,
-          conflicts: true,
-          message: `Merge conflicts detected merging ${task.branchName} into ${target}`
+          conflicts: false,
+          message: 'Merge blocked: untracked files on the target branch would be overwritten. Commit or remove them first, then retry.'
         }
-        this.emit('merge:conflict', { taskId, ...result })
-        return result
+      }
+
+      if (errText.includes('local changes') && errText.includes('would be overwritten')) {
+        return {
+          success: false,
+          conflicts: false,
+          message: 'Merge blocked: uncommitted changes on the target branch would be overwritten. Commit or stash them first.'
+        }
       }
 
       throw err
@@ -398,6 +419,57 @@ export class GitEngine extends EventEmitter {
         this.activeWorktrees.set(taskId, wtPath)
       }
     }
+  }
+
+  /**
+   * Get uncommitted/untracked files for a task's branch.
+   */
+  async getWorkingTreeStatus(taskId: number): Promise<FileStatus[]> {
+    const worktreeDir = this.activeWorktrees.get(taskId)
+    const cwd = worktreeDir ?? this.projectPath
+
+    const output = await this.git(['status', '--porcelain'], cwd)
+    if (!output.trim()) return []
+
+    return output.split('\n').filter(Boolean).map(line => {
+      const indexStatus = line[0]
+      const workStatus = line[1]
+      const filePath = line.slice(3).trim()
+
+      // Parse git status codes
+      let status: FileStatus['status'] = 'modified'
+      let staged = false
+
+      if (indexStatus === '?' && workStatus === '?') {
+        status = 'untracked'
+      } else if (indexStatus === 'A') {
+        status = 'added'
+        staged = true
+      } else if (indexStatus === 'D' || workStatus === 'D') {
+        status = 'deleted'
+        staged = indexStatus === 'D'
+      } else if (indexStatus === 'R') {
+        status = 'renamed'
+        staged = true
+      } else if (indexStatus === 'M') {
+        status = 'modified'
+        staged = true
+      } else if (workStatus === 'M') {
+        status = 'modified'
+        staged = false
+      }
+
+      return { path: filePath, status, staged }
+    })
+  }
+
+  /**
+   * Stage all files in a task's worktree.
+   */
+  async stageAll(taskId: number): Promise<void> {
+    const worktreeDir = this.activeWorktrees.get(taskId)
+    const cwd = worktreeDir ?? this.projectPath
+    await this.git(['add', '.'], cwd)
   }
 
   /**

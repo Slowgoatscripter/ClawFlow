@@ -172,6 +172,14 @@ function registerGitIpc() {
     updateProjectBaseBranch(projectName, branchName)
     return engine.getBaseBranch()
   })
+  ipcMain.handle('git:get-working-tree-status', async (_e, dbPath, projectPath, taskId) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.getWorkingTreeStatus(taskId)
+  })
+  ipcMain.handle('git:stage-all', async (_e, dbPath, projectPath, taskId) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.stageAll(taskId)
+  })
 }
 
 function registerPipelineIpc() {

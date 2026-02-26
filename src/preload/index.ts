@@ -91,6 +91,10 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('git:get-local-branches', dbPath, projectPath),
     setBaseBranch: (dbPath: string, projectPath: string, projectName: string, branchName: string) =>
       ipcRenderer.invoke('git:set-base-branch', dbPath, projectPath, projectName, branchName),
+    getWorkingTreeStatus: (dbPath: string, projectPath: string, taskId: number) =>
+      ipcRenderer.invoke('git:get-working-tree-status', dbPath, projectPath, taskId),
+    stageAll: (dbPath: string, projectPath: string, taskId: number) =>
+      ipcRenderer.invoke('git:stage-all', dbPath, projectPath, taskId),
     onBranchCreated: (callback: (data: any) => void) => {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('git:branch-created', handler)

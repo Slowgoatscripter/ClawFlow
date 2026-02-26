@@ -195,6 +195,12 @@ export interface WorkshopArtifact {
 }
 
 // Git types
+export interface FileStatus {
+  path: string
+  status: 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed'
+  staged: boolean
+}
+
 export interface GitBranch {
   taskId: number
   taskTitle: string
@@ -294,6 +300,7 @@ export type IpcChannel =
   | 'git:get-local-branches' | 'git:set-base-branch'
   | 'git:branch-created' | 'git:commit-complete'
   | 'git:push-complete' | 'git:merge-complete' | 'git:error'
+  | 'git:get-working-tree-status' | 'git:stage-all'
   | 'fs:pick-directory'
   | 'window:minimize'
   | 'window:maximize'
