@@ -12,6 +12,7 @@ export class GitEngine extends EventEmitter {
   private projectPath: string
   private dbPath: string
   private baseBranch: string = 'main'
+  private baseBranchConfigured = false
   private activeWorktrees = new Map<number, string>() // taskId -> worktree path
 
   constructor(dbPath: string, projectPath: string) {
@@ -41,9 +42,30 @@ export class GitEngine extends EventEmitter {
   /**
    * Verify the project is a git repo, detect the base branch, and scan existing worktrees.
    */
+  setBaseBranch(branch: string): void {
+    this.baseBranch = branch
+    this.baseBranchConfigured = true
+  }
+
+  async listLocalBranches(): Promise<string[]> {
+    const output = await this.git(['branch', '--format=%(refname:short)'])
+    return output.split('\n').map(b => b.trim()).filter(Boolean)
+  }
+
   async initRepo(): Promise<void> {
     // Verify this is a git repo
     await this.git(['rev-parse', '--git-dir'])
+
+    // If baseBranch was explicitly configured, verify it exists and skip auto-detection
+    if (this.baseBranchConfigured) {
+      try {
+        await this.git(['rev-parse', '--verify', `refs/heads/${this.baseBranch}`])
+        return await this.scanWorktrees()
+      } catch {
+        // Configured branch doesn't exist, fall through to auto-detection
+        console.warn(`Configured base branch '${this.baseBranch}' not found, auto-detecting...`)
+      }
+    }
 
     // Detect base branch: try main, then master, then current HEAD
     for (const candidate of ['main', 'master']) {

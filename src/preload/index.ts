@@ -87,6 +87,10 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('git:delete-branch', dbPath, projectPath, taskId),
     commit: (dbPath: string, projectPath: string, taskId: number, message: string) =>
       ipcRenderer.invoke('git:commit', dbPath, projectPath, taskId, message),
+    getLocalBranches: (dbPath: string, projectPath: string) =>
+      ipcRenderer.invoke('git:get-local-branches', dbPath, projectPath),
+    setBaseBranch: (dbPath: string, projectPath: string, projectName: string, branchName: string) =>
+      ipcRenderer.invoke('git:set-base-branch', dbPath, projectPath, projectName, branchName),
     onBranchCreated: (callback: (data: any) => void) => {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('git:branch-created', handler)

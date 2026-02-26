@@ -267,6 +267,11 @@ export function getProjectStats(dbPath: string): ProjectStats {
   return { backlog, inProgress, done, blocked, completionRate, avgReviewScore, circuitBreakerTrips }
 }
 
+export function updateProjectBaseBranch(projectName: string, baseBranch: string): void {
+  const db = getGlobalDb()
+  db.prepare('UPDATE projects SET default_base_branch = ? WHERE name = ?').run(baseBranch, projectName)
+}
+
 export function closeAllDbs(): void {
   globalDb?.close()
   globalDb = null

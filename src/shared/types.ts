@@ -291,6 +291,7 @@ export type IpcChannel =
   | 'workshop:tool-event'
   | 'git:get-branches' | 'git:get-branch-detail' | 'git:push'
   | 'git:merge' | 'git:delete-branch' | 'git:commit'
+  | 'git:get-local-branches' | 'git:set-base-branch'
   | 'git:branch-created' | 'git:commit-complete'
   | 'git:push-complete' | 'git:merge-complete' | 'git:error'
   | 'fs:pick-directory'

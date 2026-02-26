@@ -7,8 +7,12 @@ interface GitState {
   selectedTaskId: number | null
   loading: boolean
   error: string | null
+  baseBranch: string
+  localBranches: string[]
 
   loadBranches: () => Promise<void>
+  loadLocalBranches: () => Promise<void>
+  setBaseBranch: (branch: string) => Promise<void>
   selectBranch: (taskId: number | null) => void
   push: (taskId: number) => Promise<void>
   merge: (taskId: number) => Promise<void>
@@ -22,6 +26,8 @@ export const useGitStore = create<GitState>((set, get) => ({
   selectedTaskId: null,
   loading: false,
   error: null,
+  baseBranch: 'main',
+  localBranches: [],
 
   loadBranches: async () => {
     const project = useProjectStore.getState().currentProject
@@ -32,6 +38,29 @@ export const useGitStore = create<GitState>((set, get) => ({
       set({ branches, loading: false })
     } catch (err: any) {
       set({ error: err.message, loading: false })
+    }
+  },
+
+  loadLocalBranches: async () => {
+    const project = useProjectStore.getState().currentProject
+    if (!project) return
+    try {
+      const branches = await window.api.git.getLocalBranches(project.dbPath, project.path)
+      set({ localBranches: branches, baseBranch: project.defaultBaseBranch })
+    } catch (err: any) {
+      set({ error: err.message })
+    }
+  },
+
+  setBaseBranch: async (branch) => {
+    const project = useProjectStore.getState().currentProject
+    if (!project) return
+    try {
+      await window.api.git.setBaseBranch(project.dbPath, project.path, project.name, branch)
+      set({ baseBranch: branch })
+      await get().loadBranches() // reload with new base
+    } catch (err: any) {
+      set({ error: err.message })
     }
   },
 

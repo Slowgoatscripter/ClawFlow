@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { registerIpcHandlers } from './ipc-handlers'
-import { closeAllDbs, listWorkshopMessages } from './db'
+import { closeAllDbs, listWorkshopMessages, listProjects, updateProjectBaseBranch } from './db'
 import { PipelineEngine } from './pipeline-engine'
 import { WorkshopEngine } from './workshop-engine'
 import { createSdkRunner, resolveApproval } from './sdk-manager'
@@ -113,6 +113,12 @@ function createWindow() {
 function ensureGitEngine(dbPath: string, projectPath: string): GitEngine {
   if (!currentGitEngine || currentGitEngine['dbPath'] !== dbPath) {
     currentGitEngine = new GitEngine(dbPath, projectPath)
+    // Load configured base branch from project settings
+    const projects = listProjects()
+    const project = projects.find(p => p.dbPath === dbPath)
+    if (project?.defaultBaseBranch) {
+      currentGitEngine.setBaseBranch(project.defaultBaseBranch)
+    }
     // Bridge events to renderer
     currentGitEngine.on('branch:created', (data) =>
       mainWindow?.webContents.send('git:branch-created', data))
@@ -155,6 +161,16 @@ function registerGitIpc() {
   ipcMain.handle('git:commit', async (_e, dbPath, projectPath, taskId, message) => {
     const engine = ensureGitEngine(dbPath, projectPath)
     return engine.stageCommit(taskId, message)
+  })
+  ipcMain.handle('git:get-local-branches', async (_e, dbPath, projectPath) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    return engine.listLocalBranches()
+  })
+  ipcMain.handle('git:set-base-branch', async (_e, dbPath, projectPath, projectName, branchName) => {
+    const engine = ensureGitEngine(dbPath, projectPath)
+    engine.setBaseBranch(branchName)
+    updateProjectBaseBranch(projectName, branchName)
+    return engine.getBaseBranch()
   })
 }
 
