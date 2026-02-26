@@ -421,6 +421,11 @@ export class PipelineEngine extends EventEmitter {
       // Stage completed successfully
       this.emit('stage:complete', { taskId, stage })
 
+      // If this stage pauses for review, notify the renderer
+      if (stageConfig.pauses && !task.autoMode) {
+        this.emit('stage:awaiting-review', { taskId, stage })
+      }
+
       // Auto-advance if stage doesn't pause or task is autoMode
       if (!stageConfig.pauses || task.autoMode) {
         const nextStage = getNextStage(task.tier, stage)
@@ -464,6 +469,20 @@ export class PipelineEngine extends EventEmitter {
    * Map stage results to the appropriate DB columns.
    */
   private async storeStageOutput(taskId: number, stage: PipelineStage, result: SdkResult): Promise<void> {
+    const stageConfig = STAGE_CONFIGS[stage]
+
+    // For stages that pause for review, validate output is non-empty
+    if (stageConfig.pauses && (!result.output || result.output.trim() === '')) {
+      appendAgentLog(this.dbPath, taskId, {
+        timestamp: new Date().toISOString(),
+        agent: stage,
+        model: stageConfig.model,
+        action: 'stage:warning',
+        details: `Stage ${stage} produced empty output — skipping storage`
+      })
+      return
+    }
+
     const updates: Record<string, any> = {}
 
     switch (stage) {

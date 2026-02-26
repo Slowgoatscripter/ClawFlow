@@ -192,6 +192,7 @@ function registerPipelineIpc() {
     currentEngine.on('stage:complete', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'complete', ...data }))
     currentEngine.on('stage:error', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'error', ...data }))
     currentEngine.on('circuit-breaker', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'circuit-breaker', ...data }))
+    currentEngine.on('stage:awaiting-review', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'awaiting-review', ...data }))
 
     const gitEngine = ensureGitEngine(dbPath, projectPath)
     currentEngine.setGitEngine(gitEngine)

@@ -15,7 +15,7 @@ export function PlanReviewGate({ task }: Props) {
 
   const planText =
     task.status === 'planning'
-      ? (task.plan as any)?.raw ?? JSON.stringify(task.plan, null, 2) ?? ''
+      ? (task.plan as any)?.output ?? ''
       : task.brainstormOutput ?? ''
 
   const refreshTasks = async () => {
@@ -48,15 +48,49 @@ export function PlanReviewGate({ task }: Props) {
     }
   }
 
+  // If no plan content, show a waiting state instead of approve/reject
+  if (!planText || planText.trim() === '') {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-xl font-semibold text-accent-gold">Plan Review Required</h3>
+        <p className="text-text-muted text-sm">Plan output is empty. Consider rejecting and re-running the planning stage.</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setRejecting(!rejecting)}
+            disabled={submitting}
+            className="bg-accent-red text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            Reject
+          </button>
+        </div>
+        {rejecting && (
+          <div className="space-y-3">
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="Provide feedback..."
+              className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-gold"
+            />
+            <button
+              onClick={handleReject}
+              disabled={submitting || !feedback.trim()}
+              className="bg-accent-red text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              Submit Rejection
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <h3 className="text-xl font-semibold text-accent-gold">Plan Review Required</h3>
 
-      {planText && (
-        <pre className="bg-elevated rounded p-4 font-mono text-sm max-h-[400px] overflow-y-auto text-text-secondary whitespace-pre-wrap">
-          {planText}
-        </pre>
-      )}
+      <pre className="bg-elevated rounded p-4 font-mono text-sm max-h-[400px] overflow-y-auto text-text-secondary whitespace-pre-wrap">
+        {planText}
+      </pre>
 
       <div className="flex items-center gap-3">
         <button

@@ -6,6 +6,7 @@ interface PipelineState {
   streaming: boolean
   streamEvents: StreamEvent[]
   approvalRequest: ApprovalRequest | null
+  awaitingReview: Record<number, boolean>
   startPipeline: (taskId: number) => Promise<void>
   stepPipeline: (taskId: number) => Promise<void>
   approveStage: (taskId: number) => Promise<void>
@@ -23,22 +24,38 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   streaming: false,
   streamEvents: [],
   approvalRequest: null,
+  awaitingReview: {},
 
   startPipeline: async (taskId) => {
-    set({ activeTaskId: taskId, streaming: true, streamEvents: [] })
+    set(state => ({
+      activeTaskId: taskId,
+      streaming: true,
+      streamEvents: [],
+      awaitingReview: { ...state.awaitingReview, [taskId]: false }
+    }))
     await window.api.pipeline.start(taskId)
   },
 
   stepPipeline: async (taskId) => {
-    set({ activeTaskId: taskId, streaming: true })
+    set(state => ({
+      activeTaskId: taskId,
+      streaming: true,
+      awaitingReview: { ...state.awaitingReview, [taskId]: false }
+    }))
     await window.api.pipeline.step(taskId)
   },
 
   approveStage: async (taskId) => {
+    set(state => ({
+      awaitingReview: { ...state.awaitingReview, [taskId]: false }
+    }))
     await window.api.pipeline.approve(taskId)
   },
 
   rejectStage: async (taskId, feedback) => {
+    set(state => ({
+      awaitingReview: { ...state.awaitingReview, [taskId]: false }
+    }))
     await window.api.pipeline.reject(taskId, feedback)
   },
 
@@ -58,7 +75,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
 
   setApprovalRequest: (request) => set({ approvalRequest: request }),
 
-  clearStream: () => set({ streamEvents: [], streaming: false, activeTaskId: null }),
+  clearStream: () => set({ streamEvents: [], streaming: false, activeTaskId: null, awaitingReview: {} }),
 
   setupListeners: () => {
     const cleanupStream = window.api.pipeline.onStream((event) => {
@@ -72,6 +89,11 @@ export const usePipelineStore = create<PipelineState>((set) => ({
     const cleanupStatus = window.api.pipeline.onStatusChange((event) => {
       if (event.type === 'complete' || event.type === 'error' || event.type === 'pause' || event.type === 'circuit-breaker') {
         set({ streaming: false })
+      }
+      if (event.type === 'awaiting-review' && event.taskId) {
+        set(state => ({
+          awaitingReview: { ...state.awaitingReview, [event.taskId]: true }
+        }))
       }
     })
     return () => {
