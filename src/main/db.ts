@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff, WorkshopSession, WorkshopMessage, WorkshopArtifact, WorkshopTaskLink, WorkshopMessageRole, WorkshopMessageType, WorkshopArtifactType } from '../shared/types'
+import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff, WorkshopSession, WorkshopMessage, WorkshopArtifact, WorkshopTaskLink, WorkshopMessageRole, WorkshopMessageType, WorkshopArtifactType, WorkshopSessionType, PanelPersona } from '../shared/types'
 import crypto from 'crypto'
 
 const CLAWFLOW_DIR = path.join(os.homedir(), '.clawflow')
@@ -140,7 +140,9 @@ function initProjectDb(dbPath: string): Database.Database {
       status TEXT NOT NULL DEFAULT 'active',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       pending_content TEXT DEFAULT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      session_type TEXT NOT NULL DEFAULT 'solo',
+      panel_personas TEXT
     )
   `)
   migrateWorkshopSessionsTable(db)
@@ -152,9 +154,13 @@ function initProjectDb(dbPath: string): Database.Database {
       content TEXT NOT NULL,
       message_type TEXT NOT NULL DEFAULT 'text',
       metadata TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      persona_id TEXT,
+      persona_name TEXT,
+      round_number INTEGER
     )
   `)
+  migrateWorkshopMessagesTable(db)
   db.exec(`
     CREATE TABLE IF NOT EXISTS workshop_artifacts (
       id TEXT PRIMARY KEY,
@@ -283,13 +289,19 @@ export function closeAllDbs(): void {
 
 // --- Workshop Sessions ---
 
-export function createWorkshopSession(dbPath: string, projectId: string, title?: string): WorkshopSession {
+export function createWorkshopSession(
+  dbPath: string,
+  projectId: string,
+  title?: string,
+  sessionType: WorkshopSessionType = 'solo',
+  panelPersonas: PanelPersona[] | null = null
+): WorkshopSession {
   const db = getProjectDb(dbPath)
   const id = crypto.randomUUID()
   db.prepare(`
-    INSERT INTO workshop_sessions (id, project_id, title)
-    VALUES (?, ?, ?)
-  `).run(id, projectId, title ?? 'New Session')
+    INSERT INTO workshop_sessions (id, project_id, title, session_type, panel_personas)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, projectId, title ?? 'New Session', sessionType, panelPersonas ? JSON.stringify(panelPersonas) : null)
   return getWorkshopSession(dbPath, id)!
 }
 
@@ -334,13 +346,23 @@ export function deleteWorkshopSession(dbPath: string, sessionId: string): void {
 
 // --- Workshop Messages ---
 
-export function createWorkshopMessage(dbPath: string, sessionId: string, role: WorkshopMessageRole, content: string, messageType?: WorkshopMessageType, metadata?: Record<string, unknown> | null): WorkshopMessage {
+export function createWorkshopMessage(
+  dbPath: string,
+  sessionId: string,
+  role: WorkshopMessageRole,
+  content: string,
+  messageType?: WorkshopMessageType,
+  metadata?: Record<string, unknown> | null,
+  personaId?: string | null,
+  personaName?: string | null,
+  roundNumber?: number | null
+): WorkshopMessage {
   const db = getProjectDb(dbPath)
   const id = crypto.randomUUID()
   db.prepare(`
-    INSERT INTO workshop_messages (id, session_id, role, content, message_type, metadata)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, sessionId, role, content, messageType ?? 'text', metadata ? JSON.stringify(metadata) : null)
+    INSERT INTO workshop_messages (id, session_id, role, content, message_type, metadata, persona_id, persona_name, round_number)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, sessionId, role, content, messageType ?? 'text', metadata ? JSON.stringify(metadata) : null, personaId ?? null, personaName ?? null, roundNumber ?? null)
   const row = db.prepare('SELECT * FROM workshop_messages WHERE id = ?').get(id) as any
   return rowToWorkshopMessage(row)
 }
@@ -444,6 +466,26 @@ function migrateWorkshopSessionsTable(db: Database.Database): void {
   if (!colNames.has('pending_content')) {
     db.prepare('ALTER TABLE workshop_sessions ADD COLUMN pending_content TEXT DEFAULT NULL').run()
   }
+  if (!colNames.has('session_type')) {
+    db.prepare("ALTER TABLE workshop_sessions ADD COLUMN session_type TEXT NOT NULL DEFAULT 'solo'").run()
+  }
+  if (!colNames.has('panel_personas')) {
+    db.prepare('ALTER TABLE workshop_sessions ADD COLUMN panel_personas TEXT').run()
+  }
+}
+
+function migrateWorkshopMessagesTable(db: Database.Database): void {
+  const cols = db.pragma('table_info(workshop_messages)') as { name: string }[]
+  const colNames = new Set(cols.map(c => c.name))
+  if (!colNames.has('persona_id')) {
+    db.prepare('ALTER TABLE workshop_messages ADD COLUMN persona_id TEXT').run()
+  }
+  if (!colNames.has('persona_name')) {
+    db.prepare('ALTER TABLE workshop_messages ADD COLUMN persona_name TEXT').run()
+  }
+  if (!colNames.has('round_number')) {
+    db.prepare('ALTER TABLE workshop_messages ADD COLUMN round_number INTEGER').run()
+  }
 }
 
 function rowToTask(row: any): Task {
@@ -488,7 +530,9 @@ function rowToWorkshopSession(row: any): WorkshopSession {
     pendingContent: row.pending_content ?? null,
     status: row.status,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    sessionType: row.session_type as WorkshopSessionType ?? 'solo',
+    panelPersonas: row.panel_personas ? JSON.parse(row.panel_personas) : null
   }
 }
 
@@ -500,7 +544,10 @@ function rowToWorkshopMessage(row: any): WorkshopMessage {
     content: row.content,
     messageType: row.message_type,
     metadata: safeJsonParse(row.metadata),
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    personaId: row.persona_id || null,
+    personaName: row.persona_name || null,
+    roundNumber: row.round_number || null
   }
 }
 
