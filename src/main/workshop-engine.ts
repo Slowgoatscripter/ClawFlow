@@ -178,6 +178,8 @@ export class WorkshopEngine extends EventEmitter {
       pendingSaveTimer = setTimeout(savePendingContent, 2000)
     }
 
+    let lastEventType: string = 'text'
+
     try {
       this.emit('stream', { type: 'text', content: '', sessionId } as WorkshopStreamEvent)
 
@@ -192,12 +194,18 @@ export class WorkshopEngine extends EventEmitter {
         sessionKey: sessionId,
         onStream: (streamContent: string, streamType: string) => {
           if (streamType === 'tool_use') {
+            lastEventType = 'tool_use'
             this.emit('stream', {
               type: 'tool_call',
               toolName: streamContent.replace('Tool: ', ''),
               sessionId,
             } as WorkshopStreamEvent)
           } else {
+            // If we were doing tool work and now getting text, emit thinking marker
+            if (lastEventType === 'tool_use' && streamContent.trim()) {
+              this.emit('stream', { type: 'thinking' as any, sessionId })
+            }
+            lastEventType = 'text'
             accumulatedText += streamContent
             debouncedSave()
             this.emit('stream', {
