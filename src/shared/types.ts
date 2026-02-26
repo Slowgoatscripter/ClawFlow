@@ -108,6 +108,7 @@ export interface Task {
   handoffs: Handoff[]
   agentLog: AgentLogEntry[]
   todos: Record<string, TodoItem[]> | null
+  archivedAt: string | null
 }
 
 export interface CreateTaskInput {
@@ -303,6 +304,9 @@ export type IpcChannel =
   | 'tasks:update'
   | 'tasks:delete'
   | 'tasks:stats'
+  | 'tasks:archive'
+  | 'tasks:unarchive'
+  | 'tasks:archive-all-done'
   | 'pipeline:init'
   | 'pipeline:start'
   | 'pipeline:step'

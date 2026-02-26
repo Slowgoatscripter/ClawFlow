@@ -13,7 +13,10 @@ contextBridge.exposeInMainWorld('api', {
     get: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:get', dbPath, taskId),
     update: (dbPath: string, taskId: number, updates: Record<string, any>) => ipcRenderer.invoke('tasks:update', dbPath, taskId, updates),
     delete: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:delete', dbPath, taskId),
-    stats: (dbPath: string) => ipcRenderer.invoke('tasks:stats', dbPath)
+    stats: (dbPath: string) => ipcRenderer.invoke('tasks:stats', dbPath),
+    archiveTask: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:archive', dbPath, taskId),
+    unarchiveTask: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:unarchive', dbPath, taskId),
+    archiveAllDone: (dbPath: string) => ipcRenderer.invoke('tasks:archive-all-done', dbPath)
   },
   pipeline: {
     init: (dbPath: string, projectPath: string) => ipcRenderer.invoke('pipeline:init', dbPath, projectPath),

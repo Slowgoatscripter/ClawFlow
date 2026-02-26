@@ -2,7 +2,7 @@ import { ipcMain, dialog } from 'electron'
 import {
   listProjects, registerProject, openProject, deleteProject,
   listTasks, createTask, getTask, updateTask, deleteTask,
-  getProjectStats
+  getProjectStats, archiveTask, unarchiveTask, archiveAllDone
 } from './db'
 import type { CreateTaskInput } from '../shared/types'
 
@@ -20,6 +20,9 @@ export function registerIpcHandlers() {
   ipcMain.handle('tasks:update', (_e, dbPath: string, taskId: number, updates: Record<string, any>) => updateTask(dbPath, taskId, updates))
   ipcMain.handle('tasks:delete', (_e, dbPath: string, taskId: number) => { deleteTask(dbPath, taskId); return true })
   ipcMain.handle('tasks:stats', (_e, dbPath: string) => getProjectStats(dbPath))
+  ipcMain.handle('tasks:archive', (_e, dbPath: string, taskId: number) => archiveTask(dbPath, taskId))
+  ipcMain.handle('tasks:unarchive', (_e, dbPath: string, taskId: number) => unarchiveTask(dbPath, taskId))
+  ipcMain.handle('tasks:archive-all-done', (_e, dbPath: string) => { archiveAllDone(dbPath); return true })
 
   // --- Filesystem ---
   ipcMain.handle('fs:pick-directory', async () => {

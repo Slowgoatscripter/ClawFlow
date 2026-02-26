@@ -275,6 +275,23 @@ export function getProjectStats(dbPath: string): ProjectStats {
   return { backlog, inProgress, done, blocked, completionRate, avgReviewScore, circuitBreakerTrips }
 }
 
+export function archiveTask(dbPath: string, taskId: number): Task | null {
+  const db = getProjectDb(dbPath)
+  db.prepare('UPDATE tasks SET archived_at = ? WHERE id = ?').run(new Date().toISOString(), taskId)
+  return getTask(dbPath, taskId)
+}
+
+export function unarchiveTask(dbPath: string, taskId: number): Task | null {
+  const db = getProjectDb(dbPath)
+  db.prepare('UPDATE tasks SET archived_at = NULL WHERE id = ?').run(taskId)
+  return getTask(dbPath, taskId)
+}
+
+export function archiveAllDone(dbPath: string): void {
+  const db = getProjectDb(dbPath)
+  db.prepare("UPDATE tasks SET archived_at = ? WHERE status = 'done' AND archived_at IS NULL").run(new Date().toISOString())
+}
+
 export function updateProjectBaseBranch(projectName: string, baseBranch: string): void {
   const db = getGlobalDb()
   db.prepare('UPDATE projects SET default_base_branch = ? WHERE name = ?').run(baseBranch, projectName)
@@ -451,6 +468,7 @@ function migrateTasksTable(db: Database.Database): void {
   if (!colNames.has('worktree_path')) db.prepare('ALTER TABLE tasks ADD COLUMN worktree_path TEXT').run()
   if (!colNames.has('pr_url')) db.prepare('ALTER TABLE tasks ADD COLUMN pr_url TEXT').run()
   if (!colNames.has('todos')) db.prepare('ALTER TABLE tasks ADD COLUMN todos TEXT').run()
+  if (!colNames.has('archived_at')) db.prepare('ALTER TABLE tasks ADD COLUMN archived_at TEXT').run()
 }
 
 function migrateProjectsTable(db: Database.Database): void {
@@ -517,7 +535,8 @@ function rowToTask(row: any): Task {
     prUrl: row.pr_url,
     handoffs: safeJsonParse(row.handoffs) ?? [],
     agentLog: safeJsonParse(row.agent_log) ?? [],
-    todos: safeJsonParse(row.todos) ?? null
+    todos: safeJsonParse(row.todos) ?? null,
+    archivedAt: row.archived_at ?? null
   }
 }
 
