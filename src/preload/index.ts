@@ -72,6 +72,18 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('workshop:recover-session', sessionId),
     renameSession: (sessionId: string, title: string) =>
       ipcRenderer.invoke('workshop:rename-session', sessionId, title),
+    startPanelSession: (
+      dbPath: string, projectPath: string,
+      projectId: string, projectName: string,
+      title: string, panelPersonas: any[]
+    ) => ipcRenderer.invoke(
+      'workshop:start-panel-session',
+      dbPath, projectPath, projectId, projectName, title, panelPersonas
+    ),
+    sendPanelMessage: (sessionId: string, content: string) =>
+      ipcRenderer.invoke('workshop:send-panel-message', sessionId, content),
+    triggerDiscuss: (sessionId: string) =>
+      ipcRenderer.invoke('workshop:trigger-discuss', sessionId),
     onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('workshop:session-renamed', handler)

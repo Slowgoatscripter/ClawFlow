@@ -323,6 +323,28 @@ function registerWorkshopIpc() {
   ipcMain.handle('workshop:rename-session', (_e, sessionId, title) => {
     return currentWorkshopEngine?.renameSession(sessionId, title) ?? null
   })
+
+  ipcMain.handle(
+    'workshop:start-panel-session',
+    (_e, dbPath, projectPath, projectId, projectName, title, panelPersonas) => {
+      const engine = ensureWorkshopEngine(dbPath, projectPath, projectId, projectName)
+      return engine.startSession(title, 'panel', panelPersonas)
+    }
+  )
+
+  ipcMain.handle(
+    'workshop:send-panel-message',
+    async (_e, sessionId, content) => {
+      await currentWorkshopEngine?.sendPanelMessage(sessionId, content)
+    }
+  )
+
+  ipcMain.handle(
+    'workshop:trigger-discuss',
+    async (_e, sessionId) => {
+      await currentWorkshopEngine?.triggerDiscuss(sessionId)
+    }
+  )
 }
 
 function registerWindowIpc() {
