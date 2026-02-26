@@ -4,7 +4,8 @@ import type {
   WorkshopMessage,
   WorkshopArtifact,
   WorkshopSuggestedTask,
-  WorkshopStreamEvent
+  WorkshopStreamEvent,
+  PanelPersona
 } from '../../../shared/types'
 
 interface WorkshopState {
@@ -24,6 +25,8 @@ interface WorkshopState {
   pendingSuggestions: WorkshopSuggestedTask[] | null
   suggestionsSessionId: string | null
   autoMode: boolean
+  sessionTokens: { input: number; output: number }
+  discussRound: number
 
   loadSessions: (dbPath: string, projectPath: string, projectId: string, projectName: string) => Promise<void>
   startSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title?: string) => Promise<void>
@@ -39,6 +42,9 @@ interface WorkshopState {
   approveSuggestions: (sessionId: string, tasks: WorkshopSuggestedTask[], autoMode?: boolean) => Promise<void>
   dismissSuggestions: () => void
   toggleAutoMode: () => void
+  startPanelSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title: string, panelPersonas: PanelPersona[]) => Promise<void>
+  sendPanelMessage: (sessionId: string, content: string) => Promise<void>
+  triggerDiscuss: (sessionId: string) => Promise<void>
   setupListeners: () => () => void
 }
 
@@ -59,6 +65,8 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   pendingSuggestions: null,
   suggestionsSessionId: null,
   autoMode: false,
+  sessionTokens: { input: 0, output: 0 },
+  discussRound: 0,
 
   loadSessions: async (dbPath, projectPath, projectId, projectName) => {
     const sessions = await window.api.workshop.listSessions(dbPath, projectPath, projectId, projectName)
@@ -72,6 +80,19 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       currentSessionId: session.id,
       currentSession: session,
       messages: []
+    }))
+  },
+
+  startPanelSession: async (dbPath, projectPath, projectId, projectName, title, panelPersonas) => {
+    const session = await window.api.workshop.startPanelSession(dbPath, projectPath, projectId, projectName, title, panelPersonas)
+    set((state) => ({
+      sessions: [session, ...state.sessions],
+      currentSessionId: session.id,
+      currentSession: session,
+      messages: [],
+      streamingContent: '',
+      sessionTokens: { input: 0, output: 0 },
+      discussRound: 0
     }))
   },
 
@@ -117,7 +138,9 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       currentSessionId: sessionId,
       currentSession: session,
       messages: recoveredMessages,
-      isStreaming: false
+      isStreaming: false,
+      sessionTokens: { input: 0, output: 0 },
+      discussRound: 0
     })
   },
 
@@ -140,6 +163,33 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       isStalled: false
     }))
     await window.api.workshop.sendMessage(sessionId, content)
+  },
+
+  sendPanelMessage: async (sessionId, content) => {
+    const userMsg: WorkshopMessage = {
+      id: crypto.randomUUID(),
+      sessionId,
+      role: 'user',
+      content,
+      messageType: 'text',
+      metadata: null,
+      createdAt: new Date().toISOString(),
+      personaId: null,
+      personaName: null,
+      roundNumber: null
+    }
+    set((state) => ({
+      messages: [...state.messages, userMsg],
+      isStreaming: true,
+      streamingContent: '',
+      discussRound: 0
+    }))
+    await window.api.workshop.sendPanelMessage(sessionId, content)
+  },
+
+  triggerDiscuss: async (sessionId) => {
+    set({ isStreaming: true, streamingContent: '' })
+    await window.api.workshop.triggerDiscuss(sessionId)
   },
 
   stopSession: (sessionId) => {
@@ -265,6 +315,24 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
           currentToolActivity: verb,
           toolActivityLog: [...state.toolActivityLog, event.toolName]
         })
+      } else if ((event as any).type === 'panel_message') {
+        const panelMsg: WorkshopMessage = {
+          id: crypto.randomUUID(),
+          sessionId: event.sessionId || '',
+          role: 'assistant',
+          content: event.content || '',
+          messageType: 'text',
+          metadata: null,
+          createdAt: new Date().toISOString(),
+          personaId: (event as any).personaId || null,
+          personaName: (event as any).personaName || null,
+          roundNumber: null
+        }
+        set((state) => ({ messages: [...state.messages, panelMsg] }))
+        return
+      } else if ((event as any).type === 'token_update') {
+        set({ sessionTokens: { input: (event as any).input, output: (event as any).output } })
+        return
       } else if (event.type === 'done') {
         clearStallTimer()
         const assistantMsg: WorkshopMessage = {
