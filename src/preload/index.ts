@@ -63,6 +63,8 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('workshop:get-artifact', artifactId),
     createTasks: (sessionId: string, tasks: any[]) =>
       ipcRenderer.invoke('workshop:create-tasks', sessionId, tasks),
+    recoverSession: (sessionId: string) =>
+      ipcRenderer.invoke('workshop:recover-session', sessionId),
     onStream: (callback: (event: any) => void) => {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('workshop:stream', handler)

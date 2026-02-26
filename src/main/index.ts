@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { registerIpcHandlers } from './ipc-handlers'
-import { closeAllDbs, listWorkshopMessages, listProjects, updateProjectBaseBranch } from './db'
+import { closeAllDbs, listWorkshopMessages, listProjects, updateProjectBaseBranch, createWorkshopMessage, updateWorkshopSession } from './db'
 import { PipelineEngine } from './pipeline-engine'
 import { WorkshopEngine } from './workshop-engine'
 import { createSdkRunner, resolveApproval } from './sdk-manager'
@@ -305,6 +305,15 @@ function registerWorkshopIpc() {
     if (!currentWorkshopEngine) return
     for (const task of tasks) {
       await currentWorkshopEngine.createPipelineTask(sessionId, task)
+    }
+  })
+
+  ipcMain.handle('workshop:recover-session', (_e, sessionId) => {
+    if (!currentWorkshopEngine) return
+    const session = currentWorkshopEngine.getSession(sessionId)
+    if (session?.pendingContent) {
+      createWorkshopMessage(currentWorkshopEngine['dbPath'], sessionId, 'assistant', session.pendingContent)
+      updateWorkshopSession(currentWorkshopEngine['dbPath'], sessionId, { pendingContent: null })
     }
   })
 }

@@ -86,10 +86,31 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       window.api.workshop.getSession(sessionId),
       window.api.workshop.listMessages(dbPath, sessionId)
     ])
+
+    // Recover pending content from interrupted streaming
+    let recoveredMessages = messages
+    if (session?.pendingContent) {
+      recoveredMessages = [
+        ...messages,
+        {
+          id: 'recovered-' + crypto.randomUUID(),
+          sessionId,
+          role: 'assistant' as const,
+          content: session.pendingContent,
+          messageType: 'text' as const,
+          metadata: null,
+          createdAt: new Date().toISOString()
+        }
+      ]
+      // Clear pending content via IPC
+      window.api.workshop.recoverSession(sessionId)
+    }
+
     set({
       currentSessionId: sessionId,
       currentSession: session,
-      messages
+      messages: recoveredMessages,
+      isStreaming: false
     })
   },
 
