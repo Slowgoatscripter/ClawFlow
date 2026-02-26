@@ -5,6 +5,7 @@ import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } f
 import { getTask, updateTask, appendAgentLog, appendHandoff } from './db'
 import { constructPrompt, parseHandoff } from './template-engine'
 import { GitEngine } from './git-engine'
+import { abortSession } from './sdk-manager'
 
 // --- Exported SDK Types ---
 
@@ -356,7 +357,9 @@ export class PipelineEngine extends EventEmitter {
     }
 
     try {
-      const result = await this.sdkRunner({
+      const sessionKey = `${taskId}-${stage}`
+
+      const sdkPromise = this.sdkRunner({
         prompt,
         model: stageConfig.model,
         maxTurns: stageConfig.maxTurns,
@@ -364,6 +367,7 @@ export class PipelineEngine extends EventEmitter {
         taskId,
         autoMode: task.autoMode,
         resumeSessionId,
+        sessionKey,
         stage,
         dbPath: this.dbPath,
         onStream: (content: string, type: string) => {
@@ -373,6 +377,17 @@ export class PipelineEngine extends EventEmitter {
           this.emit('approval-request', { taskId, stage, requestId, toolName, toolInput })
         }
       })
+
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timeoutHandle = setTimeout(() => {
+          abortSession(sessionKey)
+          reject(new Error(`Stage '${stage}' timed out after ${stageConfig.timeoutMs}ms`))
+        }, stageConfig.timeoutMs)
+      })
+
+      const result = await Promise.race([sdkPromise, timeoutPromise])
+      clearTimeout(timeoutHandle)
 
       // Store session ID for potential resume
       if (result.sessionId) {
