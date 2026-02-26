@@ -428,6 +428,7 @@ function migrateTasksTable(db: Database.Database): void {
   if (!colNames.has('branch_name')) db.prepare('ALTER TABLE tasks ADD COLUMN branch_name TEXT').run()
   if (!colNames.has('worktree_path')) db.prepare('ALTER TABLE tasks ADD COLUMN worktree_path TEXT').run()
   if (!colNames.has('pr_url')) db.prepare('ALTER TABLE tasks ADD COLUMN pr_url TEXT').run()
+  if (!colNames.has('todos')) db.prepare('ALTER TABLE tasks ADD COLUMN todos TEXT').run()
 }
 
 function migrateProjectsTable(db: Database.Database): void {
@@ -473,7 +474,8 @@ function rowToTask(row: any): Task {
     worktreePath: row.worktree_path,
     prUrl: row.pr_url,
     handoffs: safeJsonParse(row.handoffs) ?? [],
-    agentLog: safeJsonParse(row.agent_log) ?? []
+    agentLog: safeJsonParse(row.agent_log) ?? [],
+    todos: safeJsonParse(row.todos) ?? null
   }
 }
 
