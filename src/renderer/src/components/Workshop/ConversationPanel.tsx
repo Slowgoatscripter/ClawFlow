@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useWorkshopStore } from '../../stores/workshopStore'
 import { MessageBubble } from './MessageBubble'
+import { PanelPersona } from '../../../../shared/types'
+import { PERSONA_COLORS } from '../../../../shared/panel-personas'
 
 export function ConversationPanel() {
   const messages = useWorkshopStore((s) => s.messages)
@@ -10,9 +12,18 @@ export function ConversationPanel() {
   const toolActivityLog = useWorkshopStore((s) => s.toolActivityLog)
   const isStalled = useWorkshopStore((s) => s.isStalled)
   const currentSessionId = useWorkshopStore((s) => s.currentSessionId)
+  const currentSession = useWorkshopStore((s) => s.currentSession)
+  const sessionTokens = useWorkshopStore((s) => s.sessionTokens)
+  const triggerDiscuss = useWorkshopStore((s) => s.triggerDiscuss)
+  const sendPanelMessage = useWorkshopStore((s) => s.sendPanelMessage)
+  const isPanelSession = currentSession?.sessionType === 'panel'
+  const personas = currentSession?.panelPersonas || []
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const personaColorMap = new Map<string, string>()
+  personas.forEach((p: PanelPersona) => personaColorMap.set(p.id, p.color))
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -22,7 +33,11 @@ export function ConversationPanel() {
     const trimmed = input.trim()
     if (!trimmed || !currentSessionId || isStreaming) return
     setInput('')
-    await useWorkshopStore.getState().sendMessage(currentSessionId, trimmed)
+    if (isPanelSession) {
+      await sendPanelMessage(currentSessionId, trimmed)
+    } else {
+      await useWorkshopStore.getState().sendMessage(currentSessionId, trimmed)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -47,9 +62,31 @@ export function ConversationPanel() {
 
   return (
     <div className="flex-1 flex flex-col bg-bg">
+      {isPanelSession && (
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border text-xs text-text-muted">
+          <div className="flex items-center gap-3">
+            {personas.map((p: PanelPersona) => {
+              const colors = PERSONA_COLORS[p.color] || PERSONA_COLORS.emerald
+              return (
+                <span key={p.id} className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
+                  {p.name}
+                </span>
+              )
+            })}
+          </div>
+          <span>
+            Tokens: {sessionTokens.input.toLocaleString()} in / {sessionTokens.output.toLocaleString()} out
+          </span>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
+          <MessageBubble
+            key={msg.id}
+            message={msg}
+            personaColor={msg.personaId ? personaColorMap.get(msg.personaId) : undefined}
+          />
         ))}
         {isStreaming && streamingContent && (
           <MessageBubble
@@ -102,6 +139,16 @@ export function ConversationPanel() {
               className="px-2 py-1 rounded bg-surface text-text-muted hover:text-text text-xs font-medium transition-colors"
             >
               Keep Waiting
+            </button>
+          </div>
+        )}
+        {isPanelSession && !isStreaming && messages.length > 0 && (
+          <div className="flex justify-center py-3">
+            <button
+              onClick={() => currentSession && triggerDiscuss(currentSession.id)}
+              className="px-4 py-1.5 text-xs font-medium text-text-muted border border-border rounded-full hover:border-accent-teal/50 hover:text-text transition-colors"
+            >
+              Discuss further
             </button>
           </div>
         )}
