@@ -435,6 +435,14 @@ function migrateProjectsTable(db: Database.Database): void {
   if (!colNames.has('git_enabled')) db.prepare('ALTER TABLE projects ADD COLUMN git_enabled INTEGER NOT NULL DEFAULT 1').run()
 }
 
+function migrateWorkshopSessionsTable(db: Database.Database): void {
+  const cols = db.pragma('table_info(workshop_sessions)') as { name: string }[]
+  const colNames = new Set(cols.map(c => c.name))
+  if (!colNames.has('pending_content')) {
+    db.prepare('ALTER TABLE workshop_sessions ADD COLUMN pending_content TEXT DEFAULT NULL').run()
+  }
+}
+
 function rowToTask(row: any): Task {
   return {
     id: row.id,
@@ -473,6 +481,7 @@ function rowToWorkshopSession(row: any): WorkshopSession {
     projectId: row.project_id,
     title: row.title,
     summary: row.summary,
+    pendingContent: row.pending_content ?? null,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at

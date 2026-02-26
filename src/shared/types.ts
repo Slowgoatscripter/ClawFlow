@@ -168,6 +168,7 @@ export interface WorkshopSession {
   projectId: string
   title: string
   summary: string | null
+  pendingContent: string | null
   status: WorkshopSessionStatus
   createdAt: string
   updatedAt: string
