@@ -69,6 +69,14 @@ export interface AgentLogEntry {
   details: string
 }
 
+export interface TodoItem {
+  id: string
+  subject: string
+  status: 'pending' | 'in_progress' | 'completed'
+  createdAt: string
+  updatedAt: string
+}
+
 // --- Task ---
 
 export interface Task {
@@ -99,6 +107,7 @@ export interface Task {
   prUrl: string | null
   handoffs: Handoff[]
   agentLog: AgentLogEntry[]
+  todos: Record<string, TodoItem[]> | null
 }
 
 export interface CreateTaskInput {
