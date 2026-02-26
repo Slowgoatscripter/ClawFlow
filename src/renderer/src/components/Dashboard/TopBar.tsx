@@ -9,6 +9,7 @@ export function TopBar() {
   const setView = useLayoutStore((s) => s.setView)
   const activityFeedOpen = useLayoutStore((s) => s.activityFeedOpen)
   const toggleActivityFeed = useLayoutStore((s) => s.toggleActivityFeed)
+  const toggleArchiveDrawer = useLayoutStore((s) => s.toggleArchiveDrawer)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const handleBack = () => {
@@ -79,6 +80,27 @@ export function TopBar() {
               strokeLinejoin="round"
             >
               <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+          </button>
+          <button
+            onClick={toggleArchiveDrawer}
+            className="text-text-secondary hover:text-text-primary transition-colors cursor-pointer p-1"
+            aria-label="Archived tasks"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="2" y="3" width="20" height="5" rx="1" />
+              <path d="M4 8v11a2 2 0 002 2h12a2 2 0 002-2V8" />
+              <path d="M10 12h4" />
             </svg>
           </button>
           <button

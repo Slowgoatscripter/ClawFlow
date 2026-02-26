@@ -10,6 +10,7 @@ import { TitleBar } from './components/common/TitleBar'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { ToastContainer } from './components/common/Toast'
 import { ApprovalDialog } from './components/common/ApprovalDialog'
+import { ArchiveDrawer } from './components/ArchiveDrawer/ArchiveDrawer'
 
 export default function App() {
   const view = useLayoutStore((s) => s.view)
@@ -34,6 +35,7 @@ export default function App() {
         </div>
       </ErrorBoundary>
       {approvalRequest && <ApprovalDialog />}
+      <ArchiveDrawer />
       <ToastContainer />
     </div>
   )
