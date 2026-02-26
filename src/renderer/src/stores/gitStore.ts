@@ -96,7 +96,7 @@ export const useGitStore = create<GitState>((set, get) => ({
     if (!project) return
     try {
       const result = await window.api.git.merge(project.dbPath, project.path, taskId)
-      if (result.conflicts) {
+      if (!result.success) {
         set({ error: result.message })
       }
       await get().loadBranches()
@@ -150,7 +150,10 @@ export const useGitStore = create<GitState>((set, get) => ({
     const project = useProjectStore.getState().currentProject
     if (!project) return
     try {
-      await window.api.git.stageAll(project.dbPath, project.path, taskId)
+      const result = await window.api.git.stageAll(project.dbPath, project.path, taskId)
+      if (result?.errors?.length > 0) {
+        set({ error: `Staged ${result.staged} files. Skipped: ${result.errors.join('; ')}` })
+      }
       await get().loadWorkingTreeStatus(taskId)
     } catch (err: any) {
       set({ error: err.message })

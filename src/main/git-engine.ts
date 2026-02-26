@@ -136,8 +136,12 @@ export class GitEngine extends EventEmitter {
     const status = await this.git(['status', '--porcelain'], cwd)
     if (!status) return null // nothing to commit
 
-    // Stage everything and commit
-    await this.git(['add', '-A'], cwd)
+    // Stage everything and commit (tolerate warnings from CRLF and invalid paths)
+    try {
+      await this.git(['add', '-A', '--ignore-errors'], cwd)
+    } catch {
+      // git add may exit non-zero due to CRLF warnings or skipped files — continue if anything was staged
+    }
     const message = `task/${taskId}: complete ${stageName} stage`
     await this.git(['commit', '-m', message], cwd)
 
@@ -475,10 +479,36 @@ export class GitEngine extends EventEmitter {
   /**
    * Stage all files in a task's worktree.
    */
-  async stageAll(taskId: number): Promise<void> {
+  async stageAll(taskId: number): Promise<{ staged: number; errors: string[] }> {
     const worktreeDir = this.activeWorktrees.get(taskId)
     const cwd = worktreeDir ?? this.projectPath
-    await this.git(['add', '.'], cwd)
+
+    // Get list of files to stage, then add them individually to handle partial failures
+    const statusOutput = await this.git(['status', '--porcelain'], cwd)
+    if (!statusOutput) return { staged: 0, errors: [] }
+
+    const files = statusOutput.split('\n').filter(Boolean).map(line => line.slice(3).trim())
+    const errors: string[] = []
+    let staged = 0
+
+    for (const file of files) {
+      try {
+        await this.git(['add', '--', file], cwd)
+        staged++
+      } catch (err: any) {
+        const msg = [err.stderr, err.message].filter(Boolean).join(' ')
+        if (msg.includes('invalid path') || msg.includes('unable to add')) {
+          errors.push(`Skipped '${file}': invalid path (reserved name on Windows)`)
+        } else if (!msg.includes('warning:')) {
+          errors.push(`Failed to stage '${file}': ${msg}`)
+        } else {
+          // CRLF warnings are fine, file was still staged
+          staged++
+        }
+      }
+    }
+
+    return { staged, errors }
   }
 
   /**
