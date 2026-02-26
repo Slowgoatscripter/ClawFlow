@@ -133,6 +133,20 @@ export class WorkshopEngine extends EventEmitter {
     const prompt = this.buildPrompt(sessionId, content)
     const resumeSessionId = this.sessionIds.get(sessionId)
 
+    let accumulatedText = ''
+    let pendingSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+    const savePendingContent = () => {
+      if (accumulatedText) {
+        updateWorkshopSession(this.dbPath, sessionId, { pendingContent: accumulatedText })
+      }
+    }
+
+    const debouncedSave = () => {
+      if (pendingSaveTimer) clearTimeout(pendingSaveTimer)
+      pendingSaveTimer = setTimeout(savePendingContent, 2000)
+    }
+
     try {
       this.emit('stream', { type: 'text', content: '', sessionId } as WorkshopStreamEvent)
 
@@ -147,13 +161,14 @@ export class WorkshopEngine extends EventEmitter {
         sessionKey: sessionId,
         onStream: (streamContent: string, streamType: string) => {
           if (streamType === 'tool_use') {
-            // Emit tool calls as a separate event type so the UI can render them differently
             this.emit('stream', {
               type: 'tool_call',
               toolName: streamContent.replace('Tool: ', ''),
               sessionId,
             } as WorkshopStreamEvent)
           } else {
+            accumulatedText += streamContent
+            debouncedSave()
             this.emit('stream', {
               type: 'text',
               content: streamContent,
@@ -166,6 +181,9 @@ export class WorkshopEngine extends EventEmitter {
         },
       })
 
+      // Clear debounce timer
+      if (pendingSaveTimer) clearTimeout(pendingSaveTimer)
+
       if (result.sessionId) {
         this.sessionIds.set(sessionId, result.sessionId)
       }
@@ -176,8 +194,20 @@ export class WorkshopEngine extends EventEmitter {
       const cleanOutput = (result.output ?? '').replace(/<tool_call name="\w+">\s*[\s\S]*?<\/tool_call>/g, '').trim()
       createWorkshopMessage(this.dbPath, sessionId, 'assistant', cleanOutput)
 
+      // Clear pending content now that full message is saved
+      updateWorkshopSession(this.dbPath, sessionId, { pendingContent: null })
+
       this.emit('stream', { type: 'done', sessionId } as WorkshopStreamEvent)
     } catch (error: any) {
+      // Clear debounce timer
+      if (pendingSaveTimer) clearTimeout(pendingSaveTimer)
+
+      // Save whatever we accumulated as a partial message if there's content
+      if (accumulatedText.trim()) {
+        createWorkshopMessage(this.dbPath, sessionId, 'assistant', accumulatedText.trim())
+      }
+      updateWorkshopSession(this.dbPath, sessionId, { pendingContent: null })
+
       this.emit('stream', {
         type: 'error',
         error: error.message,
