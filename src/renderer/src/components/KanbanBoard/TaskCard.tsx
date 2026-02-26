@@ -1,6 +1,7 @@
 import type { Task } from '../../../../shared/types'
 import { useTaskStore } from '../../stores/taskStore'
 import { useLayoutStore } from '../../stores/layoutStore'
+import { usePipelineStore } from '../../stores/pipelineStore'
 
 const tierColors: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
@@ -26,9 +27,23 @@ function timeInStage(startedAt: string | null): string {
   return `${days}d ${hrs % 24}h`
 }
 
+function todoCounts(todos: Record<string, any[]> | undefined, status: string | undefined): { done: number; total: number } | null {
+  if (!todos) return null
+  const stages = ['brainstorm', 'design_review', 'plan', 'implement', 'code_review', 'verify']
+  const currentStage = [...stages].reverse().find(s => todos[s]?.length > 0)
+  if (!currentStage) return null
+  const items = todos[currentStage]
+  return {
+    done: items.filter((t: any) => t.status === 'completed').length,
+    total: items.length
+  }
+}
+
 export function TaskCard({ task }: { task: Task }) {
   const selectTask = useTaskStore((s) => s.selectTask)
   const setView = useLayoutStore((s) => s.setView)
+  const todosByTaskId = usePipelineStore((s) => s.todosByTaskId)
+  const counts = todoCounts(todosByTaskId[task.id] || (task.todos ?? undefined), task.status)
 
   const handleClick = () => {
     selectTask(task.id)
@@ -60,6 +75,11 @@ export function TaskCard({ task }: { task: Task }) {
           </span>
         ) : (
           <span />
+        )}
+        {counts && counts.total > 0 && (
+          <span className="text-xs text-text-muted">
+            {counts.done}/{counts.total} tasks
+          </span>
         )}
         <span className="text-xs text-text-muted">{timeInStage(task.startedAt)}</span>
       </div>
