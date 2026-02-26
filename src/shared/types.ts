@@ -156,6 +156,16 @@ export interface StageConfig {
 
 export type WorkshopSessionStatus = 'active' | 'ended'
 
+export type WorkshopSessionType = 'solo' | 'panel'
+
+export interface PanelPersona {
+  id: string
+  name: string
+  color: string
+  systemPrompt: string
+  isBuiltIn: boolean
+}
+
 export type WorkshopMessageType =
   | 'text'
   | 'choice'
@@ -181,6 +191,8 @@ export interface WorkshopSession {
   status: WorkshopSessionStatus
   createdAt: string
   updatedAt: string
+  sessionType: WorkshopSessionType
+  panelPersonas: PanelPersona[] | null
 }
 
 export interface WorkshopMessage {
@@ -191,6 +203,9 @@ export interface WorkshopMessage {
   messageType: WorkshopMessageType
   metadata: Record<string, unknown> | null
   createdAt: string
+  personaId: string | null
+  personaName: string | null
+  roundNumber: number | null
 }
 
 export interface WorkshopArtifact {
@@ -257,6 +272,8 @@ export interface WorkshopStreamEvent {
   toolResult?: unknown
   sessionId?: string
   error?: string
+  personaId?: string
+  personaName?: string
 }
 
 export interface WorkshopToolCall {
@@ -309,6 +326,9 @@ export type IpcChannel =
   | 'workshop:recover-session'
   | 'workshop:rename-session'
   | 'workshop:session-renamed'
+  | 'workshop:start-panel-session'
+  | 'workshop:send-panel-message'
+  | 'workshop:trigger-discuss'
   | 'workshop:stream'
   | 'workshop:tool-event'
   | 'git:get-branches' | 'git:get-branch-detail' | 'git:push'
