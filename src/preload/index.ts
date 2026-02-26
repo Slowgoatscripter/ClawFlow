@@ -38,6 +38,11 @@ contextBridge.exposeInMainWorld('api', {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('pipeline:status', handler)
       return () => { ipcRenderer.removeListener('pipeline:status', handler) }
+    },
+    onTodosUpdated: (callback: (event: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:todos-updated', handler)
+      return () => { ipcRenderer.removeListener('pipeline:todos-updated', handler) }
     }
   },
   workshop: {
