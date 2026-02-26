@@ -21,6 +21,8 @@ import { abortSession } from './sdk-manager'
 import { constructWorkshopPrompt, loadSkillContent } from './template-engine'
 import type {
   WorkshopSession,
+  WorkshopSessionType,
+  PanelPersona,
   WorkshopArtifact,
   WorkshopStreamEvent,
   WorkshopSuggestedTask,
@@ -37,6 +39,7 @@ export class WorkshopEngine extends EventEmitter {
   private sdkRunner: SdkRunner | null = null
   private sessionIds = new Map<string, string>() // workshopSessionId -> sdkSessionId
   private autoMode = false
+  private tokenUsage = new Map<string, { input: number; output: number }>()
 
   constructor(dbPath: string, projectPath: string, projectId: string, projectName: string) {
     super()
@@ -54,10 +57,30 @@ export class WorkshopEngine extends EventEmitter {
     this.autoMode = auto
   }
 
+  private trackTokens(
+    sessionId: string,
+    usage: { input_tokens?: number; output_tokens?: number } | undefined
+  ): void {
+    if (!usage) return
+    const current = this.tokenUsage.get(sessionId) || { input: 0, output: 0 }
+    current.input += usage.input_tokens || 0
+    current.output += usage.output_tokens || 0
+    this.tokenUsage.set(sessionId, current)
+    this.emit('stream', {
+      type: 'token_update', sessionId, ...current
+    } as any)
+  }
+
   // Session Management
 
-  startSession(title?: string): WorkshopSession {
-    const session = createWorkshopSession(this.dbPath, this.projectId, title)
+  startSession(
+    title?: string,
+    sessionType: WorkshopSessionType = 'solo',
+    panelPersonas: PanelPersona[] | null = null
+  ): WorkshopSession {
+    const session = createWorkshopSession(
+      this.dbPath, this.projectId, title, sessionType, panelPersonas
+    )
     this.emit('session:started', session)
     return session
   }
@@ -196,6 +219,8 @@ export class WorkshopEngine extends EventEmitter {
         this.sessionIds.set(sessionId, result.sessionId)
       }
 
+      this.trackTokens(sessionId, result.usage)
+
       await this.handleToolCalls(sessionId, result)
 
       // Strip tool_call XML blocks from the displayed message
@@ -251,6 +276,140 @@ export class WorkshopEngine extends EventEmitter {
     }
   }
 
+  async sendPanelMessage(sessionId: string, content: string): Promise<void> {
+    if (!this.sdkRunner) throw new Error('SDK runner not set')
+
+    const session = getWorkshopSession(this.dbPath, sessionId)
+    if (!session || session.sessionType !== 'panel' || !session.panelPersonas) {
+      throw new Error('Not a panel session')
+    }
+
+    createWorkshopMessage(this.dbPath, sessionId, 'user', content)
+
+    const prompt = this.buildPanelPrompt(sessionId, content, session.panelPersonas)
+    const resumeSessionId = this.sessionIds.get(sessionId)
+
+    this.emit('stream', { type: 'text', content: '', sessionId })
+
+    try {
+      const result = await this.sdkRunner({
+        prompt,
+        model: 'claude-sonnet-4-20250514',
+        maxTurns: 10,
+        autoMode: true,
+        resumeSessionId,
+        sessionKey: sessionId,
+        onStream: (event: any) => {
+          if (event.type === 'tool_use') {
+            this.emit('stream', { type: 'tool_call', toolName: event.name, sessionId })
+          } else {
+            this.emit('stream', { type: 'text', content: event.text || '', sessionId })
+          }
+        },
+        onApprovalRequest: async () => ({ behavior: 'allow' as const })
+      })
+
+      if (result.sessionId) this.sessionIds.set(sessionId, result.sessionId)
+      this.trackTokens(sessionId, result.usage)
+
+      await this.handleToolCalls(sessionId, result)
+
+      const personaMessages = this.parsePanelResponse(result.output, session.panelPersonas)
+
+      for (const pm of personaMessages) {
+        createWorkshopMessage(
+          this.dbPath, sessionId, 'assistant', pm.content,
+          'text', null, pm.personaId, pm.personaName, 1
+        )
+        this.emit('stream', {
+          type: 'panel_message',
+          content: pm.content,
+          personaId: pm.personaId,
+          personaName: pm.personaName,
+          sessionId
+        } as any)
+      }
+
+      this.emit('stream', { type: 'done', sessionId })
+    } catch (err: any) {
+      this.emit('stream', { type: 'error', error: err.message, sessionId })
+    }
+  }
+
+  async triggerDiscuss(sessionId: string): Promise<void> {
+    if (!this.sdkRunner) throw new Error('SDK runner not set')
+
+    const session = getWorkshopSession(this.dbPath, sessionId)
+    if (!session || session.sessionType !== 'panel' || !session.panelPersonas) {
+      throw new Error('Not a panel session')
+    }
+
+    const messages = listWorkshopMessages(this.dbPath, sessionId)
+    const maxRound = messages.reduce((max, m) => Math.max(max, m.roundNumber || 0), 0)
+    const nextRound = maxRound + 1
+
+    if (nextRound > 3) {
+      this.emit('stream', { type: 'error', error: 'Maximum discussion rounds (2) reached', sessionId })
+      return
+    }
+
+    this.emit('stream', { type: 'text', content: '', sessionId })
+
+    const history = messages.map((m) => {
+      const prefix = m.personaName ? `[${m.personaName}]` : m.role === 'user' ? '[User]' : ''
+      return `${prefix} ${m.content}`
+    }).join('\n\n')
+
+    const promises = session.panelPersonas.map(async (persona) => {
+      const prompt = [
+        `You are ${persona.name} in a panel discussion.`,
+        '',
+        persona.systemPrompt,
+        '',
+        'Here is the discussion so far:',
+        '',
+        history,
+        '',
+        'Respond to the other panelists\' points. Be specific, reference what',
+        'they said, agree or disagree with reasoning. Keep your response',
+        'focused and concise (2-4 paragraphs max).',
+        'Do NOT use any tool calls — this is a pure discussion response.'
+      ].join('\n')
+
+      try {
+        const result = await this.sdkRunner!({
+          prompt,
+          model: 'claude-sonnet-4-20250514',
+          maxTurns: 1,
+          autoMode: true,
+          sessionKey: `${sessionId}-discuss-${persona.id}-${nextRound}`,
+          onStream: () => {},
+          onApprovalRequest: async () => ({ behavior: 'allow' as const })
+        })
+
+        this.trackTokens(sessionId, result.usage)
+        return { personaId: persona.id, personaName: persona.name, content: result.output || '' }
+      } catch (err: any) {
+        return { personaId: persona.id, personaName: persona.name, content: `[Error: ${err.message}]` }
+      }
+    })
+
+    const responses = await Promise.all(promises)
+
+    for (const resp of responses) {
+      createWorkshopMessage(
+        this.dbPath, sessionId, 'assistant', resp.content,
+        'text', null, resp.personaId, resp.personaName, nextRound
+      )
+      this.emit('stream', {
+        type: 'panel_message', content: resp.content,
+        personaId: resp.personaId, personaName: resp.personaName, sessionId
+      } as any)
+    }
+
+    this.emit('stream', { type: 'done', sessionId })
+  }
+
   // Prompt Building
 
   private buildPrompt(sessionId: string, userMessage: string): string {
@@ -284,6 +443,62 @@ export class WorkshopEngine extends EventEmitter {
     })
 
     return `${systemPrompt}\n\n${conversationHistory}\n\n**user:** ${userMessage}`
+  }
+
+  private buildPanelPrompt(sessionId: string, userMessage: string, personas: PanelPersona[]): string {
+    const personaInstructions = personas.map((p) => `- **${p.name}**: ${p.systemPrompt}`).join('\n')
+    const conversationHistory = this.getConversationHistory(sessionId)
+
+    return [
+      'You are moderating a panel discussion with these participants:',
+      '', personaInstructions, '',
+      'Respond as EACH persona in turn. Wrap each response in XML tags:',
+      '', '<persona name="PersonaName">', 'Their response here...', '</persona>', '',
+      'Each persona should:',
+      '- Respond from their unique perspective',
+      '- Be specific and actionable, not generic',
+      '- Keep responses to 2-4 paragraphs each',
+      '- Engage authentically based on their role',
+      '',
+      'You have access to workshop tools (create_artifact, suggest_tasks,',
+      'render_diagram, present_choices). Use them when appropriate —',
+      'attribute tool use to the persona who would naturally trigger it.',
+      '', conversationHistory, '', `**User:** ${userMessage}`
+    ].join('\n')
+  }
+
+  private parsePanelResponse(output: string, personas: PanelPersona[]): Array<{ personaId: string; personaName: string; content: string }> {
+    const results: Array<{ personaId: string; personaName: string; content: string }> = []
+    const regex = /<persona name="([^"]+)">([\s\S]*?)<\/persona>/g
+    let match: RegExpExecArray | null
+
+    while ((match = regex.exec(output)) !== null) {
+      const name = match[1].trim()
+      const content = match[2].trim()
+      const persona = personas.find((p) => p.name.toLowerCase() === name.toLowerCase())
+      if (persona && content) {
+        results.push({ personaId: persona.id, personaName: persona.name, content })
+      }
+    }
+
+    if (results.length === 0 && output.trim()) {
+      const cleanOutput = output.replace(/<tool_call[\s\S]*?<\/tool_call>/g, '').trim()
+      if (cleanOutput) {
+        results.push({ personaId: personas[0].id, personaName: personas[0].name, content: cleanOutput })
+      }
+    }
+    return results
+  }
+
+  private getConversationHistory(sessionId: string): string {
+    const messages = listWorkshopMessages(this.dbPath, sessionId)
+    if (messages.length === 0) return ''
+    const lines = messages.map((m) => {
+      if (m.role === 'user') return `**User:** ${m.content}`
+      if (m.personaName) return `**${m.personaName}:** ${m.content}`
+      return `**Assistant:** ${m.content}`
+    })
+    return `Previous conversation:\n\n${lines.join('\n\n')}`
   }
 
   // Tool Call Handling
