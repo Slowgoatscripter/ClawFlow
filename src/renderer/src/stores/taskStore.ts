@@ -10,6 +10,9 @@ interface TaskState {
   createTask: (dbPath: string, input: CreateTaskInput) => Promise<Task>
   updateTask: (dbPath: string, taskId: number, updates: Record<string, any>) => Promise<void>
   deleteTask: (dbPath: string, taskId: number) => Promise<void>
+  archiveTask: (dbPath: string, taskId: number) => Promise<void>
+  unarchiveTask: (dbPath: string, taskId: number) => Promise<void>
+  archiveAllDone: (dbPath: string) => Promise<void>
   selectTask: (taskId: number | null) => void
   setFilter: (filter: TaskStatus | 'all') => void
   getTasksByStatus: (status: TaskStatus) => Task[]
@@ -42,6 +45,21 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     await window.api.tasks.delete(dbPath, taskId)
     const { selectedTaskId } = get()
     if (selectedTaskId === taskId) set({ selectedTaskId: null })
+    await get().loadTasks(dbPath)
+  },
+
+  archiveTask: async (dbPath, taskId) => {
+    await window.api.tasks.archiveTask(dbPath, taskId)
+    await get().loadTasks(dbPath)
+  },
+
+  unarchiveTask: async (dbPath, taskId) => {
+    await window.api.tasks.unarchiveTask(dbPath, taskId)
+    await get().loadTasks(dbPath)
+  },
+
+  archiveAllDone: async (dbPath) => {
+    await window.api.tasks.archiveAllDone(dbPath)
     await get().loadTasks(dbPath)
   },
 
