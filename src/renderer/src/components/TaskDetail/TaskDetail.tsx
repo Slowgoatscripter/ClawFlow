@@ -35,16 +35,21 @@ const eventTypeColors: Record<string, string> = {
 export function TaskDetail() {
   const tasks = useTaskStore((s) => s.tasks)
   const selectedTaskId = useTaskStore((s) => s.selectedTaskId)
+  const activeTaskId = usePipelineStore((s) => s.activeTaskId)
   const streaming = usePipelineStore((s) => s.streaming)
-  const streamEvents = usePipelineStore((s) => s.streamEvents)
+  const allStreamEvents = usePipelineStore((s) => s.streamEvents)
   const streamEndRef = useRef<HTMLDivElement>(null)
 
   const task = tasks.find((t) => t.id === selectedTaskId)
 
+  // Filter stream events to only show output for this task
+  const streamEvents = allStreamEvents.filter((e) => e.taskId === task?.id)
+  const isStreamingThisTask = streaming && activeTaskId === task?.id
+
   // Auto-scroll stream output
   useEffect(() => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [streamEvents])
+  }, [streamEvents.length])
 
   const handleBack = async () => {
     const project = useProjectStore.getState().currentProject
@@ -129,7 +134,7 @@ export function TaskDetail() {
   const isBacklog = task.status === 'backlog'
   const isDone = task.status === 'done'
   const isActive = !isBacklog && !isDone && task.status !== 'blocked'
-  const showLiveOutput = streaming || streamEvents.length > 0
+  const showLiveOutput = isStreamingThisTask || streamEvents.length > 0
 
   // Check if the intervention panel is showing open questions
   const lastHandoff = task.handoffs.length > 0 ? task.handoffs[task.handoffs.length - 1] : null
@@ -233,7 +238,7 @@ export function TaskDetail() {
           <div>
             <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-3">
               Live Output
-              {streaming && (
+              {isStreamingThisTask && (
                 <span className="ml-2 inline-block w-2 h-2 rounded-full bg-accent-green animate-pulse" />
               )}
             </h2>

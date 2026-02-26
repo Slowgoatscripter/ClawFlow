@@ -5,3 +5,4 @@ data/
 .clawflow/
 *.db
 *.db-journal
+.claude/
