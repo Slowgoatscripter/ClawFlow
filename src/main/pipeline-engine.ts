@@ -437,6 +437,7 @@ export class PipelineEngine extends EventEmitter {
               status: nextStatus,
               currentAgent: nextStage
             })
+            await this.runStage(taskId, nextStage)
           }
         } else {
           // No next stage — pipeline complete

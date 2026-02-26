@@ -48,11 +48,13 @@ export function PlanReviewGate({ task }: Props) {
     }
   }
 
+  const title = task.status === 'brainstorming' ? 'Brainstorm Review' : 'Plan Review Required'
+
   // If no plan content, show a waiting state instead of approve/reject
   if (!planText || planText.trim() === '') {
     return (
       <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-accent-gold">Plan Review Required</h3>
+        <h3 className="text-xl font-semibold text-accent-gold">{title}</h3>
         <p className="text-text-muted text-sm">Plan output is empty. Consider rejecting and re-running the planning stage.</p>
         <div className="flex items-center gap-3">
           <button
@@ -86,7 +88,7 @@ export function PlanReviewGate({ task }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold text-accent-gold">Plan Review Required</h3>
+      <h3 className="text-xl font-semibold text-accent-gold">{title}</h3>
 
       <pre className="bg-elevated rounded p-4 font-mono text-sm max-h-[400px] overflow-y-auto text-text-secondary whitespace-pre-wrap">
         {planText}
