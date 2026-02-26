@@ -6,6 +6,9 @@ export function ConversationPanel() {
   const messages = useWorkshopStore((s) => s.messages)
   const streamingContent = useWorkshopStore((s) => s.streamingContent)
   const isStreaming = useWorkshopStore((s) => s.isStreaming)
+  const currentToolActivity = useWorkshopStore((s) => s.currentToolActivity)
+  const toolActivityLog = useWorkshopStore((s) => s.toolActivityLog)
+  const isStalled = useWorkshopStore((s) => s.isStalled)
   const currentSessionId = useWorkshopStore((s) => s.currentSessionId)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -13,7 +16,7 @@ export function ConversationPanel() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent])
+  }, [messages, streamingContent, toolActivityLog])
 
   const handleSend = async () => {
     const trimmed = input.trim()
@@ -63,9 +66,41 @@ export function ConversationPanel() {
           />
         )}
         {isStreaming && !streamingContent && (
-          <div className="flex items-center gap-2 text-text-muted text-sm">
-            <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
-            Claude is thinking...
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-text-muted text-sm">
+              <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
+              Claude is {currentToolActivity ?? 'thinking'}...
+            </div>
+            {toolActivityLog.length > 0 && (
+              <div className="ml-4 space-y-0.5 max-h-24 overflow-y-auto">
+                {toolActivityLog.slice(-5).map((tool, i) => (
+                  <div key={i} className="text-xs text-text-muted/60 font-mono">
+                    &gt; {tool}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {isStalled && isStreaming && (
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-sm">
+            <span className="text-yellow-400">No activity for 60 seconds — session may be stalled</span>
+            <button
+              onClick={() => {
+                useWorkshopStore.getState().stopSession(currentSessionId!)
+              }}
+              className="px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 text-xs font-medium transition-colors"
+            >
+              Stop
+            </button>
+            <button
+              onClick={() => {
+                useWorkshopStore.setState({ isStalled: false })
+              }}
+              className="px-2 py-1 rounded bg-surface text-text-muted hover:text-text text-xs font-medium transition-colors"
+            >
+              Keep Waiting
+            </button>
           </div>
         )}
         <div ref={messagesEndRef} />

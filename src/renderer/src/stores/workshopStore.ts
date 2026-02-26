@@ -18,6 +18,9 @@ interface WorkshopState {
   artifactLoading: boolean
   streamingContent: string
   isStreaming: boolean
+  currentToolActivity: string | null
+  toolActivityLog: string[]
+  isStalled: boolean
   pendingSuggestions: WorkshopSuggestedTask[] | null
   suggestionsSessionId: string | null
   autoMode: boolean
@@ -49,6 +52,9 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   artifactLoading: false,
   streamingContent: '',
   isStreaming: false,
+  currentToolActivity: null,
+  toolActivityLog: [],
+  isStalled: false,
   pendingSuggestions: null,
   suggestionsSessionId: null,
   autoMode: false,
@@ -127,14 +133,17 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
     set((state) => ({
       messages: [...state.messages, userMsg],
       isStreaming: true,
-      streamingContent: ''
+      streamingContent: '',
+      currentToolActivity: null,
+      toolActivityLog: [],
+      isStalled: false
     }))
     await window.api.workshop.sendMessage(sessionId, content)
   },
 
   stopSession: (sessionId) => {
     window.api.workshop.stopSession(sessionId)
-    set({ isStreaming: false, streamingContent: '' })
+    set({ isStreaming: false, streamingContent: '', currentToolActivity: null, toolActivityLog: [], isStalled: false })
   },
 
   deleteSession: (sessionId) => {
@@ -184,11 +193,55 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   toggleAutoMode: () => set((state) => ({ autoMode: !state.autoMode })),
 
   setupListeners: () => {
+    let stallTimer: ReturnType<typeof setTimeout> | null = null
+
+    const resetStallTimer = (): void => {
+      if (stallTimer) clearTimeout(stallTimer)
+      set({ isStalled: false })
+      stallTimer = setTimeout(() => {
+        if (get().isStreaming) {
+          set({ isStalled: true })
+        }
+      }, 60000)
+    }
+
+    const clearStallTimer = (): void => {
+      if (stallTimer) clearTimeout(stallTimer)
+      stallTimer = null
+      set({ isStalled: false })
+    }
+
+    const TOOL_VERBS: Record<string, string> = {
+      Read: 'reading files',
+      Grep: 'searching code',
+      Glob: 'finding files',
+      Write: 'writing files',
+      Edit: 'editing files',
+      Bash: 'running a command',
+      WebFetch: 'fetching web content',
+      WebSearch: 'searching the web',
+      Task: 'delegating work',
+      LS: 'listing directory'
+    }
+
     const cleanupStream = window.api.workshop.onStream((event: WorkshopStreamEvent) => {
       const state = get()
+
+      // Reset stall timer on any meaningful event
+      if (state.isStreaming && (event.type === 'text' || event.type === 'tool_call')) {
+        resetStallTimer()
+      }
+
       if (event.type === 'text' && event.content) {
         set({ streamingContent: state.streamingContent + event.content })
+      } else if (event.type === 'tool_call' && event.toolName) {
+        const verb = TOOL_VERBS[event.toolName] ?? `using ${event.toolName}`
+        set({
+          currentToolActivity: verb,
+          toolActivityLog: [...state.toolActivityLog, event.toolName]
+        })
       } else if (event.type === 'done') {
+        clearStallTimer()
         const assistantMsg: WorkshopMessage = {
           id: crypto.randomUUID(),
           sessionId: event.sessionId ?? state.currentSessionId ?? '',
@@ -201,10 +254,14 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
         set((s) => ({
           messages: [...s.messages, assistantMsg],
           streamingContent: '',
-          isStreaming: false
+          isStreaming: false,
+          currentToolActivity: null,
+          toolActivityLog: [],
+          isStalled: false
         }))
       } else if (event.type === 'error') {
-        set({ isStreaming: false, streamingContent: '' })
+        clearStallTimer()
+        set({ isStreaming: false, streamingContent: '', currentToolActivity: null, toolActivityLog: [], isStalled: false })
       }
     })
 
@@ -220,6 +277,7 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
     })
 
     return () => {
+      clearStallTimer()
       cleanupStream()
       cleanupToolEvent()
     }
