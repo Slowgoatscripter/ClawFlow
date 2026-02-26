@@ -8,6 +8,7 @@ import { TaskTimeline } from './TaskTimeline'
 import { StageTabs } from './StageTabs'
 import { HandoffChain } from './HandoffChain'
 import { AgentLog } from './AgentLog'
+import { TodoAccordion } from './TodoAccordion'
 import { InterventionPanel } from '../InterventionPanel/InterventionPanel'
 
 const tierClasses: Record<string, string> = {
@@ -38,6 +39,7 @@ export function TaskDetail() {
   const activeTaskId = usePipelineStore((s) => s.activeTaskId)
   const streaming = usePipelineStore((s) => s.streaming)
   const allStreamEvents = usePipelineStore((s) => s.streamEvents)
+  const todosByTaskId = usePipelineStore((s) => s.todosByTaskId)
   const streamEndRef = useRef<HTMLDivElement>(null)
 
   const task = tasks.find((t) => t.id === selectedTaskId)
@@ -98,6 +100,7 @@ export function TaskDetail() {
       testResults: null,
       verifyResult: null,
       commitHash: null,
+      todos: null,
       handoffs: [],
       agentLog: []
     })
@@ -232,6 +235,16 @@ export function TaskDetail() {
 
         {/* Intervention Panel */}
         <InterventionPanel task={task} />
+
+        {/* Todo Progress */}
+        {(() => {
+          const liveTodos = todosByTaskId[task.id]
+          const persistedTodos = task.todos
+          const merged = { ...(persistedTodos || {}), ...(liveTodos || {}) }
+          return Object.keys(merged).length > 0 ? (
+            <TodoAccordion todos={merged} currentStage={task.status === 'implementing' ? 'implement' : undefined} />
+          ) : null
+        })()}
 
         {/* Live Output */}
         {showLiveOutput && (
