@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useWorkshopStore } from '../../stores/workshopStore'
 import { useProjectStore } from '../../stores/projectStore'
-import type { WorkshopSession } from '../../../../shared/types'
+import type { WorkshopSession, PanelPersona } from '../../../../shared/types'
+import { PanelSessionModal } from './PanelSessionModal'
 
 export function SessionList() {
   const sessions = useWorkshopStore((s) => s.sessions)
@@ -16,6 +17,21 @@ export function SessionList() {
       currentProject.path,
       currentProject.name,
       currentProject.name
+    )
+  }
+
+  const [showPanelModal, setShowPanelModal] = useState(false)
+
+  const handleNewPanelSession = async (title: string, personas: PanelPersona[]) => {
+    if (!currentProject) return
+    setShowPanelModal(false)
+    await useWorkshopStore.getState().startPanelSession(
+      currentProject.dbPath,
+      currentProject.path,
+      currentProject.name,
+      currentProject.name,
+      title,
+      personas
     )
   }
 
@@ -43,6 +59,12 @@ export function SessionList() {
         >
           New Session
         </button>
+        <button
+          onClick={() => setShowPanelModal(true)}
+          className="w-full px-3 py-2 rounded-md bg-surface border border-border text-text text-sm font-medium hover:border-accent-teal/50 transition-colors"
+        >
+          Panel Discussion
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto">
         {sessions.map((session) => (
@@ -62,6 +84,12 @@ export function SessionList() {
           </p>
         )}
       </div>
+      {showPanelModal && (
+        <PanelSessionModal
+          onConfirm={handleNewPanelSession}
+          onCancel={() => setShowPanelModal(false)}
+        />
+      )}
     </div>
   )
 }
@@ -151,6 +179,9 @@ function SessionItem({
               <span className="inline-block w-2 h-2 rounded-full bg-accent-teal animate-pulse mr-1.5 align-middle" />
             )}
             {session.title}
+            {session.sessionType === 'panel' && (
+              <span className="text-xs text-accent-teal ml-1">[Panel]</span>
+            )}
           </span>
         )}
         <div className="flex items-center gap-1 ml-1 shrink-0">
