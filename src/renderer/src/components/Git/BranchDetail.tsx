@@ -1,5 +1,14 @@
 import { useState } from 'react'
 import { useGitStore } from '../../stores/gitStore'
+import type { FileStatus } from '../../../../shared/types'
+
+const STATUS_INDICATORS: Record<FileStatus['status'], { label: string; color: string }> = {
+  modified: { label: 'M', color: 'text-yellow-400' },
+  added: { label: 'A', color: 'text-green-400' },
+  deleted: { label: 'D', color: 'text-red-400' },
+  untracked: { label: '?', color: 'text-gray-400' },
+  renamed: { label: 'R', color: 'text-blue-400' }
+}
 
 export function BranchDetail() {
   const branches = useGitStore((s) => s.branches)
@@ -9,6 +18,10 @@ export function BranchDetail() {
   const deleteBranch = useGitStore((s) => s.deleteBranch)
   const commitBranch = useGitStore((s) => s.commit)
   const error = useGitStore((s) => s.error)
+  const fileStatuses = useGitStore((s) => s.fileStatuses)
+  const loadingStatus = useGitStore((s) => s.loadingStatus)
+  const stageAllAction = useGitStore((s) => s.stageAll)
+  const clearError = useGitStore((s) => s.clearError)
   const [commitMsg, setCommitMsg] = useState('')
   const [confirming, setConfirming] = useState<'merge' | 'delete' | null>(null)
 
@@ -29,8 +42,12 @@ export function BranchDetail() {
         <p className="text-sm text-textSecondary mb-6">Task: {branch.taskTitle}</p>
 
         {error && (
-          <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+          <div
+            onClick={() => clearError()}
+            className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm cursor-pointer hover:bg-red-500/15 transition-colors"
+          >
             {error}
+            <span className="text-red-400/50 text-xs ml-2">click to dismiss</span>
           </div>
         )}
 
@@ -64,6 +81,46 @@ export function BranchDetail() {
             </div>
           </div>
         </div>
+
+        {/* Working Tree Status */}
+        {fileStatuses.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-yellow-400">
+                ⚠ Working Tree ({fileStatuses.length} uncommitted)
+              </h3>
+              <button
+                onClick={() => stageAllAction(branch.taskId)}
+                className="px-3 py-1 text-xs bg-surface border border-border rounded-lg text-text hover:bg-border transition-colors"
+              >
+                Stage All
+              </button>
+            </div>
+            <div className="bg-surface rounded-lg border border-border overflow-hidden">
+              {fileStatuses.map((file, i) => {
+                const indicator = STATUS_INDICATORS[file.status]
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 px-3 py-1.5 border-b border-border last:border-b-0 font-mono text-xs"
+                  >
+                    <span className={`w-4 text-center font-bold ${indicator.color}`}>
+                      {indicator.label}
+                    </span>
+                    {file.staged && (
+                      <span className="text-green-400 text-[10px]">staged</span>
+                    )}
+                    <span className="text-text truncate">{file.path}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {loadingStatus && fileStatuses.length === 0 && (
+          <div className="mb-6 text-xs text-textSecondary">Loading file status...</div>
+        )}
 
         {/* Manual commit */}
         <div className="mb-6">

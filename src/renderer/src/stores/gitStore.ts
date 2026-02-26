@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GitBranch } from '../../../shared/types'
+import type { GitBranch, FileStatus } from '../../../shared/types'
 import { useProjectStore } from './projectStore'
 
 interface GitState {
@@ -9,6 +9,8 @@ interface GitState {
   error: string | null
   baseBranch: string
   localBranches: string[]
+  fileStatuses: FileStatus[]
+  loadingStatus: boolean
 
   loadBranches: () => Promise<void>
   loadLocalBranches: () => Promise<void>
@@ -19,6 +21,9 @@ interface GitState {
   deleteBranch: (taskId: number) => Promise<void>
   commit: (taskId: number, message: string) => Promise<void>
   setupListeners: () => () => void
+  loadWorkingTreeStatus: (taskId: number) => Promise<void>
+  stageAll: (taskId: number) => Promise<void>
+  clearError: () => void
 }
 
 export const useGitStore = create<GitState>((set, get) => ({
@@ -28,6 +33,8 @@ export const useGitStore = create<GitState>((set, get) => ({
   error: null,
   baseBranch: 'main',
   localBranches: [],
+  fileStatuses: [],
+  loadingStatus: false,
 
   loadBranches: async () => {
     const project = useProjectStore.getState().currentProject
@@ -64,7 +71,12 @@ export const useGitStore = create<GitState>((set, get) => ({
     }
   },
 
-  selectBranch: (taskId) => set({ selectedTaskId: taskId }),
+  selectBranch: (taskId) => {
+    set({ selectedTaskId: taskId, fileStatuses: [], error: null })
+    if (taskId !== null) {
+      get().loadWorkingTreeStatus(taskId)
+    }
+  },
 
   push: async (taskId) => {
     const project = useProjectStore.getState().currentProject
@@ -72,6 +84,8 @@ export const useGitStore = create<GitState>((set, get) => ({
     try {
       await window.api.git.push(project.dbPath, project.path, taskId)
       await get().loadBranches()
+      const selected = get().selectedTaskId
+      if (selected) await get().loadWorkingTreeStatus(selected)
     } catch (err: any) {
       set({ error: err.message })
     }
@@ -86,6 +100,8 @@ export const useGitStore = create<GitState>((set, get) => ({
         set({ error: result.message })
       }
       await get().loadBranches()
+      const selected = get().selectedTaskId
+      if (selected) await get().loadWorkingTreeStatus(selected)
     } catch (err: any) {
       set({ error: err.message })
     }
@@ -111,10 +127,37 @@ export const useGitStore = create<GitState>((set, get) => ({
     try {
       await window.api.git.commit(project.dbPath, project.path, taskId, message)
       await get().loadBranches()
+      const selected = get().selectedTaskId
+      if (selected) await get().loadWorkingTreeStatus(selected)
     } catch (err: any) {
       set({ error: err.message })
     }
   },
+
+  loadWorkingTreeStatus: async (taskId) => {
+    const project = useProjectStore.getState().currentProject
+    if (!project) return
+    set({ loadingStatus: true })
+    try {
+      const statuses = await window.api.git.getWorkingTreeStatus(project.dbPath, project.path, taskId)
+      set({ fileStatuses: statuses, loadingStatus: false })
+    } catch (err: any) {
+      set({ fileStatuses: [], loadingStatus: false })
+    }
+  },
+
+  stageAll: async (taskId) => {
+    const project = useProjectStore.getState().currentProject
+    if (!project) return
+    try {
+      await window.api.git.stageAll(project.dbPath, project.path, taskId)
+      await get().loadWorkingTreeStatus(taskId)
+    } catch (err: any) {
+      set({ error: err.message })
+    }
+  },
+
+  clearError: () => set({ error: null }),
 
   setupListeners: () => {
     const cleanupBranch = window.api.git.onBranchCreated(() => {

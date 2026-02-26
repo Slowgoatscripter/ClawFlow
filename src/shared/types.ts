@@ -213,6 +213,7 @@ export interface GitBranch {
   behindBase: number
   worktreeActive: boolean
   pushed: boolean
+  dirtyFileCount: number
 }
 
 export interface GitCommitResult {

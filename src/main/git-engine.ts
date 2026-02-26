@@ -367,6 +367,14 @@ export class GitEngine extends EventEmitter {
       }
     }
 
+    // Check for uncommitted files
+    let dirtyFileCount = 0
+    try {
+      const statusOutput = await this.git(['status', '--porcelain'],
+        this.activeWorktrees.get(taskId) ?? this.projectPath)
+      dirtyFileCount = statusOutput.split('\n').filter(Boolean).length
+    } catch {}
+
     return {
       taskId,
       taskTitle: task.title,
@@ -378,7 +386,8 @@ export class GitEngine extends EventEmitter {
       aheadOfBase,
       behindBase,
       worktreeActive: this.activeWorktrees.has(taskId),
-      pushed
+      pushed,
+      dirtyFileCount
     }
   }
 

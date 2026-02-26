@@ -48,9 +48,14 @@ export function BranchList() {
               <span className="text-sm font-medium text-text truncate">{branch.branchName}</span>
             </div>
             <div className="text-xs text-textSecondary ml-4">{branch.taskTitle}</div>
-            <div className="text-xs text-textSecondary ml-4 mt-1">
-              {branch.commitCount} commits &middot; {STATUS_LABELS[branch.status]}
-              {branch.pushed && ' · Pushed'}
+            <div className="text-xs text-textSecondary ml-4 mt-1 flex items-center gap-2">
+              <span>
+                {branch.commitCount} commits &middot; {STATUS_LABELS[branch.status]}
+                {branch.pushed && ' · Pushed'}
+              </span>
+              {branch.dirtyFileCount > 0 && (
+                <span className="text-yellow-400 text-[10px] ml-auto">{branch.dirtyFileCount} dirty</span>
+              )}
             </div>
           </button>
         ))}
