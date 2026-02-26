@@ -5,7 +5,9 @@ import type {
   WorkshopArtifact,
   WorkshopSuggestedTask,
   WorkshopStreamEvent,
-  PanelPersona
+  PanelPersona,
+  ToolCallData,
+  MessageSegment
 } from '../../../shared/types'
 
 interface WorkshopState {
@@ -21,6 +23,8 @@ interface WorkshopState {
   isStreaming: boolean
   currentToolActivity: string | null
   toolActivityLog: string[]
+  streamingSegments: MessageSegment[]
+  streamingToolCalls: ToolCallData[]
   isStalled: boolean
   pendingSuggestions: WorkshopSuggestedTask[] | null
   suggestionsSessionId: string | null
@@ -48,6 +52,34 @@ interface WorkshopState {
   setupListeners: () => () => void
 }
 
+function groupConsecutiveTools(segments: MessageSegment[]): MessageSegment[] {
+  const result: MessageSegment[] = []
+  let i = 0
+  while (i < segments.length) {
+    const seg = segments[i]
+    if (seg.type === 'tool_call') {
+      const group: ToolCallData[] = [seg.tool]
+      while (
+        i + 1 < segments.length &&
+        segments[i + 1].type === 'tool_call' &&
+        (segments[i + 1] as any).tool.toolName === seg.tool.toolName
+      ) {
+        i++
+        group.push((segments[i] as any).tool)
+      }
+      if (group.length > 1) {
+        result.push({ type: 'tool_group', toolName: seg.tool.toolName, tools: group })
+      } else {
+        result.push(seg)
+      }
+    } else {
+      result.push(seg)
+    }
+    i++
+  }
+  return result
+}
+
 export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   sessions: [],
   currentSessionId: null,
@@ -61,6 +93,8 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   isStreaming: false,
   currentToolActivity: null,
   toolActivityLog: [],
+  streamingSegments: [],
+  streamingToolCalls: [],
   isStalled: false,
   pendingSuggestions: null,
   suggestionsSessionId: null,
@@ -158,6 +192,8 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       messages: [...state.messages, userMsg],
       isStreaming: true,
       streamingContent: '',
+      streamingSegments: [],
+      streamingToolCalls: [],
       currentToolActivity: null,
       toolActivityLog: [],
       isStalled: false
@@ -182,6 +218,8 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       messages: [...state.messages, userMsg],
       isStreaming: true,
       streamingContent: '',
+      streamingSegments: [],
+      streamingToolCalls: [],
       discussRound: 0
     }))
     await window.api.workshop.sendPanelMessage(sessionId, content)
@@ -257,6 +295,17 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   toggleAutoMode: () => set((state) => ({ autoMode: !state.autoMode })),
 
   setupListeners: () => {
+    // Guard: IPC listeners should only be registered once to prevent
+    // events being lost during Workshop unmount/remount cycles.
+    // The stall timer is re-initialized each time, but IPC stays persistent.
+    const store = useWorkshopStore as any
+    if (store._ipcListenersActive) {
+      // Listeners already live — just return a no-op cleanup
+      // (stall timer from previous mount was already cleared by its cleanup)
+      return () => {}
+    }
+    store._ipcListenersActive = true
+
     let stallTimer: ReturnType<typeof setTimeout> | null = null
 
     const startStallTimer = (): void => {
@@ -308,12 +357,34 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       }
 
       if (event.type === 'text' && event.content) {
-        set({ streamingContent: state.streamingContent + event.content })
+        const segments = [...state.streamingSegments]
+        const last = segments[segments.length - 1]
+        if (last && last.type === 'text') {
+          segments[segments.length - 1] = { type: 'text', content: last.content + event.content }
+        } else {
+          segments.push({ type: 'text', content: event.content })
+        }
+        set({
+          streamingContent: state.streamingContent + event.content,
+          streamingSegments: segments
+        })
       } else if (event.type === 'tool_call' && event.toolName) {
         const verb = TOOL_VERBS[event.toolName] ?? `using ${event.toolName}`
+        const toolData: ToolCallData = {
+          id: crypto.randomUUID(),
+          toolName: event.toolName,
+          toolInput: event.toolInput,
+          timestamp: new Date().toISOString()
+        }
         set({
           currentToolActivity: verb,
-          toolActivityLog: [...state.toolActivityLog, event.toolName]
+          toolActivityLog: [...state.toolActivityLog, event.toolName],
+          streamingToolCalls: [...state.streamingToolCalls, toolData],
+          streamingSegments: [...state.streamingSegments, { type: 'tool_call', tool: toolData }]
+        })
+      } else if ((event as any).type === 'thinking') {
+        set({
+          streamingSegments: [...state.streamingSegments, { type: 'thinking' }]
         })
       } else if ((event as any).type === 'panel_message') {
         const panelMsg: WorkshopMessage = {
@@ -335,18 +406,24 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
         return
       } else if (event.type === 'done') {
         clearStallTimer()
+        const groupedSegments = groupConsecutiveTools(state.streamingSegments)
         const assistantMsg: WorkshopMessage = {
           id: crypto.randomUUID(),
           sessionId: event.sessionId ?? state.currentSessionId ?? '',
           role: 'assistant',
           content: state.streamingContent,
           messageType: 'text',
-          metadata: null,
+          metadata: {
+            segments: groupedSegments,
+            toolCalls: state.streamingToolCalls
+          },
           createdAt: new Date().toISOString()
         }
         set((s) => ({
           messages: [...s.messages, assistantMsg],
           streamingContent: '',
+          streamingSegments: [],
+          streamingToolCalls: [],
           isStreaming: false,
           currentToolActivity: null,
           toolActivityLog: [],
@@ -366,6 +443,10 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
           pendingSuggestions: event.tasks,
           suggestionsSessionId: event.sessionId
         })
+      } else if (event.type === 'task_created') {
+        // Task was created directly (e.g. via autoMode) — reload tasks
+        // so the dashboard reflects the new task even without a modal
+        get().loadArtifacts()
       }
     })
 
@@ -382,10 +463,9 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
     })
 
     return () => {
+      // Only clear the stall timer on unmount — IPC listeners persist
+      // across Workshop remounts to prevent event loss during the gap
       clearStallTimer()
-      cleanupStream()
-      cleanupToolEvent()
-      cleanupRenamed()
     }
   }
 }))
