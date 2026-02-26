@@ -17,6 +17,8 @@ export interface SdkRunnerParams {
   autoMode: boolean
   resumeSessionId?: string
   sessionKey?: string
+  stage?: string
+  dbPath?: string
   onStream: (content: string, type: string) => void
   onApprovalRequest: (requestId: string, toolName: string, toolInput: Record<string, unknown>) => void
 }
@@ -362,6 +364,8 @@ export class PipelineEngine extends EventEmitter {
         taskId,
         autoMode: task.autoMode,
         resumeSessionId,
+        stage,
+        dbPath: this.dbPath,
         onStream: (content: string, type: string) => {
           this.emit('stream', { taskId, stage, content, type })
         },

@@ -4,6 +4,50 @@ import path from 'path'
 import fs from 'fs'
 import type { SdkRunnerParams, SdkResult } from './pipeline-engine'
 import type { BrowserWindow } from 'electron'
+import { updateTask } from './db'
+
+// --- Todo Parsing ---
+
+interface ParsedTodo {
+  type: 'create' | 'update' | 'write'
+  item?: { id: string; subject: string; status: 'pending' | 'in_progress' | 'completed' }
+  items?: { id: string; subject: string; status: 'pending' | 'in_progress' | 'completed' }[]
+}
+
+function parseTodoToolUse(toolName: string, input: any): ParsedTodo | null {
+  if (toolName === 'TaskCreate' || toolName === 'TodoCreate') {
+    return {
+      type: 'create',
+      item: {
+        id: input.taskId || input.id || randomUUID(),
+        subject: input.subject || input.title || input.description || 'Untitled',
+        status: 'pending'
+      }
+    }
+  }
+  if (toolName === 'TaskUpdate' || toolName === 'TodoUpdate') {
+    return {
+      type: 'update',
+      item: {
+        id: input.taskId || input.id || '',
+        subject: input.subject || input.title || '',
+        status: input.status || 'pending'
+      }
+    }
+  }
+  if (toolName === 'TodoWrite') {
+    const todos = Array.isArray(input.todos) ? input.todos : []
+    return {
+      type: 'write',
+      items: todos.map((t: any) => ({
+        id: t.id || randomUUID(),
+        subject: t.subject || t.title || t.content || 'Untitled',
+        status: t.status || 'pending'
+      }))
+    }
+  }
+  return null
+}
 
 interface PendingApproval {
   resolve: (result: PermissionResult) => void
@@ -110,6 +154,11 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
     let cost = 0
     let turns = 0
 
+    // Todo state tracking
+    const todoState: Record<string, Array<{ id: string; subject: string; status: string; createdAt: string; updatedAt: string }>> = {}
+    let todoPersistTimer: ReturnType<typeof setTimeout> | null = null
+    const currentStage = params.stage || 'implement'
+
     try {
     const q = query({
       prompt: params.prompt,
@@ -189,6 +238,42 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
                 timestamp: new Date().toISOString()
               })
             } else if (block.type === 'tool_use') {
+              // Intercept todo/task tool calls
+              const parsed = parseTodoToolUse(block.name, block.input)
+              if (parsed) {
+                const now = new Date().toISOString()
+                if (!todoState[currentStage]) todoState[currentStage] = []
+                const stageTodos = todoState[currentStage]
+
+                if (parsed.type === 'create' && parsed.item) {
+                  stageTodos.push({ ...parsed.item, createdAt: now, updatedAt: now })
+                } else if (parsed.type === 'update' && parsed.item) {
+                  const existing = stageTodos.find(t => t.id === parsed.item!.id)
+                  if (existing) {
+                    if (parsed.item.subject) existing.subject = parsed.item.subject
+                    if (parsed.item.status) existing.status = parsed.item.status
+                    existing.updatedAt = now
+                  }
+                } else if (parsed.type === 'write' && parsed.items) {
+                  todoState[currentStage] = parsed.items.map(t => ({ ...t, createdAt: now, updatedAt: now }))
+                }
+
+                // Emit to renderer
+                win.webContents.send('pipeline:todos-updated', {
+                  taskId: params.taskId,
+                  stage: currentStage,
+                  todos: todoState[currentStage]
+                })
+
+                // Debounced persist to DB
+                if (todoPersistTimer) clearTimeout(todoPersistTimer)
+                todoPersistTimer = setTimeout(() => {
+                  if (params.dbPath) {
+                    updateTask(params.dbPath, params.taskId, { todos: todoState })
+                  }
+                }, 500)
+              }
+
               params.onStream(`Tool: ${block.name}`, 'tool_use')
               win.webContents.send('pipeline:stream', {
                 taskId: params.taskId,
@@ -214,6 +299,13 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
 
     return { output, cost, turns, sessionId }
     } finally {
+      // Flush any pending todo persist
+      if (todoPersistTimer) {
+        clearTimeout(todoPersistTimer)
+        if (params.dbPath && Object.keys(todoState).length > 0) {
+          updateTask(params.dbPath, params.taskId, { todos: todoState })
+        }
+      }
       if (params.sessionKey) {
         activeControllers.delete(params.sessionKey)
       }
