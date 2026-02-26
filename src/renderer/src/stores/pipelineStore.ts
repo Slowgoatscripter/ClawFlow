@@ -7,6 +7,7 @@ interface PipelineState {
   streamEvents: StreamEvent[]
   approvalRequest: ApprovalRequest | null
   awaitingReview: Record<number, boolean>
+  todosByTaskId: Record<number, Record<string, any[]>>
   startPipeline: (taskId: number) => Promise<void>
   stepPipeline: (taskId: number) => Promise<void>
   approveStage: (taskId: number) => Promise<void>
@@ -25,6 +26,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   streamEvents: [],
   approvalRequest: null,
   awaitingReview: {},
+  todosByTaskId: {},
 
   startPipeline: async (taskId) => {
     set(state => ({
@@ -96,10 +98,22 @@ export const usePipelineStore = create<PipelineState>((set) => ({
         }))
       }
     })
+    const cleanupTodos = window.api.pipeline.onTodosUpdated((event: any) => {
+      set(state => ({
+        todosByTaskId: {
+          ...state.todosByTaskId,
+          [event.taskId]: {
+            ...(state.todosByTaskId[event.taskId] || {}),
+            [event.stage]: event.todos
+          }
+        }
+      }))
+    })
     return () => {
       cleanupStream()
       cleanupApproval()
       cleanupStatus()
+      cleanupTodos()
     }
   }
 }))
