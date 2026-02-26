@@ -147,6 +147,7 @@ export interface StageConfig {
   skill: string
   model: 'claude-opus-4-6' | 'claude-sonnet-4-6'
   maxTurns: number
+  timeoutMs: number
   pauses: boolean
   autoApproveThreshold: number | null
   template: string

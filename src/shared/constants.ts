@@ -12,6 +12,7 @@ export const STAGE_CONFIGS: Record<PipelineStage, StageConfig> = {
     skill: 'brainstorming',
     model: 'claude-opus-4-6',
     maxTurns: 50,
+    timeoutMs: 900000,
     pauses: true,
     autoApproveThreshold: null,
     template: 'brainstorm-agent.md'
@@ -20,7 +21,8 @@ export const STAGE_CONFIGS: Record<PipelineStage, StageConfig> = {
     stage: 'design_review',
     skill: 'design-review',
     model: 'claude-opus-4-6',
-    maxTurns: 40,
+    maxTurns: 60,
+    timeoutMs: 1200000,
     pauses: true,
     autoApproveThreshold: null,
     template: 'design-review-agent.md'
@@ -30,6 +32,7 @@ export const STAGE_CONFIGS: Record<PipelineStage, StageConfig> = {
     skill: 'writing-plans',
     model: 'claude-opus-4-6',
     maxTurns: 30,
+    timeoutMs: 600000,
     pauses: true,
     autoApproveThreshold: 4.0,
     template: 'plan-agent.md'
@@ -39,6 +42,7 @@ export const STAGE_CONFIGS: Record<PipelineStage, StageConfig> = {
     skill: 'test-driven-development',
     model: 'claude-opus-4-6',
     maxTurns: 100,
+    timeoutMs: 1800000,
     pauses: false,
     autoApproveThreshold: null,
     template: 'implement-agent.md'
@@ -48,6 +52,7 @@ export const STAGE_CONFIGS: Record<PipelineStage, StageConfig> = {
     skill: 'requesting-code-review',
     model: 'claude-sonnet-4-6',
     maxTurns: 20,
+    timeoutMs: 600000,
     pauses: true,
     autoApproveThreshold: 4.0,
     template: 'code-review-agent.md'
@@ -57,6 +62,7 @@ export const STAGE_CONFIGS: Record<PipelineStage, StageConfig> = {
     skill: 'verification-before-completion',
     model: 'claude-sonnet-4-6',
     maxTurns: 15,
+    timeoutMs: 300000,
     pauses: false,
     autoApproveThreshold: null,
     template: 'verify-agent.md'
@@ -66,6 +72,7 @@ export const STAGE_CONFIGS: Record<PipelineStage, StageConfig> = {
     skill: 'finishing-a-development-branch',
     model: 'claude-sonnet-4-6',
     maxTurns: 10,
+    timeoutMs: 300000,
     pauses: true,
     autoApproveThreshold: null,
     template: 'completion-agent.md'
