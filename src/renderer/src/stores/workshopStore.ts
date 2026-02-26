@@ -35,6 +35,7 @@ interface WorkshopState {
   clearArtifactSelection: () => void
   stopSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
+  renameSession: (sessionId: string, title: string) => Promise<void>
   approveSuggestions: (sessionId: string, tasks: WorkshopSuggestedTask[], autoMode?: boolean) => Promise<void>
   dismissSuggestions: () => void
   toggleAutoMode: () => void
@@ -162,6 +163,19 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
     })
   },
 
+  renameSession: async (sessionId, title) => {
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, title } : s
+      ),
+      currentSession:
+        state.currentSession?.id === sessionId
+          ? { ...state.currentSession, title }
+          : state.currentSession
+    }))
+    await window.api.workshop.renameSession(sessionId, title)
+  },
+
   loadArtifacts: async () => {
     const prev = get().artifacts
     const artifacts = await window.api.workshop.listArtifacts()
@@ -276,10 +290,23 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       }
     })
 
+    const cleanupRenamed = window.api.workshop.onSessionRenamed((data: { sessionId: string; title: string }) => {
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === data.sessionId ? { ...s, title: data.title } : s
+        ),
+        currentSession:
+          state.currentSession?.id === data.sessionId
+            ? { ...state.currentSession, title: data.title }
+            : state.currentSession
+      }))
+    })
+
     return () => {
       clearStallTimer()
       cleanupStream()
       cleanupToolEvent()
+      cleanupRenamed()
     }
   }
 }))

@@ -251,6 +251,9 @@ function ensureWorkshopEngine(dbPath: string, projectPath: string, projectId: st
     currentWorkshopEngine.on('task:created', (data) => {
       mainWindow?.webContents.send('workshop:tool-event', { type: 'task_created', ...data })
     })
+    currentWorkshopEngine.on('session:renamed', (data) => {
+      mainWindow?.webContents.send('workshop:session-renamed', data)
+    })
   }
   return currentWorkshopEngine
 }
@@ -315,6 +318,10 @@ function registerWorkshopIpc() {
       createWorkshopMessage(currentWorkshopEngine['dbPath'], sessionId, 'assistant', session.pendingContent)
       updateWorkshopSession(currentWorkshopEngine['dbPath'], sessionId, { pendingContent: null })
     }
+  })
+
+  ipcMain.handle('workshop:rename-session', (_e, sessionId, title) => {
+    return currentWorkshopEngine?.renameSession(sessionId, title) ?? null
   })
 }
 

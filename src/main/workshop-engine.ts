@@ -123,6 +123,14 @@ export class WorkshopEngine extends EventEmitter {
     return getWorkshopSession(this.dbPath, sessionId)
   }
 
+  renameSession(sessionId: string, title: string): WorkshopSession | null {
+    const updated = updateWorkshopSession(this.dbPath, sessionId, { title })
+    if (updated) {
+      this.emit('session:renamed', { sessionId, title })
+    }
+    return updated
+  }
+
   // Messaging
 
   async sendMessage(sessionId: string, content: string): Promise<void> {
@@ -198,6 +206,33 @@ export class WorkshopEngine extends EventEmitter {
       updateWorkshopSession(this.dbPath, sessionId, { pendingContent: null })
 
       this.emit('stream', { type: 'done', sessionId } as WorkshopStreamEvent)
+
+      // Auto-name the session after first assistant response
+      const session = getWorkshopSession(this.dbPath, sessionId)
+      if (session && session.title === 'New Session' && this.sdkRunner) {
+        const messages = listWorkshopMessages(this.dbPath, sessionId)
+        const firstUserMsg = messages.find(m => m.role === 'user')
+        if (firstUserMsg) {
+          try {
+            const nameResult = await this.sdkRunner({
+              prompt: `Generate a concise 3-5 word title for this conversation. Only output the title, nothing else:\n\n${firstUserMsg.content.slice(0, 500)}`,
+              model: 'claude-haiku-4-5-20251001',
+              maxTurns: 1,
+              cwd: this.projectPath,
+              taskId: 0,
+              autoMode: true,
+              onStream: () => {},
+              onApprovalRequest: () => ({ behavior: 'allow' as const }),
+            })
+            if (nameResult.output) {
+              const title = nameResult.output.trim().replace(/^["']|["']$/g, '')
+              this.renameSession(sessionId, title)
+            }
+          } catch {
+            // Auto-naming failure is non-critical, silently ignore
+          }
+        }
+      }
     } catch (error: any) {
       // Clear debounce timer
       if (pendingSaveTimer) clearTimeout(pendingSaveTimer)

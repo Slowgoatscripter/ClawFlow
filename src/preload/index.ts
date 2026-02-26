@@ -65,6 +65,13 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('workshop:create-tasks', sessionId, tasks),
     recoverSession: (sessionId: string) =>
       ipcRenderer.invoke('workshop:recover-session', sessionId),
+    renameSession: (sessionId: string, title: string) =>
+      ipcRenderer.invoke('workshop:rename-session', sessionId, title),
+    onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('workshop:session-renamed', handler)
+      return () => { ipcRenderer.removeListener('workshop:session-renamed', handler) }
+    },
     onStream: (callback: (event: any) => void) => {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('workshop:stream', handler)

@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import { useWorkshopStore } from '../../stores/workshopStore'
 import { useProjectStore } from '../../stores/projectStore'
 import type { WorkshopSession } from '../../../../shared/types'
@@ -80,8 +81,47 @@ function SessionItem({
   onStop: (e: React.MouseEvent) => void
   onDelete: (e: React.MouseEvent) => void
 }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(session.title)
+  const inputRef = useRef<HTMLInputElement>(null)
   const date = new Date(session.createdAt)
   const timeStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  useEffect(() => {
+    if (!isEditing) setEditTitle(session.title)
+  }, [session.title, isEditing])
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsEditing(true)
+  }
+
+  const handleSave = () => {
+    const trimmed = editTitle.trim()
+    if (trimmed && trimmed !== session.title) {
+      useWorkshopStore.getState().renameSession(session.id, trimmed)
+    } else {
+      setEditTitle(session.title)
+    }
+    setIsEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSave()
+    } else if (e.key === 'Escape') {
+      setEditTitle(session.title)
+      setIsEditing(false)
+    }
+  }
 
   return (
     <button
@@ -91,12 +131,28 @@ function SessionItem({
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className={`text-sm font-medium truncate flex-1 ${isActive ? 'text-accent-teal' : 'text-text'}`}>
-          {isStreamingHere && (
-            <span className="inline-block w-2 h-2 rounded-full bg-accent-teal animate-pulse mr-1.5 align-middle" />
-          )}
-          {session.title}
-        </span>
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className="text-sm font-medium flex-1 bg-surface border border-accent-teal rounded px-1.5 py-0.5 text-text focus:outline-none"
+          />
+        ) : (
+          <span
+            onDoubleClick={handleDoubleClick}
+            className={`text-sm font-medium truncate flex-1 ${isActive ? 'text-accent-teal' : 'text-text'}`}
+            title="Double-click to rename"
+          >
+            {isStreamingHere && (
+              <span className="inline-block w-2 h-2 rounded-full bg-accent-teal animate-pulse mr-1.5 align-middle" />
+            )}
+            {session.title}
+          </span>
+        )}
         <div className="flex items-center gap-1 ml-1 shrink-0">
           {isStreamingHere && (
             <span
