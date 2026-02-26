@@ -1,4 +1,4 @@
-import type { TaskStatus } from '../../../../shared/types'
+import type { Task, TaskStatus } from '../../../../shared/types'
 import { useTaskStore } from '../../stores/taskStore'
 import { KanbanColumn } from './KanbanColumn'
 
@@ -14,6 +14,17 @@ const COLUMN_ORDER: TaskStatus[] = [
   'blocked'
 ]
 
+function sortTasksNewestFirst(tasks: Task[], status: TaskStatus): Task[] {
+  return [...tasks].sort((a, b) => {
+    const getTime = (t: Task) => {
+      if (status === 'done' && t.completedAt) return new Date(t.completedAt).getTime()
+      if (t.startedAt) return new Date(t.startedAt).getTime()
+      return new Date(t.createdAt).getTime()
+    }
+    return getTime(b) - getTime(a)
+  })
+}
+
 export function KanbanBoard() {
   const tasks = useTaskStore((s) => s.tasks)
 
@@ -23,7 +34,10 @@ export function KanbanBoard() {
         <KanbanColumn
           key={status}
           status={status}
-          tasks={tasks.filter((t) => t.status === status)}
+          tasks={sortTasksNewestFirst(
+            tasks.filter((t) => t.status === status && !t.archivedAt),
+            status
+          )}
         />
       ))}
     </div>
