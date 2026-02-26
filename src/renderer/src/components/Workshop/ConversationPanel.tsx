@@ -9,7 +9,7 @@ export function ConversationPanel() {
   const streamingContent = useWorkshopStore((s) => s.streamingContent)
   const isStreaming = useWorkshopStore((s) => s.isStreaming)
   const currentToolActivity = useWorkshopStore((s) => s.currentToolActivity)
-  const toolActivityLog = useWorkshopStore((s) => s.toolActivityLog)
+  const streamingSegments = useWorkshopStore((s) => s.streamingSegments)
   const isStalled = useWorkshopStore((s) => s.isStalled)
   const currentSessionId = useWorkshopStore((s) => s.currentSessionId)
   const currentSession = useWorkshopStore((s) => s.currentSession)
@@ -27,7 +27,7 @@ export function ConversationPanel() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent, toolActivityLog])
+  }, [messages, streamingContent, streamingSegments])
 
   const handleSend = async () => {
     const trimmed = input.trim()
@@ -80,7 +80,7 @@ export function ConversationPanel() {
           </span>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg) => (
           <MessageBubble
             key={msg.id}
@@ -88,11 +88,11 @@ export function ConversationPanel() {
             personaColor={msg.personaId ? personaColorMap.get(msg.personaId) : undefined}
           />
         ))}
-        {isStreaming && streamingContent && (
+        {isStreaming && streamingSegments.length > 0 && (
           <MessageBubble
             message={{
               id: 'streaming',
-              sessionId: currentSessionId,
+              sessionId: currentSessionId!,
               role: 'assistant',
               content: streamingContent,
               messageType: 'text',
@@ -100,23 +100,13 @@ export function ConversationPanel() {
               createdAt: new Date().toISOString(),
             }}
             isStreaming
+            streamingSegments={streamingSegments}
           />
         )}
-        {isStreaming && !streamingContent && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-text-muted text-sm">
-              <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
-              Claude is {currentToolActivity ?? 'thinking'}...
-            </div>
-            {toolActivityLog.length > 0 && (
-              <div className="ml-4 space-y-0.5 max-h-24 overflow-y-auto">
-                {toolActivityLog.slice(-5).map((tool, i) => (
-                  <div key={i} className="text-xs text-text-muted/60 font-mono">
-                    &gt; {tool}
-                  </div>
-                ))}
-              </div>
-            )}
+        {isStreaming && streamingSegments.length === 0 && (
+          <div className="flex items-center gap-2 text-text-muted text-sm">
+            <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
+            Claude is {currentToolActivity ?? 'thinking'}...
           </div>
         )}
         {isStalled && isStreaming && (
