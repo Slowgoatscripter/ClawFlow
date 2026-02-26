@@ -139,9 +139,11 @@ function initProjectDb(dbPath: string): Database.Database {
       summary TEXT,
       status TEXT NOT NULL DEFAULT 'active',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      pending_content TEXT DEFAULT NULL,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `)
+  migrateWorkshopSessionsTable(db)
   db.exec(`
     CREATE TABLE IF NOT EXISTS workshop_messages (
       id TEXT PRIMARY KEY,

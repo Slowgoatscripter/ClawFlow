@@ -209,9 +209,8 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   setupListeners: () => {
     let stallTimer: ReturnType<typeof setTimeout> | null = null
 
-    const resetStallTimer = (): void => {
+    const startStallTimer = (): void => {
       if (stallTimer) clearTimeout(stallTimer)
-      set({ isStalled: false })
       stallTimer = setTimeout(() => {
         if (get().isStreaming) {
           set({ isStalled: true })
@@ -219,11 +218,23 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       }, 60000)
     }
 
+    const resetStallTimer = (): void => {
+      set({ isStalled: false })
+      startStallTimer()
+    }
+
     const clearStallTimer = (): void => {
       if (stallTimer) clearTimeout(stallTimer)
       stallTimer = null
       set({ isStalled: false })
     }
+
+    // Expose dismissStall so "Keep Waiting" can restart the timer
+    const patchedDismissStall = () => {
+      set({ isStalled: false })
+      startStallTimer()
+    }
+    ;(useWorkshopStore as any)._dismissStall = patchedDismissStall
 
     const TOOL_VERBS: Record<string, string> = {
       Read: 'reading files',

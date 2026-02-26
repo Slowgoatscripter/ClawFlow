@@ -95,7 +95,9 @@ export function ConversationPanel() {
             </button>
             <button
               onClick={() => {
-                useWorkshopStore.setState({ isStalled: false })
+                const dismiss = (useWorkshopStore as any)._dismissStall
+                if (dismiss) dismiss()
+                else useWorkshopStore.setState({ isStalled: false })
               }}
               className="px-2 py-1 rounded bg-surface text-text-muted hover:text-text text-xs font-medium transition-colors"
             >
