@@ -2,6 +2,7 @@ import type { Task } from '../../../../shared/types'
 import { useTaskStore } from '../../stores/taskStore'
 import { useLayoutStore } from '../../stores/layoutStore'
 import { usePipelineStore } from '../../stores/pipelineStore'
+import { isAwaitingReviewFromHandoffs } from '../../utils/taskHelpers'
 
 const tierColors: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
@@ -43,7 +44,11 @@ export function TaskCard({ task }: { task: Task }) {
   const selectTask = useTaskStore((s) => s.selectTask)
   const setView = useLayoutStore((s) => s.setView)
   const todosByTaskId = usePipelineStore((s) => s.todosByTaskId)
+  const awaitingReview = usePipelineStore((s) => s.awaitingReview[task.id] ?? false)
   const counts = todoCounts(todosByTaskId[task.id] || (task.todos ?? undefined), task.status)
+
+  const isAwaitingFromHandoffs = isAwaitingReviewFromHandoffs(task)
+  const isAwaiting = awaitingReview || isAwaitingFromHandoffs
 
   const handleClick = () => {
     selectTask(task.id)
@@ -53,7 +58,7 @@ export function TaskCard({ task }: { task: Task }) {
   return (
     <div
       onClick={handleClick}
-      className="bg-elevated rounded-lg p-3 cursor-pointer border border-transparent hover:border-accent-teal transition-colors"
+      className={`bg-elevated rounded-lg p-3 cursor-pointer border border-transparent hover:border-accent-teal transition-colors ${isAwaiting ? 'animate-[glow-pulse_2s_ease-in-out_infinite]' : ''}`}
     >
       {/* Title */}
       <p className="font-medium text-text-primary truncate text-sm">{task.title}</p>
