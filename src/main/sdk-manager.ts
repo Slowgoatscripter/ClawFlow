@@ -179,6 +179,12 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
             return { behavior: 'allow' } as PermissionResult
           }
 
+          // Auto-approve orchestration tools (read/write ~/.claude/teams/ and ~/.claude/tasks/ — no destructive codebase side effects)
+          const orchestrationTools = ['TeamCreate', 'TeamDelete', 'Task', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'SendMessage', 'TaskOutput', 'TaskStop']
+          if (orchestrationTools.includes(toolName)) {
+            return { behavior: 'allow' } as PermissionResult
+          }
+
           // Auto-approve Write/Edit for files within the project directory
           if ((toolName === 'Write' || toolName === 'Edit') && typeof (toolInput as any)?.file_path === 'string') {
             const filePath = path.resolve((toolInput as any).file_path)
