@@ -19,7 +19,7 @@ const DEFAULT_STYLE = { color: 'text-text-muted', bg: 'bg-surface', border: 'bor
 
 function getToolContext(tool: ToolCallData): string {
   const input = tool.toolInput
-  if (!input) return ''
+  if (!input || typeof input !== 'object') return ''
   if (input.file_path) return String(input.file_path).split('/').slice(-2).join('/')
   if (input.path) return String(input.path).split('/').slice(-2).join('/')
   if (input.pattern) return String(input.pattern)
@@ -59,7 +59,10 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
       {expanded && (
         <div className="px-3 py-2 border-t border-white/5 text-xs font-mono text-text-muted/80 max-h-32 overflow-y-auto">
           {tool.toolInput ? (
-            <pre className="whitespace-pre-wrap">{JSON.stringify(tool.toolInput, null, 2)}</pre>
+            <pre className="whitespace-pre-wrap">{(() => {
+              try { return JSON.stringify(tool.toolInput, null, 2) }
+              catch { return '[Unable to display input]' }
+            })()}</pre>
           ) : (
             <span className="text-text-muted/40 italic">Tool executed</span>
           )}

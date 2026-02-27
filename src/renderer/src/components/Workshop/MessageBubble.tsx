@@ -28,15 +28,16 @@ export function MessageBubble({ message, isStreaming = false, personaColor, stre
   const colors = personaColor ? PERSONA_COLORS[personaColor] : null
 
   // Determine segments to render
+  const rawSegments = isStreaming && streamingSegments
+    ? streamingSegments
+    : (message.metadata?.segments as unknown)
   const segments: MessageSegment[] | null =
-    isStreaming && streamingSegments
-      ? streamingSegments
-      : (message.metadata?.segments as MessageSegment[] | undefined) ?? null
+    Array.isArray(rawSegments) ? rawSegments : null
 
   // Fallback: strip tool_call XML and render as single text block (old messages)
   const displayContent = isUser
     ? message.content
-    : message.content.replace(/<tool_call name="\w+">\s*[\s\S]*?<\/tool_call>/g, '').trim()
+    : message.content.replace(/<tool_call name="[\w-]+">\s*[\s\S]*?<\/tool_call>/g, '').trim()
 
   if (!segments && !displayContent) return null
 
@@ -81,7 +82,11 @@ export function MessageBubble({ message, isStreaming = false, personaColor, stre
               if (seg.type === 'tool_group') {
                 return <ToolCallGroup key={i} toolName={seg.toolName} tools={seg.tools} />
               }
-              return null
+              return (
+                <div key={i} className="text-xs text-text-muted italic my-1">
+                  [Unsupported content]
+                </div>
+              )
             })}
             {isStreaming && (
               <span className="inline-block w-1.5 h-4 bg-accent-cyan/70 animate-pulse ml-0.5 align-text-bottom" />
