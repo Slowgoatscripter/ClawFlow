@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Pause, Play, RotateCcw } from 'lucide-react'
+import { X, Pause, Play, RotateCcw, Archive } from 'lucide-react'
 import { useTaskStore } from '../../stores/taskStore'
 import { useLayoutStore } from '../../stores/layoutStore'
 import { usePipelineStore } from '../../stores/pipelineStore'
@@ -115,6 +115,14 @@ export function TaskDetailOverlay() {
     } catch (err) {
       console.error('Failed to restart task:', err)
     }
+  }
+
+  const handleArchive = async () => {
+    if (!task) return
+    const project = useProjectStore.getState().currentProject
+    if (!project) return
+    await useTaskStore.getState().archiveTask(project.dbPath, task.id)
+    handleClose()
   }
 
   if (taskDetailOverlayId === null) return null
@@ -272,6 +280,13 @@ export function TaskDetailOverlay() {
                     Resume
                   </button>
                 )}
+                <button
+                  onClick={handleArchive}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--color-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] transition-colors"
+                >
+                  <Archive size={12} />
+                  Archive
+                </button>
                 {task.status !== 'backlog' && task.status !== 'done' && (
                   <div className="relative">
                     <button

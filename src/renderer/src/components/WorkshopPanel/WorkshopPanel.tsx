@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Maximize2, Minimize2, PanelRightClose, MessageSquare, Layers, Users } from 'lucide-react'
+import { Maximize2, Minimize2, PanelRightClose, MessageSquare, Layers, Users, Plus } from 'lucide-react'
 import { useLayoutStore } from '../../stores/layoutStore'
 import { useWorkshopStore } from '../../stores/workshopStore'
+import { useProjectStore } from '../../stores/projectStore'
 import { ChatTab } from './ChatTab'
 import { ArtifactsTab } from './ArtifactsTab'
 import { GroupTab } from './GroupTab'
@@ -27,13 +28,25 @@ export function WorkshopPanel() {
   const currentSessionId = useWorkshopStore((s) => s.currentSessionId)
   const selectSession = useWorkshopStore((s) => s.selectSession)
 
+  // Project state (for session creation)
+  const currentProject = useProjectStore((s) => s.currentProject)
+
   const handleSessionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const sessionId = e.target.value
     if (sessionId && sessionId !== currentSessionId) {
-      // selectSession needs dbPath — use empty string as fallback for now
-      // (full wiring will happen when ChatTab is connected)
-      selectSession('', sessionId)
+      const dbPath = currentProject?.dbPath ?? ''
+      selectSession(dbPath, sessionId)
     }
+  }
+
+  const handleNewSession = async () => {
+    if (!currentProject) return
+    await useWorkshopStore.getState().startSession(
+      currentProject.dbPath,
+      currentProject.path,
+      currentProject.name,
+      currentProject.name
+    )
   }
 
   return (
@@ -70,6 +83,16 @@ export function WorkshopPanel() {
             )}
           </select>
         </div>
+
+        {/* New session button */}
+        <button
+          onClick={handleNewSession}
+          disabled={!currentProject}
+          title="New session"
+          className="w-6 h-6 flex items-center justify-center rounded text-[var(--color-accent-cyan)] hover:bg-[var(--color-accent-cyan)]/15 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0"
+        >
+          <Plus size={14} />
+        </button>
 
         {/* Control buttons */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
