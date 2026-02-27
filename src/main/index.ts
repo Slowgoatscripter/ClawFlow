@@ -221,6 +221,10 @@ function registerPipelineIpc() {
     currentEngine.on('task:unblocked', ({ taskId }: { taskId: number }) => {
       mainWindow?.webContents.send('pipeline:task-unblocked', { taskId })
     })
+    currentEngine.on('task:review-candidates', (data) =>
+      mainWindow?.webContents.send('pipeline:review-candidates', data))
+    currentEngine.on('task:merged', (data) =>
+      mainWindow?.webContents.send('pipeline:task-merged', data))
 
     const gitEngine = ensureGitEngine(dbPath, projectPath)
     currentEngine.setGitEngine(gitEngine)

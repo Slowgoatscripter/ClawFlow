@@ -33,6 +33,8 @@ interface WindowApi {
     approveContextHandoff: (taskId: number) => Promise<void>
     onContextHandoff: (callback: (data: { taskId: number; currentStage: string; nextStage: string; usagePercent: number; remainingTokens: number; estimatedNeed: number }) => void) => () => void
     onTaskUnblocked: (callback: (data: { taskId: number }) => void) => () => void
+    onReviewCandidates: (callback: (data: any) => void) => () => void
+    onTaskMerged: (callback: (data: any) => void) => () => void
   }
   usage: {
     getSnapshot: () => Promise<any>

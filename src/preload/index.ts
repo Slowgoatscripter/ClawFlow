@@ -69,6 +69,16 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('pipeline:task-unblocked', handler)
       return () => ipcRenderer.removeListener('pipeline:task-unblocked', handler)
     },
+    onReviewCandidates: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:review-candidates', handler)
+      return () => { ipcRenderer.removeListener('pipeline:review-candidates', handler) }
+    },
+    onTaskMerged: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:task-merged', handler)
+      return () => { ipcRenderer.removeListener('pipeline:task-merged', handler) }
+    },
   },
   usage: {
     getSnapshot: () => ipcRenderer.invoke('usage:get-snapshot'),
