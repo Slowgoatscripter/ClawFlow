@@ -10,10 +10,16 @@ export async function runHook(hook: ValidationHook, projectPath: string, worktre
   return new Promise<HookResult>((resolve) => {
     const args = hook.args ?? []
     execFile(hook.command, args, { cwd, timeout }, (error, stdout, stderr) => {
+      let output = (stdout + '\n' + stderr).trim()
+
+      if (error && (error as any).killed) {
+        output = `Hook timed out after ${timeout}ms. Partial output:\n${output}`
+      }
+
       resolve({
         name: hook.name,
         success: !error,
-        output: (stdout + '\n' + stderr).trim(),
+        output,
         duration: Date.now() - start
       })
     })
