@@ -34,7 +34,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
     : 'Never'
 
   return (
-    <div className="bg-surface rounded-lg p-4 border border-border flex flex-col gap-2 hover:border-accent-cyan/40 transition-colors">
+    <div className="bg-surface rounded-lg p-4 border border-border flex flex-col gap-2 hover:border-accent-cyan/40 hover:shadow-[0_0_12px_rgba(0,229,255,0.06)] transition-colors">
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="text-lg font-bold text-text-primary truncate">{project.name}</h3>

@@ -1,11 +1,11 @@
 export function TitleBar() {
   return (
     <div
-      className="flex items-center justify-between w-full h-8 bg-surface select-none shrink-0"
+      className="relative flex items-center justify-between w-full h-8 bg-surface/70 backdrop-blur-md select-none shrink-0"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* Left: wordmark */}
-      <span className="pl-20 text-xs font-semibold tracking-widest text-accent-cyan opacity-70">
+      <span className="pl-20 text-xs font-semibold tracking-widest bg-gradient-to-r from-accent-cyan to-accent-violet bg-clip-text text-transparent">
         CLAWFLOW
       </span>
 
@@ -48,6 +48,7 @@ export function TitleBar() {
           </svg>
         </button>
       </div>
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-accent-cyan via-transparent to-accent-magenta" />
     </div>
   )
 }

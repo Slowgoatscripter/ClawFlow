@@ -51,7 +51,7 @@ export function SessionList() {
   }
 
   return (
-    <div className="w-64 border-r border-border flex flex-col bg-surface/50">
+    <div className="w-64 border-r border-border flex flex-col bg-surface/60 backdrop-blur-lg">
       <div className="p-3 border-b border-border">
         <button
           onClick={handleNewSession}

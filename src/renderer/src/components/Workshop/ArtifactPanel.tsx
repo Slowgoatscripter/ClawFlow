@@ -55,7 +55,7 @@ export function ArtifactPanel() {
 
   if (displayArtifacts.length === 0) {
     return (
-      <div className="w-96 flex-shrink-0 border-l border-border bg-surface/30 flex items-center justify-center">
+      <div className="w-96 flex-shrink-0 border-l border-border bg-surface/60 backdrop-blur-lg flex items-center justify-center">
         <p className="text-text-muted text-sm text-center px-6">
           Artifacts will appear here as Claude creates documents and diagrams
         </p>
@@ -68,7 +68,7 @@ export function ArtifactPanel() {
     return (
       <>
         {/* Keep the side panel slot so layout doesn't shift */}
-        <div className="w-96 flex-shrink-0 border-l border-border bg-surface/30" />
+        <div className="w-96 flex-shrink-0 border-l border-border bg-surface/60 backdrop-blur-lg" />
 
         {/* Fullscreen overlay */}
         <div className="fixed inset-0 z-50 bg-bg/95 flex flex-col">
@@ -103,7 +103,7 @@ export function ArtifactPanel() {
   }
 
   return (
-    <div className="w-96 flex-shrink-0 border-l border-border bg-surface/30 flex flex-col h-full">
+    <div className="w-96 flex-shrink-0 border-l border-border bg-surface/60 backdrop-blur-lg flex flex-col h-full">
       <div className="flex overflow-x-auto border-b border-border">
         {displayArtifacts.map((artifact) => (
           <button

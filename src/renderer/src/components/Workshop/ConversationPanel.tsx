@@ -145,7 +145,7 @@ export function ConversationPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-border p-4">
+      <div className="border-t border-border p-4 bg-surface/70 backdrop-blur-md">
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
@@ -154,7 +154,7 @@ export function ConversationPanel() {
             onKeyDown={handleKeyDown}
             placeholder="Message Claude..."
             rows={1}
-            className="flex-1 resize-none rounded-lg bg-surface border border-border px-4 py-3 text-text placeholder-text-muted/50 focus:outline-none focus:border-accent-cyan text-sm"
+            className="flex-1 resize-none rounded-lg bg-surface border border-border px-4 py-3 text-text placeholder-text-muted/50 focus:outline-none focus:border-accent-cyan focus:shadow-[0_0_0_1px_rgba(0,229,255,0.15)] text-sm"
             disabled={isStreaming}
           />
           <button

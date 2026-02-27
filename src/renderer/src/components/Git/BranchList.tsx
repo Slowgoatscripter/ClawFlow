@@ -22,7 +22,7 @@ export function BranchList() {
   const loading = useGitStore((s) => s.loading)
 
   return (
-    <div className="w-72 border-r border-border flex flex-col">
+    <div className="w-72 border-r border-border flex flex-col bg-surface/60 backdrop-blur-lg">
       <div className="px-4 py-3 border-b border-border">
         <h2 className="text-sm font-medium text-text-secondary">Branches</h2>
       </div>

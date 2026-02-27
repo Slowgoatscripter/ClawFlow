@@ -45,7 +45,7 @@ export function ArchiveDrawer() {
       />
 
       {/* Slide-in panel */}
-      <div className="w-96 h-full bg-surface border-l border-border flex flex-col animate-[slide-in-right_0.2s_ease-out]">
+      <div className="w-96 h-full bg-surface/60 backdrop-blur-lg border-l border-border flex flex-col animate-[slide-in-right_0.3s_cubic-bezier(0.4,0,0.2,1)]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
           <h2 className="text-text-primary font-semibold text-base">

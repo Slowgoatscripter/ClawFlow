@@ -32,7 +32,7 @@ export function Workshop() {
   return (
     <div className="h-full bg-bg flex flex-col">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface/70 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <button
             onClick={() => useLayoutStore.getState().setView('dashboard')}

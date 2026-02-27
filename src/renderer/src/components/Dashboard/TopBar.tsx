@@ -30,7 +30,7 @@ export function TopBar() {
 
   return (
     <>
-      <div className="bg-surface border-b border-border px-4 py-3 flex items-center justify-between">
+      <div className="bg-surface/70 backdrop-blur-md border-b border-border/50 px-4 py-3 flex items-center justify-between">
         {/* Left side */}
         <div className="flex items-center gap-3">
           <button
@@ -62,13 +62,13 @@ export function TopBar() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => useLayoutStore.getState().setView('workshop')}
-            className="px-3 py-1.5 rounded-md bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors text-sm font-medium cursor-pointer"
+            className="px-3 py-1.5 rounded-md border border-border text-accent-cyan hover:border-accent-cyan/40 hover:bg-accent-cyan/5 transition-colors text-sm font-medium cursor-pointer"
           >
             Workshop
           </button>
           <button
             onClick={() => useLayoutStore.getState().setView('git')}
-            className="px-3 py-1.5 rounded-md bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors text-sm font-medium cursor-pointer"
+            className="px-3 py-1.5 rounded-md border border-border text-accent-cyan hover:border-accent-cyan/40 hover:bg-accent-cyan/5 transition-colors text-sm font-medium cursor-pointer"
           >
             Git
           </button>

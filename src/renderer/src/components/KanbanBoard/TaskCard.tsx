@@ -79,7 +79,7 @@ export function TaskCard({ task }: { task: Task }) {
   return (
     <div
       onClick={handleClick}
-      className={`relative group bg-elevated rounded-lg p-3 cursor-pointer border border-transparent hover:border-accent-cyan transition-colors ${isAwaiting ? 'animate-[glow-pulse_2s_ease-in-out_infinite]' : ''}`}
+      className={`relative group bg-elevated rounded-lg p-3 cursor-pointer border border-transparent hover:border-border-bright hover:shadow-[0_0_12px_rgba(0,229,255,0.06)] transition-colors ${isAwaiting ? 'animate-[glow-pulse_2s_ease-in-out_infinite]' : ''}`}
     >
       {/* Pause/resume buttons */}
       {isRunning && (

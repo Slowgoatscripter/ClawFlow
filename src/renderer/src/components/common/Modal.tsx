@@ -12,10 +12,10 @@ export function Modal({ onClose, children }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
       onClick={handleOverlay}
     >
-      <div className="bg-surface rounded-lg p-6 max-w-lg w-full mx-4">
+      <div className="bg-overlay/80 backdrop-blur-xl rounded-lg p-6 max-w-lg w-full mx-4 border border-border-bright animate-[fade-scale-in_0.25s_ease-out]">
         {children}
       </div>
     </div>

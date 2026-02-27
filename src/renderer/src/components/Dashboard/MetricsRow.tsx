@@ -4,13 +4,14 @@ interface MetricCardProps {
   label: string
   value: string | number
   colorClass: string
+  borderClass: string
 }
 
-function MetricCard({ label, value, colorClass }: MetricCardProps) {
+function MetricCard({ label, value, colorClass, borderClass }: MetricCardProps) {
   return (
-    <div className="bg-elevated rounded-lg p-4 flex-1 min-w-0">
+    <div className={`bg-surface/60 backdrop-blur-sm rounded-lg p-4 flex-1 min-w-0 border-l-4 ${borderClass}`}>
       <p className="text-xs text-text-muted mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${colorClass}`}>{value}</p>
+      <p className={`text-2xl font-bold font-mono ${colorClass}`}>{value}</p>
     </div>
   )
 }
@@ -25,10 +26,10 @@ export function MetricsRow() {
 
   return (
     <div className="flex gap-4 px-4 py-4">
-      <MetricCard label="In Flight" value={inFlight} colorClass="text-accent-peach" />
-      <MetricCard label="Completion Rate" value={completionRate} colorClass="text-accent-green" />
-      <MetricCard label="Avg Review Score" value={avgReview} colorClass="text-accent-amber" />
-      <MetricCard label="Circuit Breakers" value={circuitBreakers} colorClass="text-accent-magenta" />
+      <MetricCard label="In Flight" value={inFlight} colorClass="text-accent-peach" borderClass="border-l-accent-peach" />
+      <MetricCard label="Completion Rate" value={completionRate} colorClass="text-accent-green" borderClass="border-l-accent-green" />
+      <MetricCard label="Avg Review Score" value={avgReview} colorClass="text-accent-amber" borderClass="border-l-accent-amber" />
+      <MetricCard label="Circuit Breakers" value={circuitBreakers} colorClass="text-accent-magenta" borderClass="border-l-accent-magenta" />
     </div>
   )
 }
