@@ -44,6 +44,12 @@ export function fillTemplate(template: string, task: Task, projectPath?: string)
     '{{project_path}}': projectPath ?? process.cwd(),
     '{{platform}}': process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux',
     '{{brainstorm_output}}': task.brainstormOutput ?? 'N/A',
+    '{{brainstorm_context}}': (() => {
+      if (task.tier === 'L3' && task.designReview) {
+        return 'Brainstorm output was reviewed in the design_review stage. See previous handoff for decisions and requirements.'
+      }
+      return task.brainstormOutput ?? 'N/A'
+    })(),
     '{{design_review}}': extractOutput(task.designReview),
     '{{plan}}': extractOutput(task.plan),
     '{{implementation_notes}}': extractOutput(task.implementationNotes),

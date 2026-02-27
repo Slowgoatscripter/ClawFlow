@@ -15,9 +15,9 @@ Skill instructions for this stage are appended below. Follow them exactly — bi
 **Tier:** {{tier}}
 **Priority:** {{priority}}
 
-## Design Document (from Brainstorming)
+## Prior Context
 
-{{brainstorm_output}}
+{{brainstorm_context}}
 
 ## Previous Stage Context
 
