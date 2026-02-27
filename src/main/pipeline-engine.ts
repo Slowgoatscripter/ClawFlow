@@ -969,8 +969,13 @@ ${feedback}`
         details: `Error: ${errorMessage}`
       })
 
-      // Set task to blocked so it can be retried via stepTask()
-      updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
+      // Don't overwrite 'paused' status — pauseTask() already handled the state
+      // transition. The SDK abort caused by pauseTask triggers this catch, but
+      // the task is already correctly paused. Overwriting would break resumeTask().
+      const currentTask = getTask(this.dbPath, taskId)
+      if (currentTask && currentTask.status !== 'paused') {
+        updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
+      }
 
       this.emit('stage:error', { taskId, stage, error: errorMessage })
     }
