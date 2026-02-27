@@ -269,7 +269,11 @@ export class WorkshopEngine extends EventEmitter {
         onStream: (streamContent: string, streamType: string) => {
           if (streamType === 'context') {
             const parts = streamContent.replace('__context:', '').split(':')
-            this.emit('context-update', { sessionId, contextTokens: parseInt(parts[0], 10), contextMax: parseInt(parts[1], 10) })
+            const contextTokens = parseInt(parts[0], 10)
+            const contextMax = parts.length >= 2 ? parseInt(parts[1], 10) : 0
+            if (!isNaN(contextTokens) && !isNaN(contextMax)) {
+              this.emit('context-update', { sessionId, contextTokens, contextMax })
+            }
             return
           }
           if (streamType === 'tool_use') {
@@ -571,7 +575,7 @@ export class WorkshopEngine extends EventEmitter {
       }
     }
 
-    if (results.length === 0 && output.trim()) {
+    if (results.length === 0 && output.trim() && personas.length > 0) {
       const cleanOutput = output.replace(/<tool_call[\s\S]*?<\/tool_call>/g, '').trim()
       if (cleanOutput) {
         results.push({ personaId: personas[0].id, personaName: personas[0].name, content: cleanOutput })
@@ -596,7 +600,7 @@ export class WorkshopEngine extends EventEmitter {
   private async handleToolCalls(sessionId: string, result: any): Promise<void> {
     const output = result.output ?? ''
 
-    const toolCallRegex = /<tool_call name="(\w+)">([\s\S]*?)<\/tool_call>/g
+    const toolCallRegex = /<tool_call name="([\w-]+)">([\s\S]*?)<\/tool_call>/g
     let match
 
     while ((match = toolCallRegex.exec(output)) !== null) {
@@ -604,7 +608,14 @@ export class WorkshopEngine extends EventEmitter {
       let toolInput: any
       try {
         toolInput = JSON.parse(match[2].trim())
-      } catch {
+      } catch (parseErr: any) {
+        console.warn(`[Workshop] Failed to parse tool call "${toolName}" JSON — skipping:`, parseErr.message)
+        continue
+      }
+
+      // Validate toolInput is a proper object before dispatching
+      if (typeof toolInput !== 'object' || toolInput === null) {
+        console.warn(`[Workshop] Tool call "${toolName}" has non-object input — skipping`)
         continue
       }
 
@@ -914,7 +925,8 @@ export class WorkshopEngine extends EventEmitter {
     const fullPath = path.join(this.projectPath, artifact.filePath)
     try {
       return fs.readFileSync(fullPath, 'utf-8')
-    } catch {
+    } catch (err: any) {
+      console.error(`[Workshop] Failed to read artifact at ${fullPath}:`, err.message)
       return null
     }
   }
