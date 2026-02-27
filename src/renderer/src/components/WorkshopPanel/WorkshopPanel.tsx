@@ -3,6 +3,7 @@ import { Maximize2, Minimize2, PanelRightClose, MessageSquare, Layers, Users } f
 import { useLayoutStore } from '../../stores/layoutStore'
 import { useWorkshopStore } from '../../stores/workshopStore'
 import { ChatTab } from './ChatTab'
+import { ArtifactsTab } from './ArtifactsTab'
 
 type TabId = 'chat' | 'artifacts' | 'group'
 
@@ -132,11 +133,7 @@ export function WorkshopPanel() {
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'chat' && <ChatTab />}
-        {activeTab === 'artifacts' && (
-          <div className="h-full flex items-center justify-center">
-            <span className="text-[11px] text-[var(--color-text-muted)]">Artifacts — coming soon</span>
-          </div>
-        )}
+        {activeTab === 'artifacts' && <ArtifactsTab />}
         {activeTab === 'group' && (
           <div className="h-full flex items-center justify-center">
             <span className="text-[11px] text-[var(--color-text-muted)]">Group — coming soon</span>
