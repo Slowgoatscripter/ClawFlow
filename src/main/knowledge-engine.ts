@@ -100,6 +100,35 @@ export function getKnowledgeByKey(
   return row ? rowToEntry(row) : null
 }
 
+export function getKnowledgeByKeyAndStatus(
+  dbPath: string,
+  key: string,
+  status: string
+): KnowledgeEntry | null {
+  const db = getProjectDb(dbPath)
+  const row = db
+    .prepare('SELECT * FROM domain_knowledge WHERE key = ? AND status = ? LIMIT 1')
+    .get(key, status) as any
+  return row ? rowToEntry(row) : null
+}
+
+export function createOrUpdateKnowledgeEntry(
+  dbPath: string,
+  entry: CreateKnowledgeInput
+): KnowledgeEntry {
+  const status = entry.status ?? 'active'
+  const existing = getKnowledgeByKeyAndStatus(dbPath, entry.key, status)
+  if (existing) {
+    return updateKnowledgeEntry(dbPath, existing.id, {
+      content: entry.content,
+      summary: entry.summary,
+      tags: entry.tags,
+      category: entry.category
+    })!
+  }
+  return createKnowledgeEntry(dbPath, entry)
+}
+
 export interface ListKnowledgeOptions {
   category?: KnowledgeCategory
   status?: KnowledgeStatus

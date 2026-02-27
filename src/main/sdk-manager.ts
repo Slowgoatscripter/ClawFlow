@@ -5,7 +5,7 @@ import fs from 'fs'
 import type { SdkRunnerParams, SdkResult } from './pipeline-engine'
 import type { BrowserWindow } from 'electron'
 import { updateTask } from './db'
-import { createKnowledgeEntry } from './knowledge-engine'
+import { createOrUpdateKnowledgeEntry } from './knowledge-engine'
 
 // --- Todo Parsing ---
 
@@ -327,7 +327,7 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
 
         if (toolName === 'save_knowledge') {
           try {
-            createKnowledgeEntry(params.dbPath, {
+            createOrUpdateKnowledgeEntry(params.dbPath, {
               key: toolInput.key,
               summary: toolInput.summary,
               content: toolInput.content,
