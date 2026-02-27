@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { homedir } from 'os'
-import type { Task, Handoff } from '../shared/types'
+import type { Task, Handoff, WorkOrder } from '../shared/types'
 import type { PipelineStage } from '../shared/types'
 import { STAGE_CONFIGS } from '../shared/constants'
 import { buildKnowledgeIndex } from './knowledge-engine'
@@ -306,6 +306,101 @@ export function constructWorkshopPrompt(params: {
 
   for (const [placeholder, value] of Object.entries(replacements)) {
     template = template.replaceAll(placeholder, value)
+  }
+
+  return template
+}
+
+function formatWorkOrder(workOrder: WorkOrder): string {
+  const sections: string[] = []
+  sections.push(`**Objective:** ${workOrder.objective}`)
+
+  if (workOrder.files.length > 0) {
+    sections.push('\n**Files:**')
+    for (const f of workOrder.files) {
+      sections.push(`- \`${f.path}\` (${f.action}): ${f.description}`)
+    }
+  }
+
+  if (workOrder.patterns.length > 0) {
+    sections.push('\n**Patterns to Follow:**')
+    for (const p of workOrder.patterns) sections.push(`- ${p}`)
+  }
+
+  if (workOrder.integration.length > 0) {
+    sections.push('\n**Integration Points:**')
+    for (const i of workOrder.integration) sections.push(`- ${i}`)
+  }
+
+  if (workOrder.constraints.length > 0) {
+    sections.push('\n**Constraints:**')
+    for (const c of workOrder.constraints) sections.push(`- ${c}`)
+  }
+
+  if (workOrder.tests.length > 0) {
+    sections.push('\n**Expected Tests:**')
+    for (const t of workOrder.tests) sections.push(`- ${t}`)
+  }
+
+  return sections.join('\n')
+}
+
+function formatSiblingTasks(tasks: Task[], currentTaskId: number): string {
+  const siblings = tasks.filter(t => t.id !== currentTaskId)
+  if (siblings.length === 0) return 'No sibling tasks.'
+
+  return siblings.map(t => {
+    const files = t.workOrder?.files.map(f => `\`${f.path}\``).join(', ') ?? 'unknown'
+    return `- **${t.title}** (Task #${t.id}): Files: ${files}`
+  }).join('\n')
+}
+
+export function constructGroupedPrompt(
+  task: Task,
+  groupSharedContext: string,
+  siblingTasks: Task[],
+  projectPath: string,
+  dbPath?: string
+): string {
+  const templatePath = path.join(TEMPLATES_DIR, 'grouped-implement-agent.md')
+  let template = fs.readFileSync(templatePath, 'utf-8')
+
+  // Append handoff template
+  const handoffPath = path.join(TEMPLATES_DIR, '_handoff.md')
+  if (fs.existsSync(handoffPath)) {
+    template += '\n\n' + fs.readFileSync(handoffPath, 'utf-8')
+  }
+
+  // Fill standard placeholders
+  template = fillTemplate(template, task, projectPath)
+
+  // Fill grouped-specific placeholders
+  template = template.replaceAll('{{work_order}}', task.workOrder ? formatWorkOrder(task.workOrder) : 'No work order provided.')
+  template = template.replaceAll('{{shared_context}}', groupSharedContext)
+  template = template.replaceAll('{{sibling_tasks}}', formatSiblingTasks(siblingTasks, task.id))
+
+  // Load and append assigned skill
+  if (task.assignedSkill) {
+    const skillContent = loadSkillContent(task.assignedSkill)
+    if (skillContent) {
+      template += `\n\n---\n\n## Skill Instructions: ${task.assignedSkill}\n\nFollow these instructions for this stage:\n\n${skillContent}`
+    }
+  } else {
+    // Default to implement stage skill
+    const config = STAGE_CONFIGS['implement']
+    const skillCore = dbPath ? loadSkillCore('implement', dbPath) : ''
+    const skillContent = skillCore || loadSkillContent(config.skill)
+    if (skillContent) {
+      template += `\n\n---\n\n## Skill Instructions: ${config.skill}\n\nFollow these instructions for this stage:\n\n${skillContent}`
+    }
+  }
+
+  // Inject knowledge index
+  if (dbPath) {
+    const knowledgeIndex = buildKnowledgeIndex(dbPath)
+    if (knowledgeIndex) {
+      template = `\n\n---\n${knowledgeIndex}\n---\n\n` + template
+    }
   }
 
   return template
