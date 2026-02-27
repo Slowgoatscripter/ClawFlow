@@ -57,6 +57,22 @@ export function fillTemplate(template: string, task: Task, projectPath?: string)
     '{{review_score}}': task.reviewScore?.toString() ?? 'N/A',
     '{{test_results}}': extractOutput(task.testResults),
     '{{verify_result}}': task.verifyResult ?? 'N/A',
+    '{{plan_summary}}': (() => {
+      const handoffs = typeof task.handoffs === 'string' ? JSON.parse(task.handoffs) : task.handoffs
+      const planHandoff = handoffs?.find((h: any) => h.stage === 'plan')
+      if (planHandoff) {
+        return `**Plan Summary:** ${planHandoff.summary}\n**Key Decisions:** ${planHandoff.keyDecisions ?? 'N/A'}\n**Files to Modify:** ${planHandoff.filesModified ?? 'N/A'}`
+      }
+      return extractOutput(task.plan)
+    })(),
+    '{{implementation_summary}}': (() => {
+      const handoffs = typeof task.handoffs === 'string' ? JSON.parse(task.handoffs) : task.handoffs
+      const implHandoff = handoffs?.find((h: any) => h.stage === 'implement')
+      if (implHandoff) {
+        return `**Implementation Summary:** ${implHandoff.summary}\n**Key Decisions:** ${implHandoff.keyDecisions ?? 'N/A'}\n**Files Modified:** ${implHandoff.filesModified ?? 'N/A'}`
+      }
+      return extractOutput(task.implementationNotes)
+    })(),
     '{{previous_handoff}}': formatPreviousHandoff(task.handoffs),
     '{{handoff_chain}}': formatHandoffChain(task.handoffs)
   }

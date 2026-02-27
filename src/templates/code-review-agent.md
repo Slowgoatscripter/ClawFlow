@@ -13,13 +13,17 @@ Skill instructions for this stage are appended below. Follow them exactly. Evalu
 **Title:** {{title}}
 **Description:** {{description}}
 
-## Implementation Notes
+## Implementation Summary
 
-{{implementation_notes}}
+{{implementation_summary}}
 
-## Plan (for reference)
+> Review actual code changes. Use `git diff` to see what changed.
 
-{{plan}}
+## Plan Summary (for reference)
+
+{{plan_summary}}
+
+> Use Read and Grep tools to inspect actual code.
 
 ## Previous Stage Context
 
