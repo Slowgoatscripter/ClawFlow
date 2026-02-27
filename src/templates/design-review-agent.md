@@ -21,6 +21,17 @@ You are the Design Review Orchestrator for ClawFlow. Your job is to coordinate a
 
 ---
 
+## Domain Knowledge
+
+Check the Domain Knowledge Index above before proceeding. Use fetch_knowledge() for full details on any entry.
+
+**fetch_knowledge** — Read full details of a domain knowledge entry.
+<tool_call name="fetch_knowledge">
+{"key_or_id": "entry-key"}
+</tool_call>
+
+---
+
 ## Instructions
 
 ### Step 1: Set Up the Review Team

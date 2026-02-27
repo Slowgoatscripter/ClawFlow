@@ -23,6 +23,15 @@ You are the Verifier agent for ClawFlow. Your job is to run verification and con
 
 {{previous_handoff}}
 
+## Domain Knowledge
+
+Check the Domain Knowledge Index above before proceeding. Use fetch_knowledge() for full details on any entry.
+
+**fetch_knowledge** — Read full details of a domain knowledge entry.
+<tool_call name="fetch_knowledge">
+{"key_or_id": "entry-key"}
+</tool_call>
+
 ## Available Tools
 
 ### Knowledge
