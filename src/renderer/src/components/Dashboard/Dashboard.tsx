@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { TopBar } from './TopBar'
-import { MetricsRow } from './MetricsRow'
+import { MetricsStrip } from './MetricsStrip'
 import { KanbanBoard } from '../KanbanBoard/KanbanBoard'
 import { ActivityFeed } from '../ActivityFeed/ActivityFeed'
 import { useProjectStore } from '../../stores/projectStore'
@@ -46,7 +46,7 @@ export function Dashboard() {
   return (
     <div className="h-full bg-bg flex flex-col">
       <TopBar />
-      <MetricsRow />
+      <MetricsStrip />
       <div className="flex flex-1 min-h-0">
         <KanbanBoard />
         <ActivityFeed />
