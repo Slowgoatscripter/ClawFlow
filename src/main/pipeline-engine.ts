@@ -1,8 +1,9 @@
 import { EventEmitter } from 'events'
-import type { PipelineStage, Task, TaskStatus, Handoff } from '../shared/types'
+import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig } from '../shared/types'
 import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS } from '../shared/constants'
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
-import { getTask, updateTask, appendAgentLog, appendHandoff } from './db'
+import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting } from './db'
+import { SETTING_KEYS } from '../shared/settings'
 import { constructPrompt, parseHandoff } from './template-engine'
 import { GitEngine } from './git-engine'
 import { abortSession } from './sdk-manager'
@@ -29,9 +30,42 @@ export interface SdkResult {
   cost: number
   turns: number
   sessionId: string
+  contextTokens: number
+  contextMax: number
 }
 
 export type SdkRunner = (params: SdkRunnerParams) => Promise<SdkResult>
+
+// --- Settings-Aware Stage Config ---
+
+function getEffectiveStageConfig(stage: PipelineStage, dbPath: string): StageConfig {
+  const base = STAGE_CONFIGS[stage]
+
+  const projectModel = getProjectSetting(dbPath, SETTING_KEYS.STAGE_MODEL_PREFIX + stage)
+  const globalModel = getGlobalSetting(SETTING_KEYS.STAGE_MODEL_PREFIX + stage)
+  const globalDefault = getGlobalSetting(SETTING_KEYS.GLOBAL_MODEL)
+
+  const projectTurns = getProjectSetting(dbPath, SETTING_KEYS.STAGE_MAX_TURNS_PREFIX + stage)
+  const globalTurns = getGlobalSetting(SETTING_KEYS.STAGE_MAX_TURNS_PREFIX + stage)
+
+  const projectTimeout = getProjectSetting(dbPath, SETTING_KEYS.STAGE_TIMEOUT_PREFIX + stage)
+  const globalTimeout = getGlobalSetting(SETTING_KEYS.STAGE_TIMEOUT_PREFIX + stage)
+
+  const projectAutoApprove = getProjectSetting(dbPath, SETTING_KEYS.STAGE_AUTO_APPROVE_PREFIX + stage)
+  const globalAutoApprove = getGlobalSetting(SETTING_KEYS.STAGE_AUTO_APPROVE_PREFIX + stage)
+
+  return {
+    ...base,
+    model: projectModel ?? globalModel ?? globalDefault ?? base.model,
+    maxTurns: Number(projectTurns ?? globalTurns ?? base.maxTurns),
+    timeoutMs: Number(projectTimeout ?? globalTimeout ?? base.timeoutMs),
+    autoApproveThreshold: projectAutoApprove != null
+      ? (projectAutoApprove === 'null' ? null : Number(projectAutoApprove))
+      : globalAutoApprove != null
+        ? (globalAutoApprove === 'null' ? null : Number(globalAutoApprove))
+        : base.autoApproveThreshold,
+  }
+}
 
 // --- Pipeline Engine ---
 
@@ -154,7 +188,7 @@ export class PipelineEngine extends EventEmitter {
       const currentStage = task.currentAgent as PipelineStage
       if (!currentStage || currentStage === 'done') break
 
-      const stageConfig = STAGE_CONFIGS[currentStage]
+      const stageConfig = getEffectiveStageConfig(currentStage, this.dbPath)
 
       // If stage pauses and task is not in autoMode, stop here
       if (stageConfig.pauses && !task.autoMode) {
@@ -312,6 +346,91 @@ export class PipelineEngine extends EventEmitter {
     return this.getTaskOrThrow(taskId)
   }
 
+  /**
+   * Pause a running task — aborts the SDK session and saves state for resume.
+   */
+  async pauseTask(taskId: number, reason: 'manual' | 'usage_limit' = 'manual'): Promise<Task> {
+    const task = this.getTaskOrThrow(taskId)
+
+    const activeStatuses = ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying']
+    if (!activeStatuses.includes(task.status)) {
+      throw new Error(`Task ${taskId} cannot be paused (status: ${task.status})`)
+    }
+
+    const sessionKey = `${taskId}-${task.currentAgent}`
+    abortSession(sessionKey)
+
+    appendAgentLog(this.dbPath, taskId, {
+      timestamp: new Date().toISOString(),
+      agent: 'pipeline-engine',
+      model: 'system',
+      action: 'pause',
+      details: `Task paused (${reason}). Was in status: ${task.status}, stage: ${task.currentAgent}`
+    })
+
+    updateTask(this.dbPath, taskId, {
+      pausedFromStatus: task.status,
+      pauseReason: reason,
+      status: 'paused' as TaskStatus
+    })
+
+    this.emit('stage:paused', { taskId, reason })
+    return this.getTaskOrThrow(taskId)
+  }
+
+  /**
+   * Resume a paused task — restores status and re-runs the stage with session resume.
+   */
+  async resumeTask(taskId: number): Promise<Task> {
+    const task = this.getTaskOrThrow(taskId)
+
+    if (task.status !== 'paused') {
+      throw new Error(`Task ${taskId} is not paused (status: ${task.status})`)
+    }
+
+    const resumeStatus = task.pausedFromStatus ?? 'implementing'
+    const currentStage = task.currentAgent as PipelineStage
+
+    appendAgentLog(this.dbPath, taskId, {
+      timestamp: new Date().toISOString(),
+      agent: 'pipeline-engine',
+      model: 'system',
+      action: 'resume',
+      details: `Task resumed. Restoring status: ${resumeStatus}, stage: ${currentStage}`
+    })
+
+    updateTask(this.dbPath, taskId, {
+      status: resumeStatus as TaskStatus,
+      pausedFromStatus: null,
+      pauseReason: null
+    })
+
+    const sessionId = this.sessionIds.get(taskId)
+    await this.runStage(taskId, currentStage, undefined, sessionId ?? undefined, 'Please continue where you left off.')
+    return this.getTaskOrThrow(taskId)
+  }
+
+  /**
+   * Pause all currently running tasks.
+   */
+  async pauseAllTasks(reason: 'manual' | 'usage_limit' = 'usage_limit'): Promise<number> {
+    const { listTasks } = await import('./db')
+    const tasks = listTasks(this.dbPath)
+    const activeStatuses = ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying']
+    const running = tasks.filter(t => activeStatuses.includes(t.status))
+
+    let pausedCount = 0
+    for (const task of running) {
+      try {
+        await this.pauseTask(task.id, reason)
+        pausedCount++
+      } catch {
+        // Task may have finished between list and pause
+      }
+    }
+    return pausedCount
+  }
+
   // --- Private Methods ---
 
   /**
@@ -323,7 +442,7 @@ export class PipelineEngine extends EventEmitter {
     }
 
     const task = this.getTaskOrThrow(taskId)
-    const stageConfig = STAGE_CONFIGS[stage]
+    const stageConfig = getEffectiveStageConfig(stage, this.dbPath)
 
     this.emit('stage:start', { taskId, stage })
 
@@ -371,7 +490,17 @@ export class PipelineEngine extends EventEmitter {
         stage,
         dbPath: this.dbPath,
         onStream: (content: string, type: string) => {
-          this.emit('stream', { taskId, stage, content, type })
+          if (type === 'context') {
+            const parts = content.replace('__context:', '').split(':')
+            this.emit('context-update', {
+              taskId,
+              stage,
+              contextTokens: parseInt(parts[0], 10),
+              contextMax: parseInt(parts[1], 10)
+            })
+          } else {
+            this.emit('stream', { taskId, stage, content, type })
+          }
         },
         onApprovalRequest: (requestId: string, toolName: string, toolInput: Record<string, unknown>) => {
           this.emit('approval-request', { taskId, stage, requestId, toolName, toolInput })
@@ -452,9 +581,12 @@ export class PipelineEngine extends EventEmitter {
           const transition = canTransition(this.getTaskOrThrow(taskId), nextStage)
           if (transition.allowed) {
             const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
+            // Update status and currentAgent before running the next stage
+            // so the UI reflects the correct column during execution
             updateTask(this.dbPath, taskId, {
               status: nextStatus,
-              currentAgent: nextStage
+              currentAgent: nextStage,
+              ...(nextStage === 'done' ? { completedAt: new Date().toISOString() } : {})
             })
             await this.runStage(taskId, nextStage)
           }
@@ -489,7 +621,7 @@ export class PipelineEngine extends EventEmitter {
    * Map stage results to the appropriate DB columns.
    */
   private async storeStageOutput(taskId: number, stage: PipelineStage, result: SdkResult): Promise<void> {
-    const stageConfig = STAGE_CONFIGS[stage]
+    const stageConfig = getEffectiveStageConfig(stage, this.dbPath)
 
     // For stages that pause for review, validate output is non-empty
     if (stageConfig.pauses && (!result.output || result.output.trim() === '')) {

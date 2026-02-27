@@ -153,6 +153,8 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
     let output = ''
     let cost = 0
     let turns = 0
+    let contextTokens = 0
+    const contextMax = 200_000
 
     // Todo state tracking
     const todoState: Record<string, Array<{ id: string; subject: string; status: string; createdAt: string; updatedAt: string }>> = {}
@@ -293,6 +295,16 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
         }
       }
 
+      // Track context tokens for UI progress bar
+      if (message.type === 'assistant') {
+        const assistantMsg = message as any
+        const usage = assistantMsg.message?.usage
+        if (usage) {
+          contextTokens = (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0)
+          params.onStream?.(`__context:${contextTokens}:${contextMax}`, 'context')
+        }
+      }
+
       if (message.type === 'result') {
         const result = message as any
         cost = result.total_cost_usd ?? 0
@@ -303,7 +315,7 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
       }
     }
 
-    return { output, cost, turns, sessionId }
+    return { output, cost, turns, sessionId, contextTokens, contextMax }
     } finally {
       // Flush any pending todo persist
       if (todoPersistTimer) {
