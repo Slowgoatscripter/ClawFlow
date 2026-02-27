@@ -41,6 +41,22 @@ function getGlobalDb(): Database.Database {
       value TEXT NOT NULL
     )
   `)
+  globalDb.exec(`
+    CREATE TABLE IF NOT EXISTS global_knowledge (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'convention',
+      tags TEXT DEFAULT '[]',
+      source TEXT NOT NULL DEFAULT 'manual',
+      source_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      token_estimate INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
   return globalDb
 }
 
@@ -206,6 +222,22 @@ function initProjectDb(dbPath: string): Database.Database {
       PRIMARY KEY (task_id, depends_on_task_id),
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
       FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS domain_knowledge (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'convention',
+      tags TEXT DEFAULT '[]',
+      source TEXT NOT NULL DEFAULT 'manual',
+      source_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      token_estimate INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `)
   return db
