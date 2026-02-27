@@ -266,9 +266,9 @@ export function getTask(dbPath: string, taskId: number): Task | null {
 export function createTask(dbPath: string, input: CreateTaskInput): Task {
   const db = getProjectDb(dbPath)
   const result = db.prepare(`
-    INSERT INTO tasks (title, description, tier, priority, auto_mode, dependency_ids)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(input.title, input.description, input.tier, input.priority, input.autoMode ? 1 : 0, JSON.stringify(input.dependencyIds ?? []))
+    INSERT INTO tasks (title, description, tier, priority, auto_mode, auto_merge, dependency_ids)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(input.title, input.description, input.tier, input.priority, input.autoMode ? 1 : 0, input.autoMerge !== false ? 1 : 0, JSON.stringify(input.dependencyIds ?? []))
 
   const taskId = result.lastInsertRowid as number
   if (input.dependencyIds?.length) {
@@ -660,6 +660,8 @@ function migrateTasksTable(db: Database.Database): void {
     db.prepare("ALTER TABLE tasks ADD COLUMN dependency_ids TEXT NOT NULL DEFAULT '[]'").run()
   if (!colNames.has('artifacts'))
     db.prepare('ALTER TABLE tasks ADD COLUMN artifacts TEXT').run()
+  if (!colNames.has('auto_merge'))
+    db.prepare('ALTER TABLE tasks ADD COLUMN auto_merge INTEGER DEFAULT 1').run()
 }
 
 function migrateProjectsTable(db: Database.Database): void {
@@ -733,7 +735,8 @@ function rowToTask(row: any): Task {
     activeSessionId: row.active_session_id ?? null,
     richHandoff: row.rich_handoff ?? null,
     dependencyIds: JSON.parse(row.dependency_ids || '[]'),
-    artifacts: row.artifacts ? JSON.parse(row.artifacts) : null
+    artifacts: row.artifacts ? JSON.parse(row.artifacts) : null,
+    autoMerge: row.auto_merge !== 0
   }
 }
 

@@ -1051,29 +1051,42 @@ ${feedback}`
 
     // Auto-merge and cleanup worktree on task completion
     if (stage === 'done' && this.gitEngine) {
-      try {
-        // Auto-merge completed task branch to base
-        const mergeResult = await this.gitEngine.merge(taskId)
-        if (!mergeResult.success) {
+      const task = getTask(this.dbPath, taskId)
+      if (task?.autoMerge !== false) {
+        try {
+          // Auto-merge completed task branch to base
+          const mergeResult = await this.gitEngine.merge(taskId)
+          if (!mergeResult.success) {
+            if (mergeResult.conflicts) {
+              // Block the task so the user can resolve the conflict
+              updateTask(this.dbPath, taskId, {
+                status: 'blocked',
+                pausedFromStatus: 'done',
+                pauseReason: 'merge_conflict'
+              })
+              this.emit('task:blocked', { taskId, reason: 'merge_conflict' })
+            }
+            this.emit('stream', {
+              taskId,
+              agent: 'pipeline',
+              type: 'error' as const,
+              content: `Auto-merge failed: ${mergeResult.message ?? 'merge conflict'}. Resolve manually before dependent tasks can start.`,
+              timestamp: new Date().toISOString()
+            })
+            // Don't cleanup worktree on merge failure
+            return
+          }
+          this.emit('task:merged', { taskId })
+        } catch (err) {
           this.emit('stream', {
             taskId,
             agent: 'pipeline',
             type: 'error' as const,
-            content: `Auto-merge failed: ${mergeResult.message ?? 'merge conflict'}. Resolve manually before dependent tasks can start.`,
+            content: `Auto-merge error: ${err instanceof Error ? err.message : String(err)}`,
             timestamp: new Date().toISOString()
           })
-          // Don't cleanup worktree on merge failure
           return
         }
-      } catch (err) {
-        this.emit('stream', {
-          taskId,
-          agent: 'pipeline',
-          type: 'error' as const,
-          content: `Auto-merge error: ${err instanceof Error ? err.message : String(err)}`,
-          timestamp: new Date().toISOString()
-        })
-        return
       }
 
       // Check if any dependent tasks are now unblocked
