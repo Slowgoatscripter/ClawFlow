@@ -34,6 +34,12 @@ function getGlobalDb(): Database.Database {
     )
   `)
   migrateProjectsTable(globalDb)
+  globalDb.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `)
   return globalDb
 }
 
@@ -127,7 +133,11 @@ function initProjectDb(dbPath: string): Database.Database {
       worktree_path TEXT,
       pr_url TEXT,
       handoffs TEXT NOT NULL DEFAULT '[]',
-      agent_log TEXT NOT NULL DEFAULT '[]'
+      agent_log TEXT NOT NULL DEFAULT '[]',
+      paused_from_status TEXT DEFAULT NULL,
+      pause_reason TEXT DEFAULT NULL,
+      active_session_id TEXT,
+      rich_handoff TEXT
     )
   `)
   migrateTasksTable(db)
@@ -180,6 +190,12 @@ function initProjectDb(dbPath: string): Database.Database {
       session_id TEXT REFERENCES workshop_sessions(id),
       artifact_id TEXT REFERENCES workshop_artifacts(id),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     )
   `)
   return db
@@ -459,6 +475,58 @@ export function getAllTasks(dbPath: string): Task[] {
   return rows.map(rowToTask)
 }
 
+// --- Settings (Global) ---
+
+export function getGlobalSetting(key: string): string | null {
+  const db = getGlobalDb()
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as any
+  return row ? row.value : null
+}
+
+export function getAllGlobalSettings(): Record<string, string> {
+  const db = getGlobalDb()
+  const rows = db.prepare('SELECT key, value FROM settings').all() as any[]
+  const result: Record<string, string> = {}
+  for (const row of rows) result[row.key] = row.value
+  return result
+}
+
+export function setGlobalSetting(key: string, value: string): void {
+  const db = getGlobalDb()
+  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?').run(key, value, value)
+}
+
+export function deleteGlobalSetting(key: string): void {
+  const db = getGlobalDb()
+  db.prepare('DELETE FROM settings WHERE key = ?').run(key)
+}
+
+// --- Settings (Project) ---
+
+export function getProjectSetting(dbPath: string, key: string): string | null {
+  const db = getProjectDb(dbPath)
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as any
+  return row ? row.value : null
+}
+
+export function getAllProjectSettings(dbPath: string): Record<string, string> {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare('SELECT key, value FROM settings').all() as any[]
+  const result: Record<string, string> = {}
+  for (const row of rows) result[row.key] = row.value
+  return result
+}
+
+export function setProjectSetting(dbPath: string, key: string, value: string): void {
+  const db = getProjectDb(dbPath)
+  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?').run(key, value, value)
+}
+
+export function deleteProjectSetting(dbPath: string, key: string): void {
+  const db = getProjectDb(dbPath)
+  db.prepare('DELETE FROM settings WHERE key = ?').run(key)
+}
+
 // --- Helpers ---
 
 function migrateTasksTable(db: Database.Database): void {
@@ -469,6 +537,10 @@ function migrateTasksTable(db: Database.Database): void {
   if (!colNames.has('pr_url')) db.prepare('ALTER TABLE tasks ADD COLUMN pr_url TEXT').run()
   if (!colNames.has('todos')) db.prepare('ALTER TABLE tasks ADD COLUMN todos TEXT').run()
   if (!colNames.has('archived_at')) db.prepare('ALTER TABLE tasks ADD COLUMN archived_at TEXT').run()
+  if (!colNames.has('paused_from_status')) db.prepare('ALTER TABLE tasks ADD COLUMN paused_from_status TEXT DEFAULT NULL').run()
+  if (!colNames.has('pause_reason')) db.prepare('ALTER TABLE tasks ADD COLUMN pause_reason TEXT DEFAULT NULL').run()
+  if (!colNames.has('active_session_id')) db.prepare('ALTER TABLE tasks ADD COLUMN active_session_id TEXT').run()
+  if (!colNames.has('rich_handoff')) db.prepare('ALTER TABLE tasks ADD COLUMN rich_handoff TEXT').run()
 }
 
 function migrateProjectsTable(db: Database.Database): void {
@@ -536,7 +608,11 @@ function rowToTask(row: any): Task {
     handoffs: safeJsonParse(row.handoffs) ?? [],
     agentLog: safeJsonParse(row.agent_log) ?? [],
     todos: safeJsonParse(row.todos) ?? null,
-    archivedAt: row.archived_at ?? null
+    archivedAt: row.archived_at ?? null,
+    pausedFromStatus: row.paused_from_status ?? null,
+    pauseReason: row.pause_reason ?? null,
+    activeSessionId: row.active_session_id ?? null,
+    richHandoff: row.rich_handoff ?? null
   }
 }
 

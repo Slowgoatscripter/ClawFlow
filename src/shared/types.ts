@@ -16,6 +16,7 @@ export type TaskStatus =
   | 'verifying'
   | 'done'
   | 'blocked'
+  | 'paused'
 
 export type PipelineStage =
   | 'brainstorm'
@@ -109,6 +110,10 @@ export interface Task {
   agentLog: AgentLogEntry[]
   todos: Record<string, TodoItem[]> | null
   archivedAt: string | null
+  pausedFromStatus: TaskStatus | null
+  pauseReason: 'manual' | 'usage_limit' | null
+  activeSessionId: string | null
+  richHandoff: string | null
 }
 
 export interface CreateTaskInput {
@@ -356,6 +361,12 @@ export type IpcChannel =
   | 'git:branch-created' | 'git:commit-complete'
   | 'git:push-complete' | 'git:merge-complete' | 'git:error'
   | 'git:get-working-tree-status' | 'git:stage-all'
+  | 'pipeline:pause'
+  | 'pipeline:resume'
+  | 'pipeline:pause-all'
+  | 'pipeline:context-update'
+  | 'usage:get-snapshot'
+  | 'usage:snapshot'
   | 'fs:pick-directory'
   | 'window:minimize'
   | 'window:maximize'
