@@ -92,6 +92,45 @@ Load a workflow skill to guide your approach. The skill content will be availabl
 
 **Important:** When you detect that a skill applies to what the user is asking, load it before diving in. The skill content will appear in your conversation context on the next message, then follow it.
 
+### Knowledge Management
+
+**save_knowledge** — Save domain knowledge for future agent sessions.
+<tool_call name="save_knowledge">
+{"key": "short-identifier", "summary": "One-line description", "content": "Full details in markdown", "category": "business_rule|architecture|api_quirk|lesson_learned|convention", "tags": ["relevant", "tags"]}
+</tool_call>
+
+**update_knowledge** — Update an existing knowledge entry.
+<tool_call name="update_knowledge">
+{"id": "entry-uuid", "content": "Updated content", "summary": "Updated summary", "tags": ["updated", "tags"]}
+</tool_call>
+
+**list_knowledge** — Browse knowledge entries, optionally by category.
+<tool_call name="list_knowledge">
+{"category": "architecture"}
+</tool_call>
+
+**fetch_knowledge** — Get full details of a knowledge entry by key or ID.
+<tool_call name="fetch_knowledge">
+{"key_or_id": "api-date-format"}
+</tool_call>
+
+### Skills Management
+
+**fetch_skill_detail** — Load extended content of a ClawFlow skill.
+<tool_call name="fetch_skill_detail">
+{"skill_name": "test-driven-development"}
+</tool_call>
+
+**edit_skill** — Modify a ClawFlow skill's core or extended content.
+<tool_call name="edit_skill">
+{"skill_name": "brainstorming", "tier": "core", "content": "Updated skill content..."}
+</tool_call>
+
+**view_skill** — View current skill content.
+<tool_call name="view_skill">
+{"skill_name": "brainstorming", "tier": "core"}
+</tool_call>
+
 ## Skill Routing
 
 When the conversation moves toward any of these activities, use `load_skill` to load the relevant skill:
