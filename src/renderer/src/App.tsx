@@ -5,7 +5,7 @@ import { useSettingsStore } from './stores/settingsStore'
 import { colors } from './theme'
 import { ProjectSelector } from './components/ProjectSelector/ProjectSelector'
 import { Dashboard } from './components/Dashboard/Dashboard'
-import { TaskDetail } from './components/TaskDetail/TaskDetail'
+import { TaskDetailOverlay } from './components/TaskDetail/TaskDetailOverlay'
 import { Git } from './components/Git/Git'
 import { TitleBar } from './components/common/TitleBar'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
@@ -17,7 +17,6 @@ import { WorkshopPanel } from './components/WorkshopPanel/WorkshopPanel'
 
 export default function App() {
   const view = useLayoutStore((s) => s.view)
-  const taskDetailOverlayId = useLayoutStore((s) => s.taskDetailOverlayId)
   const approvalRequest = usePipelineStore((s) => s.approvalRequest)
   const usagePausedToast = usePipelineStore((s) => s.usagePausedToast)
   const dismissToast = usePipelineStore((s) => s.dismissUsagePausedToast)
@@ -48,11 +47,11 @@ export default function App() {
                 {view === 'dashboard' && <Dashboard />}
                 {view === 'git' && <Git />}
               </div>
-              {taskDetailOverlayId !== null && <TaskDetail />}
             </div>
           </AppShell>
         </div>
       </ErrorBoundary>
+      <TaskDetailOverlay />
       {approvalRequest && <ApprovalDialog />}
       <ArchiveDrawer />
       <ToastContainer />
