@@ -35,7 +35,7 @@ const markdownComponents: Components = {
     // Inline code
     return (
       <code
-        className="px-1 py-0.5 rounded text-[11px] font-mono"
+        className="px-1 py-0.5 rounded text-xs font-mono"
         style={{
           background: 'var(--color-elevated)',
           color: 'var(--color-accent-cyan)',
@@ -64,7 +64,7 @@ function SegmentList({ segments, isStreaming }: SegmentListProps) {
 
         if (seg.type === 'text') {
           return (
-            <div key={i} className="prose prose-sm prose-invert max-w-none text-xs">
+            <div key={i} className="prose prose-sm prose-invert max-w-none text-sm">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={markdownComponents}
@@ -76,13 +76,11 @@ function SegmentList({ segments, isStreaming }: SegmentListProps) {
         }
 
         if (seg.type === 'thinking') {
-          // Thinking segments in MessageSegment carry no content — they mark
-          // the position of a thinking block. Render as streaming pill or
-          // a static "Thought" pill once streaming is done.
           return (
             <ThinkingPill
               key={i}
-              content=""
+              content={seg.content || ''}
+              duration={seg.duration}
               streaming={isStreaming && isLast}
             />
           )
@@ -105,7 +103,7 @@ function SegmentList({ segments, isStreaming }: SegmentListProps) {
         }
 
         return (
-          <div key={i} className="text-[10px] italic" style={{ color: 'var(--color-text-muted)' }}>
+          <div key={i} className="text-xs italic" style={{ color: 'var(--color-text-muted)' }}>
             [Unsupported segment]
           </div>
         )
@@ -154,7 +152,7 @@ export function ChatMessage({ message, isStreaming = false, streamingSegments }:
     return (
       <div className="flex justify-center my-2">
         <span
-          className="text-[10px] px-3 py-1 rounded-full"
+          className="text-xs px-3 py-1 rounded-full"
           style={{
             color: 'var(--color-text-muted)',
             background: 'var(--color-elevated)',
@@ -192,14 +190,14 @@ export function ChatMessage({ message, isStreaming = false, streamingSegments }:
       <div className="group flex justify-end mb-3 px-3">
         <div className="max-w-[80%] flex flex-col items-end gap-0.5">
           <span
-            className="text-[10px] font-semibold tracking-wide mb-0.5"
+            className="text-xs font-semibold tracking-wide mb-0.5"
             style={{ color: 'var(--color-accent-cyan)' }}
           >
             You
           </span>
 
           <div
-            className="rounded-lg px-3 py-2 text-xs whitespace-pre-wrap leading-relaxed"
+            className="rounded-lg px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed"
             style={{
               background: 'color-mix(in srgb, var(--color-accent-cyan) 8%, var(--color-elevated))',
               border: '1px solid color-mix(in srgb, var(--color-accent-cyan) 20%, transparent)',
@@ -211,7 +209,7 @@ export function ChatMessage({ message, isStreaming = false, streamingSegments }:
 
           {timestamp && (
             <span
-              className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity"
+              className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
               style={{ color: 'var(--color-text-muted)' }}
             >
               {timestamp}
@@ -228,14 +226,14 @@ export function ChatMessage({ message, isStreaming = false, streamingSegments }:
       <div className="max-w-[90%] flex flex-col gap-0.5">
         {/* Label — persona name if set, otherwise "ClawFlow" */}
         <span
-          className="text-[10px] font-semibold tracking-wide mb-0.5"
+          className="text-xs font-semibold tracking-wide mb-0.5"
           style={{ color: 'var(--color-accent-magenta, var(--color-accent-violet))' }}
         >
           {message.personaName ?? 'ClawFlow'}
         </span>
 
         {/* Content — no bubble for agent messages */}
-        <div className="text-xs leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
+        <div className="text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
           {segments ? (
             <SegmentList segments={segments} isStreaming={isStreaming} />
           ) : (
@@ -257,7 +255,7 @@ export function ChatMessage({ message, isStreaming = false, streamingSegments }:
 
         {timestamp && (
           <span
-            className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity"
+            className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
             style={{ color: 'var(--color-text-muted)' }}
           >
             {timestamp}

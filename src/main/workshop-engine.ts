@@ -44,7 +44,10 @@ import type {
   WorkshopSuggestedTask,
   WorkshopArtifactType,
   CreateTaskGroupInput,
+  MessageSegment,
+  ToolCallData,
 } from '../shared/types'
+import crypto from 'crypto'
 
 function getWorkshopModel(): string {
   return getGlobalSetting(SETTING_KEYS.WORKSHOP_MODEL) ?? 'claude-sonnet-4-6'
@@ -227,12 +230,16 @@ export class WorkshopEngine extends EventEmitter {
 
   // Messaging
 
-  async sendMessage(sessionId: string, content: string): Promise<void> {
+  async sendMessage(sessionId: string, content: string, options?: { isSystemContinuation?: boolean }): Promise<void> {
     if (!this.sdkRunner) throw new Error('SDK runner not set')
 
-    createWorkshopMessage(this.dbPath, sessionId, 'user', content)
+    if (!options?.isSystemContinuation) {
+      createWorkshopMessage(this.dbPath, sessionId, 'user', content)
+    }
 
-    const prompt = this.buildPrompt(sessionId, content)
+    const prompt = options?.isSystemContinuation
+      ? this.buildPrompt(sessionId, '') + '\n\n[System: The requested skill has been loaded into the conversation above. Continue responding to the user\'s original request using the loaded skill. Do not announce or re-describe the skill — just use it to guide your response.]'
+      : this.buildPrompt(sessionId, content)
     const resumeSessionId = this.sessionIds.get(sessionId)
 
     let accumulatedText = ''
@@ -249,18 +256,22 @@ export class WorkshopEngine extends EventEmitter {
       pendingSaveTimer = setTimeout(savePendingContent, 2000)
     }
 
-    let lastEventType: string = 'text'
     let toolCallBuffer = ''
     let insideToolCall = false
+    const segments: MessageSegment[] = []
+    const toolCalls: ToolCallData[] = []
 
     const emitText = (text: string) => {
       if (!text) return
-      if (lastEventType === 'tool_use' && text.trim()) {
-        this.emit('stream', { type: 'thinking' as any, sessionId })
-      }
-      lastEventType = 'text'
       accumulatedText += text
       debouncedSave()
+      // Append to existing text segment or create new one
+      const last = segments[segments.length - 1]
+      if (last && last.type === 'text') {
+        (last as any).content += text
+      } else {
+        segments.push({ type: 'text', content: text })
+      }
       this.emit('stream', { type: 'text', content: text, sessionId } as WorkshopStreamEvent)
     }
 
@@ -271,25 +282,21 @@ export class WorkshopEngine extends EventEmitter {
         if (insideToolCall) {
           const endIdx = remaining.indexOf('</tool_call>')
           if (endIdx !== -1) {
-            // End of tool_call block found — discard buffered content
             toolCallBuffer = ''
             insideToolCall = false
             remaining = remaining.slice(endIdx + '</tool_call>'.length)
           } else {
-            // Still inside — buffer everything
             toolCallBuffer += remaining
             remaining = ''
           }
         } else {
           const startIdx = remaining.indexOf('<tool_call')
           if (startIdx !== -1) {
-            // Emit text before the tag
             if (startIdx > 0) emitText(remaining.slice(0, startIdx))
             insideToolCall = true
             toolCallBuffer = remaining.slice(startIdx)
             remaining = ''
           } else {
-            // Check for partial match at end (e.g. "<tool_" waiting for more chars)
             const partialTag = '<tool_call'
             let partialLen = 0
             for (let i = Math.max(0, remaining.length - partialTag.length); i < remaining.length; i++) {
@@ -302,7 +309,7 @@ export class WorkshopEngine extends EventEmitter {
             if (partialLen > 0) {
               emitText(remaining.slice(0, remaining.length - partialLen))
               toolCallBuffer = remaining.slice(remaining.length - partialLen)
-              insideToolCall = false // not confirmed yet, hold in buffer
+              insideToolCall = false
             } else {
               emitText(remaining)
             }
@@ -318,13 +325,13 @@ export class WorkshopEngine extends EventEmitter {
       const result = await this.sdkRunner({
         prompt,
         model: getWorkshopModel(),
-        maxTurns: 10,
+        maxTurns: 30,
         cwd: this.projectPath,
         taskId: 0,
         autoMode: true,
         resumeSessionId,
         sessionKey: sessionId,
-        onStream: (streamContent: string, streamType: string) => {
+        onStream: (streamContent: string, streamType: string, extra?: Record<string, unknown>) => {
           if (streamType === 'context') {
             const parts = streamContent.replace('__context:', '').split(':')
             const contextTokens = parseInt(parts[0], 10)
@@ -334,15 +341,30 @@ export class WorkshopEngine extends EventEmitter {
             }
             return
           }
-          if (streamType === 'tool_use') {
-            lastEventType = 'tool_use'
+          if (streamType === 'tool_use' && extra) {
+            const toolData: ToolCallData = {
+              id: crypto.randomUUID(),
+              toolName: extra.toolName as string,
+              toolInput: extra.toolInput as Record<string, unknown>,
+              timestamp: new Date().toISOString()
+            }
+            toolCalls.push(toolData)
+            segments.push({ type: 'tool_call', tool: toolData })
             this.emit('stream', {
               type: 'tool_call',
-              toolName: streamContent.replace('Tool: ', ''),
+              toolName: extra.toolName as string,
+              toolInput: extra.toolInput as Record<string, unknown>,
               sessionId,
             } as WorkshopStreamEvent)
-          } else {
-            // If we have a partial buffer from a potential tag start, prepend it
+          } else if (streamType === 'thinking') {
+            const last = segments[segments.length - 1]
+            if (last && last.type === 'thinking' && streamContent) {
+              (last as any).content = ((last as any).content || '') + streamContent
+            } else {
+              segments.push({ type: 'thinking', content: streamContent })
+            }
+            this.emit('stream', { type: 'thinking', content: streamContent, sessionId } as WorkshopStreamEvent)
+          } else if (streamType === 'text') {
             if (toolCallBuffer && !insideToolCall) {
               const combined = toolCallBuffer + streamContent
               toolCallBuffer = ''
@@ -366,14 +388,24 @@ export class WorkshopEngine extends EventEmitter {
 
       this.trackTokens(sessionId, result.usage)
 
-      await this.handleToolCalls(sessionId, result)
+      const skillLoaded = await this.handleToolCalls(sessionId, result)
 
       // Strip tool_call XML blocks from the displayed message
       const cleanOutput = (result.output ?? '').replace(/<tool_call name="\w+">\s*[\s\S]*?<\/tool_call>/g, '').trim()
-      createWorkshopMessage(this.dbPath, sessionId, 'assistant', cleanOutput)
+      const metadata = segments.length > 0 || toolCalls.length > 0
+        ? { segments, toolCalls }
+        : null
+      createWorkshopMessage(this.dbPath, sessionId, 'assistant', cleanOutput, 'text', metadata)
 
       // Clear pending content now that full message is saved
       updateWorkshopSession(this.dbPath, sessionId, { pendingContent: null })
+
+      // If a skill was loaded, auto-continue so the agent doesn't stall
+      // waiting for the user to send another message
+      if (skillLoaded && !options?.isSystemContinuation) {
+        await this.sendMessage(sessionId, '', { isSystemContinuation: true })
+        return
+      }
 
       this.emit('stream', { type: 'done', sessionId } as WorkshopStreamEvent)
 
@@ -436,24 +468,54 @@ export class WorkshopEngine extends EventEmitter {
 
     this.emit('stream', { type: 'text', content: '', sessionId })
 
+    const panelSegments: MessageSegment[] = []
+    const panelToolCalls: ToolCallData[] = []
+
     try {
       const result = await this.sdkRunner({
         prompt,
         model: getWorkshopModel(),
-        maxTurns: 10,
+        maxTurns: 30,
         cwd: this.projectPath,
         taskId: 0,
         autoMode: true,
         resumeSessionId,
         sessionKey: sessionId,
-        onStream: (event: any) => {
-          if (typeof event === 'string' || event?.type === 'context') {
+        onStream: (content: string, type: string, extra?: Record<string, unknown>) => {
+          if (type === 'context') {
             return // filter out context events
           }
-          if (event.type === 'tool_use') {
-            this.emit('stream', { type: 'tool_call', toolName: event.name, sessionId })
-          } else {
-            this.emit('stream', { type: 'text', content: event.text || '', sessionId })
+          if (type === 'tool_use' && extra) {
+            const toolData: ToolCallData = {
+              id: crypto.randomUUID(),
+              toolName: extra.toolName as string,
+              toolInput: extra.toolInput as Record<string, unknown>,
+              timestamp: new Date().toISOString()
+            }
+            panelToolCalls.push(toolData)
+            panelSegments.push({ type: 'tool_call', tool: toolData })
+            this.emit('stream', {
+              type: 'tool_call',
+              toolName: extra.toolName as string,
+              toolInput: extra.toolInput as Record<string, unknown>,
+              sessionId
+            })
+          } else if (type === 'thinking') {
+            const last = panelSegments[panelSegments.length - 1]
+            if (last && last.type === 'thinking' && content) {
+              (last as any).content = ((last as any).content || '') + content
+            } else {
+              panelSegments.push({ type: 'thinking', content })
+            }
+            this.emit('stream', { type: 'thinking', content, sessionId })
+          } else if (type === 'text' && content) {
+            const last = panelSegments[panelSegments.length - 1]
+            if (last && last.type === 'text') {
+              (last as any).content += content
+            } else {
+              panelSegments.push({ type: 'text', content })
+            }
+            this.emit('stream', { type: 'text', content, sessionId })
           }
         },
         onApprovalRequest: async () => ({ behavior: 'allow' as const })
@@ -465,11 +527,14 @@ export class WorkshopEngine extends EventEmitter {
       await this.handleToolCalls(sessionId, result)
 
       const personaMessages = this.parsePanelResponse(result.output, session.panelPersonas)
+      const panelMeta = panelSegments.length > 0 || panelToolCalls.length > 0
+        ? { segments: panelSegments, toolCalls: panelToolCalls }
+        : null
 
       for (const pm of personaMessages) {
         createWorkshopMessage(
           this.dbPath, sessionId, 'assistant', pm.content,
-          'text', null, pm.personaId, pm.personaName, 1
+          'text', panelMeta, pm.personaId, pm.personaName, 1
         )
         this.emit('stream', {
           type: 'panel_message',
@@ -655,7 +720,8 @@ export class WorkshopEngine extends EventEmitter {
 
   // Tool Call Handling
 
-  private async handleToolCalls(sessionId: string, result: any): Promise<void> {
+  private async handleToolCalls(sessionId: string, result: any): Promise<boolean> {
+    let skillLoaded = false
     const output = result.output ?? ''
 
     const toolCallRegex = /<tool_call name="([\w-]+)">([\s\S]*?)<\/tool_call>/g
@@ -717,6 +783,7 @@ export class WorkshopEngine extends EventEmitter {
             'system_event',
             { skillName }
           )
+          if (skillContent) skillLoaded = true
           break
         }
         case 'save_knowledge': {
@@ -876,6 +943,7 @@ export class WorkshopEngine extends EventEmitter {
           break
       }
     }
+    return skillLoaded
   }
 
   // Group Orchestration Handlers

@@ -1,0 +1,31 @@
+graph TD
+    subgraph CRIT ["🔴 Critical"]
+        C1["C1: runGroupedStage context parse\nJSON.parse on colon-delimited string\npipeline-engine.ts:1456"]
+        C2["C2: activeGroupId shared across sessions\nConcurrent sessions corrupt each other\nworkshop-engine.ts:68"]
+        C3["C3: Group stuck in 'queued' forever\nif pipelineEngine null at launch time\nworkshop-engine.ts:959"]
+    end
+
+    subgraph HIGH ["🟠 High"]
+        H1["H1: runGroupedStage catch block\nmissing paused guard → sets 'blocked'\npipeline-engine.ts:1556"]
+        H2["H2: getSessionForGroup ID type mismatch\nreturns numeric DB row ID as workshop UUID\nworkshop-engine.ts:130"]
+        H3["H3: trackTokens race condition\nparallel panel personas share Map write\nworkshop-engine.ts:596"]
+        H4["H4: dismissContextHandoff is a no-op\ndoesn't call rejectContextHandoff IPC\ntask stuck forever\npipelineStore.ts:122"]
+        H5["H5: No auto-resume after usage limit clears\nusage-paused tasks need manual resume forever\nusage-monitor.ts"]
+    end
+
+    subgraph MED ["🟡 Medium"]
+        M1["M1: Double-history injection on resume\nconversation injected in prompt + SDK session\nworkshop-engine.ts:651"]
+        M2["M2: runGroupedStage skips context budget\nnever triggers context handoff for grouped tasks\npipeline-engine.ts:1521"]
+        M3["M3: Circuit breaker incomplete scope\nBUG-9: brainstorm/code_review targets unprotected\npipeline-rules.ts:28"]
+        M4["M4: done stage missing from rejectStage counter\nBUG-10: infinite rejections possible at done\npipeline-engine.ts:311"]
+    end
+
+    subgraph LOW ["🔵 Low"]
+        L1["L1: Invalid Haiku model ID in endSession\nsilent summary failures\nworkshop-engine.ts:175"]
+        L2["L2: Private dbPath accessed via bracket notation\nworkshop recover-session fragility"]
+        L3["L3: setupListeners monkey-patches store\nstall timer from prior mount persists"]
+    end
+
+    C1 --> H1
+    C3 --> H4
+    H5 -.->|"design gap"| M2

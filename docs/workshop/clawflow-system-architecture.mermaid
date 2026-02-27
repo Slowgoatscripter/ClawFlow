@@ -1,0 +1,56 @@
+graph LR
+    subgraph UI ["🖥️  Renderer — React + Zustand"]
+        direction TB
+        Workshop["🛠️ Workshop\nChat · Artifacts · Panels"]
+        Dashboard["📋 Dashboard\nKanban · Metrics"]
+        TaskDetail["🔍 Task Detail\nAgent Log · Interventions"]
+    end
+
+    subgraph Bridge ["🌉  Preload Bridge"]
+        IPC["window.api\nTyped IPC Surface"]
+    end
+
+    subgraph Main ["⚙️  Main Process — Node.js"]
+        direction TB
+        PE["🚀 PipelineEngine\nStage Orchestrator"]
+        WE["💬 WorkshopEngine\nChat Sessions"]
+        SDK["🤖 SDKManager\nClaude Agent SDK"]
+        SkillLoader["📚 SkillLoader"]
+        KE["🧠 KnowledgeEngine\nFDRL Store"]
+        GE["🌿 GitEngine\nWorktrees"]
+        CB["📊 ContextBudget\nHandoff Monitor"]
+        UM["⚡ UsageMonitor\nRate Limit Guard"]
+    end
+
+    subgraph Data ["💾  Persistence"]
+        direction TB
+        GlobalDB[("Global DB\n~/.clawflow/")]
+        ProjectDB[("Project DB\nper-project")]
+        SkillFiles["Skills\n~/.clawflow/skills/\ncore.md · extended.md"]
+    end
+
+    subgraph Claude ["☁️  Anthropic API"]
+        Opus["claude-opus-4-6"]
+        Sonnet["claude-sonnet-4-6"]
+        Haiku["claude-haiku-4-5"]
+    end
+
+    UI <--> Bridge
+    Bridge <--> Main
+
+    PE --> SDK
+    WE --> SDK
+    PE --> GE
+    PE --> CB
+    PE --> UM
+    PE --> ProjectDB
+
+    SDK --> Opus
+    SDK --> Sonnet
+    SDK --> Haiku
+    SDK --> SkillLoader
+    SDK --> KE
+
+    SkillLoader --> SkillFiles
+    KE --> GlobalDB
+    KE --> ProjectDB

@@ -246,6 +246,11 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
       }
     })
 
+    // Track already-emitted content to avoid duplicates from includePartialMessages
+    let emittedTextLen = 0
+    let emittedThinkingLen = 0
+    const emittedToolIds = new Set<string>()
+
     for await (const message of q) {
       if (message.type === 'system' && (message as any).subtype === 'init') {
         sessionId = (message as any).session_id
@@ -254,63 +259,88 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
       if (message.type === 'assistant') {
         const assistantMsg = message as any
         if (assistantMsg.message?.content) {
+          // Accumulate full text/thinking from all blocks to detect new content
+          let fullText = ''
+          let fullThinking = ''
+
           for (const block of assistantMsg.message.content) {
             if (block.type === 'text') {
-              output += block.text
-              params.onStream(block.text, 'text')
-              win.webContents.send('pipeline:stream', {
-                taskId: params.taskId,
-                agent: params.model,
-                type: 'text',
-                content: block.text,
-                timestamp: new Date().toISOString()
-              })
-            } else if (block.type === 'tool_use') {
-              // Intercept todo/task tool calls
-              const parsed = parseTodoToolUse(block.name, block.input)
-              if (parsed) {
-                const now = new Date().toISOString()
-                if (!todoState[currentStage]) todoState[currentStage] = []
-                const stageTodos = todoState[currentStage]
+              fullText += block.text ?? ''
+            } else if (block.type === 'thinking') {
+              fullThinking += block.thinking ?? ''
+            } else if (block.type === 'tool_use' && block.id && !emittedToolIds.has(block.id)) {
+              // Only emit tool_use once per block ID, and only when input is populated
+              if (block.input && Object.keys(block.input).length > 0) {
+                emittedToolIds.add(block.id)
 
-                if (parsed.type === 'create' && parsed.item) {
-                  stageTodos.push({ ...parsed.item, createdAt: now, updatedAt: now })
-                } else if (parsed.type === 'update' && parsed.item) {
-                  const existing = stageTodos.find(t => t.id === parsed.item!.id)
-                  if (existing) {
-                    if (parsed.item.subject) existing.subject = parsed.item.subject
-                    if (parsed.item.status) existing.status = parsed.item.status
-                    existing.updatedAt = now
+                // Intercept todo/task tool calls
+                const parsed = parseTodoToolUse(block.name, block.input)
+                if (parsed) {
+                  const now = new Date().toISOString()
+                  if (!todoState[currentStage]) todoState[currentStage] = []
+                  const stageTodos = todoState[currentStage]
+
+                  if (parsed.type === 'create' && parsed.item) {
+                    stageTodos.push({ ...parsed.item, createdAt: now, updatedAt: now })
+                  } else if (parsed.type === 'update' && parsed.item) {
+                    const existing = stageTodos.find(t => t.id === parsed.item!.id)
+                    if (existing) {
+                      if (parsed.item.subject) existing.subject = parsed.item.subject
+                      if (parsed.item.status) existing.status = parsed.item.status
+                      existing.updatedAt = now
+                    }
+                  } else if (parsed.type === 'write' && parsed.items) {
+                    todoState[currentStage] = parsed.items.map(t => ({ ...t, createdAt: now, updatedAt: now }))
                   }
-                } else if (parsed.type === 'write' && parsed.items) {
-                  todoState[currentStage] = parsed.items.map(t => ({ ...t, createdAt: now, updatedAt: now }))
+
+                  // Emit to renderer
+                  win.webContents.send('pipeline:todos-updated', {
+                    taskId: params.taskId,
+                    stage: currentStage,
+                    todos: todoState[currentStage]
+                  })
+
+                  // Debounced persist to DB
+                  if (todoPersistTimer) clearTimeout(todoPersistTimer)
+                  todoPersistTimer = setTimeout(() => {
+                    if (params.dbPath) {
+                      updateTask(params.dbPath, params.taskId, { todos: todoState })
+                    }
+                  }, 500)
                 }
 
-                // Emit to renderer
-                win.webContents.send('pipeline:todos-updated', {
+                params.onStream(`Tool: ${block.name}`, 'tool_use', { toolName: block.name, toolInput: block.input })
+                win.webContents.send('pipeline:stream', {
                   taskId: params.taskId,
-                  stage: currentStage,
-                  todos: todoState[currentStage]
+                  agent: params.model,
+                  type: 'tool_use',
+                  content: `${block.name}: ${JSON.stringify(block.input).slice(0, 200)}`,
+                  timestamp: new Date().toISOString()
                 })
-
-                // Debounced persist to DB
-                if (todoPersistTimer) clearTimeout(todoPersistTimer)
-                todoPersistTimer = setTimeout(() => {
-                  if (params.dbPath) {
-                    updateTask(params.dbPath, params.taskId, { todos: todoState })
-                  }
-                }, 500)
               }
-
-              params.onStream(`Tool: ${block.name}`, 'tool_use')
-              win.webContents.send('pipeline:stream', {
-                taskId: params.taskId,
-                agent: params.model,
-                type: 'tool_use',
-                content: `${block.name}: ${JSON.stringify(block.input).slice(0, 200)}`,
-                timestamp: new Date().toISOString()
-              })
             }
+          }
+
+          // Emit only the NEW text delta since last yield
+          if (fullText.length > emittedTextLen) {
+            const delta = fullText.slice(emittedTextLen)
+            emittedTextLen = fullText.length
+            output += delta
+            params.onStream(delta, 'text')
+            win.webContents.send('pipeline:stream', {
+              taskId: params.taskId,
+              agent: params.model,
+              type: 'text',
+              content: delta,
+              timestamp: new Date().toISOString()
+            })
+          }
+
+          // Emit only the NEW thinking delta since last yield
+          if (fullThinking.length > emittedThinkingLen) {
+            const delta = fullThinking.slice(emittedThinkingLen)
+            emittedThinkingLen = fullThinking.length
+            params.onStream(delta, 'thinking')
           }
         }
       }

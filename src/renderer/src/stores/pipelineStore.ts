@@ -14,6 +14,7 @@ interface PipelineState {
   usagePausedToast: { pausedCount: number; utilization: number; countdown: string } | null
   lastUnblockedTaskId: number | null
   pendingCandidateReview: any | null
+  contextDegradedWarning: string | null
   startPipeline: (taskId: number) => Promise<void>
   stepPipeline: (taskId: number) => Promise<void>
   approveStage: (taskId: number) => Promise<void>
@@ -28,7 +29,8 @@ interface PipelineState {
   resumeTask: (taskId: number) => Promise<void>
   pauseAll: () => Promise<void>
   approveContextHandoff: (taskId: number) => Promise<void>
-  dismissContextHandoff: () => void
+  dismissContextHandoff: (taskId: number) => Promise<void>
+  dismissContextDegradedWarning: () => void
   dismissUsagePausedToast: () => void
   clearUnblockedTask: () => void
 }
@@ -46,6 +48,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   usagePausedToast: null,
   lastUnblockedTaskId: null,
   pendingCandidateReview: null,
+  contextDegradedWarning: null,
 
   startPipeline: async (taskId) => {
     set(state => ({

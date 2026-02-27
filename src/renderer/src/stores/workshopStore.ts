@@ -462,7 +462,7 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       }
 
       // Reset stall timer on any meaningful event
-      if (state.isStreaming && (event.type === 'text' || event.type === 'tool_call')) {
+      if (state.isStreaming && (event.type === 'text' || event.type === 'tool_call' || event.type === 'thinking')) {
         resetStallTimer()
       }
 
@@ -504,9 +504,18 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
           streamingSegments: [...state.streamingSegments, { type: 'tool_call', tool: toolData }]
         })
       } else if ((event as any).type === 'thinking') {
-        set({
-          streamingSegments: [...state.streamingSegments, { type: 'thinking' }]
-        })
+        const thinkingContent = (event as any).content || ''
+        const segments = [...state.streamingSegments]
+        const last = segments[segments.length - 1]
+        // Append to existing thinking segment if consecutive
+        if (last && last.type === 'thinking' && thinkingContent) {
+          segments[segments.length - 1] = { type: 'thinking', content: (last.content || '') + thinkingContent }
+          set({ streamingSegments: segments })
+        } else {
+          set({
+            streamingSegments: [...state.streamingSegments, { type: 'thinking', content: thinkingContent }]
+          })
+        }
       } else if ((event as any).type === 'panel_message') {
         const panelMsg: WorkshopMessage = {
           id: crypto.randomUUID(),

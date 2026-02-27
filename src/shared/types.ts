@@ -326,7 +326,7 @@ export interface WorkshopTaskLink {
 }
 
 export interface WorkshopStreamEvent {
-  type: 'text' | 'tool_call' | 'tool_result' | 'done' | 'error'
+  type: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'done' | 'error'
   content?: string
   toolName?: string
   toolInput?: Record<string, unknown>
@@ -352,7 +352,7 @@ export interface ToolCallData {
 
 export type MessageSegment =
   | { type: 'text'; content: string }
-  | { type: 'thinking' }
+  | { type: 'thinking'; content?: string; duration?: number }
   | { type: 'tool_call'; tool: ToolCallData }
   | { type: 'tool_group'; toolName: string; tools: ToolCallData[] }
 

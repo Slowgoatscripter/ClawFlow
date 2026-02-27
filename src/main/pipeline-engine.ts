@@ -26,7 +26,7 @@ export interface SdkRunnerParams {
   sessionKey?: string
   stage?: string
   dbPath?: string
-  onStream: (content: string, type: string) => void
+  onStream: (content: string, type: string, extra?: Record<string, unknown>) => void
   onApprovalRequest: (requestId: string, toolName: string, toolInput: Record<string, unknown>) => void
 }
 

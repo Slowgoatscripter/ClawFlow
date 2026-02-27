@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Maximize2, Minimize2, PanelRightClose, MessageSquare, Layers, Users, Plus } from 'lucide-react'
 import { useLayoutStore } from '../../stores/layoutStore'
 import { useWorkshopStore } from '../../stores/workshopStore'
@@ -30,6 +30,21 @@ export function WorkshopPanel() {
 
   // Project state (for session creation)
   const currentProject = useProjectStore((s) => s.currentProject)
+
+  // Register IPC stream listeners and load sessions/artifacts
+  useEffect(() => {
+    const cleanup = useWorkshopStore.getState().setupListeners()
+    if (currentProject) {
+      useWorkshopStore.getState().loadSessions(
+        currentProject.dbPath,
+        currentProject.path,
+        currentProject.name,
+        currentProject.name
+      )
+      useWorkshopStore.getState().loadArtifacts()
+    }
+    return cleanup
+  }, [currentProject])
 
   const handleSessionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const sessionId = e.target.value
