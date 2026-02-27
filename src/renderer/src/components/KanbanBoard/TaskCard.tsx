@@ -44,14 +44,25 @@ function todoCounts(todos: Record<string, any[]> | undefined, status: string | u
 export function TaskCard({ task }: { task: Task }) {
   const selectTask = useTaskStore((s) => s.selectTask)
   const archiveTask = useTaskStore((s) => s.archiveTask)
+  const allTasks = useTaskStore((s) => s.tasks)
   const setView = useLayoutStore((s) => s.setView)
   const todosByTaskId = usePipelineStore((s) => s.todosByTaskId)
   const awaitingReview = usePipelineStore((s) => s.awaitingReview[task.id] ?? false)
   const currentProject = useProjectStore((s) => s.currentProject)
   const counts = todoCounts(todosByTaskId[task.id] || (task.todos ?? undefined), task.status)
 
+  // Dependency-blocked check
+  const pendingDeps = (task.dependencyIds ?? [])
+    .map((depId) => allTasks.find((t) => t.id === depId))
+    .filter((dep) => dep && dep.status !== 'done')
+  const isDependencyBlocked = pendingDeps.length > 0
+
   const isAwaitingFromHandoffs = isAwaitingReviewFromHandoffs(task)
   const isAwaiting = awaitingReview || isAwaitingFromHandoffs
+
+  const context = usePipelineStore((s) => s.contextByTaskId[task.id])
+  const isPaused = task.status === 'paused'
+  const isRunning = ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying'].includes(task.status)
 
   const handleClick = () => {
     selectTask(task.id)
@@ -70,6 +81,26 @@ export function TaskCard({ task }: { task: Task }) {
       onClick={handleClick}
       className={`relative group bg-elevated rounded-lg p-3 cursor-pointer border border-transparent hover:border-accent-teal transition-colors ${isAwaiting ? 'animate-[glow-pulse_2s_ease-in-out_infinite]' : ''}`}
     >
+      {/* Pause/resume buttons */}
+      {isRunning && (
+        <button
+          className="pause-btn"
+          onClick={(e) => { e.stopPropagation(); usePipelineStore.getState().pauseTask(task.id) }}
+          title="Pause task"
+        >
+          ⏸
+        </button>
+      )}
+      {isPaused && (
+        <button
+          className="resume-btn"
+          onClick={(e) => { e.stopPropagation(); usePipelineStore.getState().resumeTask(task.id) }}
+          title="Resume task"
+        >
+          ▶
+        </button>
+      )}
+
       {/* Per-card archive button (done tasks only) */}
       {task.status === 'done' && (
         <button
@@ -104,6 +135,19 @@ export function TaskCard({ task }: { task: Task }) {
         <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority] ?? ''}`} />
       </div>
 
+      {/* Dependency-blocked indicator */}
+      {isDependencyBlocked && (
+        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-accent-gold bg-accent-gold/10 rounded px-1.5 py-1">
+          <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0110 0v4" />
+          </svg>
+          <span className="truncate">
+            Waiting on: {pendingDeps.map((d) => d!.title).join(', ')}
+          </span>
+        </div>
+      )}
+
       {/* Agent + time row */}
       <div className="flex items-center justify-between mt-2">
         {task.currentAgent ? (
@@ -121,6 +165,17 @@ export function TaskCard({ task }: { task: Task }) {
         )}
         <span className="text-xs text-text-muted">{timeInStage(task.startedAt)}</span>
       </div>
+
+      {/* Context progress bar */}
+      {context && isRunning && (
+        <div className="context-bar" title={`${Math.round(context.tokens / 1000)}k / ${Math.round(context.max / 1000)}k tokens`}>
+          <div
+            className="context-bar-fill"
+            style={{ width: `${Math.min((context.tokens / context.max) * 100, 100)}%` }}
+            data-level={context.tokens / context.max > 0.8 ? 'danger' : context.tokens / context.max > 0.5 ? 'warn' : 'ok'}
+          />
+        </div>
+      )}
     </div>
   )
 }

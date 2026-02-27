@@ -40,7 +40,7 @@ export function TaskDetail() {
   const streaming = usePipelineStore((s) => s.streaming)
   const allStreamEvents = usePipelineStore((s) => s.streamEvents)
   const todosByTaskId = usePipelineStore((s) => s.todosByTaskId)
-  const streamEndRef = useRef<HTMLDivElement>(null)
+  const outputRef = useRef<HTMLDivElement>(null)
 
   const task = tasks.find((t) => t.id === selectedTaskId)
 
@@ -48,9 +48,11 @@ export function TaskDetail() {
   const streamEvents = allStreamEvents.filter((e) => e.taskId === task?.id)
   const isStreamingThisTask = streaming && activeTaskId === task?.id
 
-  // Auto-scroll stream output
+  // Auto-scroll live output within its own container (not the page)
   useEffect(() => {
-    streamEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight
+    }
   }, [streamEvents.length])
 
   const handleBack = async () => {
@@ -136,8 +138,15 @@ export function TaskDetail() {
 
   const isBacklog = task.status === 'backlog'
   const isDone = task.status === 'done'
-  const isActive = !isBacklog && !isDone && task.status !== 'blocked'
+  const isActive = !isBacklog && !isDone && task.status !== 'blocked' && task.status !== 'paused'
+  const isPaused = task.status === 'paused'
   const showLiveOutput = isStreamingThisTask || streamEvents.length > 0
+
+  // Dependency-blocked check
+  const pendingDeps = (task.dependencyIds ?? [])
+    .map((depId) => tasks.find((t) => t.id === depId))
+    .filter((dep) => dep && dep.status !== 'done')
+  const isDependencyBlocked = pendingDeps.length > 0
 
   // Check if the intervention panel is showing open questions
   const lastHandoff = task.handoffs.length > 0 ? task.handoffs[task.handoffs.length - 1] : null
@@ -183,6 +192,11 @@ export function TaskDetail() {
           >
             {task.status.replace('_', ' ')}
           </span>
+          {isPaused && task.pauseReason && (
+            <span className="text-xs px-2 py-0.5 rounded" style={{ background: colors.elevated, color: colors.text.muted }}>
+              {task.pauseReason === 'usage_limit' ? 'Usage Limit' : 'Manual Pause'}
+            </span>
+          )}
           {task.autoMode ? (
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-gold/20 text-accent-gold">
               AUTO
@@ -194,6 +208,19 @@ export function TaskDetail() {
           )}
         </div>
 
+        {/* Dependency-blocked banner */}
+        {isDependencyBlocked && (
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-accent-gold/10 border border-accent-gold/30 rounded-lg text-sm text-accent-gold">
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+            <span>
+              Blocked by incomplete dependencies: {pendingDeps.map((d) => d!.title).join(', ')}
+            </span>
+          </div>
+        )}
+
         {/* Description */}
         {task.description && (
           <p className="text-sm text-text-secondary">{task.description}</p>
@@ -202,12 +229,24 @@ export function TaskDetail() {
         {/* Action buttons */}
         <div className="flex items-center gap-3">
           {isBacklog && (
-            <button
-              onClick={handleStartPipeline}
-              className="px-4 py-2 bg-accent-green text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Start Pipeline
-            </button>
+            <div className="relative group/start">
+              <button
+                onClick={handleStartPipeline}
+                disabled={isDependencyBlocked}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-opacity ${
+                  isDependencyBlocked
+                    ? 'bg-text-muted/30 text-text-muted cursor-not-allowed'
+                    : 'bg-accent-green text-bg hover:opacity-90'
+                }`}
+              >
+                Start Pipeline
+              </button>
+              {isDependencyBlocked && (
+                <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-elevated border border-accent-gold/30 rounded-lg text-xs text-accent-gold whitespace-nowrap opacity-0 group-hover/start:opacity-100 transition-opacity pointer-events-none">
+                  Waiting on: {pendingDeps.map((d) => d!.title).join(', ')}
+                </div>
+              )}
+            </div>
           )}
           {isActive && !hasOpenQuestions && (
             <button
@@ -215,6 +254,24 @@ export function TaskDetail() {
               className="px-4 py-2 bg-accent-teal text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
             >
               Retry Stage
+            </button>
+          )}
+          {isActive && (
+            <button
+              onClick={() => usePipelineStore.getState().pauseTask(task.id)}
+              style={{ background: colors.accent.gold, color: colors.bg }}
+              className="px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Pause
+            </button>
+          )}
+          {isPaused && (
+            <button
+              onClick={() => usePipelineStore.getState().resumeTask(task.id)}
+              style={{ background: colors.accent.green, color: colors.bg }}
+              className="px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Resume
             </button>
           )}
           {!isBacklog && !isDone && (
@@ -255,7 +312,7 @@ export function TaskDetail() {
                 <span className="ml-2 inline-block w-2 h-2 rounded-full bg-accent-green animate-pulse" />
               )}
             </h2>
-            <div className="bg-elevated rounded-lg p-4 font-mono text-sm max-h-[300px] overflow-y-auto">
+            <div ref={outputRef} className="bg-elevated rounded-lg p-4 font-mono text-sm max-h-[300px] overflow-y-auto">
               {streamEvents.map((event, i) => (
                 <div key={i} className="flex items-start gap-2 py-1">
                   <span className="text-text-muted text-xs whitespace-nowrap shrink-0">
@@ -267,7 +324,6 @@ export function TaskDetail() {
                   <span className="text-text-secondary break-all">{event.content}</span>
                 </div>
               ))}
-              <div ref={streamEndRef} />
             </div>
           </div>
         )}
