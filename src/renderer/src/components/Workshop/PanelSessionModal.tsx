@@ -147,15 +147,17 @@ export function PanelSessionModal({ onConfirm, onCancel }: PanelSessionModalProp
               <input
                 type="text"
                 value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
+                onChange={(e) => setCustomName(e.target.value.slice(0, 50))}
                 placeholder="Persona name"
+                maxLength={50}
                 className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent-cyan/50"
               />
               <textarea
                 value={customDescription}
-                onChange={(e) => setCustomDescription(e.target.value)}
+                onChange={(e) => setCustomDescription(e.target.value.slice(0, 500))}
                 placeholder="Describe this persona's focus and expertise..."
                 rows={3}
+                maxLength={500}
                 className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text placeholder:text-text-muted/50 resize-none focus:outline-none focus:border-accent-cyan/50"
               />
               <button

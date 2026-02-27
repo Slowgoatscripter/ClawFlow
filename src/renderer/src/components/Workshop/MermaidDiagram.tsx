@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import mermaid from 'mermaid'
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  themeVariables: {
-    darkMode: true,
-    background: '#1a1a2e',
-    primaryColor: '#2dd4bf',
-    primaryTextColor: '#e2e8f0',
-    lineColor: '#475569',
-  },
-})
-
+let mermaidInitialized = false
 let renderCounter = 0
+
+function ensureMermaidInit() {
+  if (mermaidInitialized) return
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#1a1a2e',
+      primaryColor: '#2dd4bf',
+      primaryTextColor: '#e2e8f0',
+      lineColor: '#475569',
+    },
+  })
+  mermaidInitialized = true
+}
 
 export function MermaidDiagram({ content, id }: { content: string; id: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -21,7 +26,7 @@ export function MermaidDiagram({ content, id }: { content: string; id: string })
   const [svg, setSvg] = useState<string | null>(null)
 
   const renderDiagram = useCallback(async (diagramContent: string, diagramId: string) => {
-    // Use a unique element ID per render call to avoid Mermaid DOM element ID conflicts
+    ensureMermaidInit()
     const elementId = `mermaid-${diagramId.replace(/[^a-zA-Z0-9]/g, '')}-${++renderCounter}`
     try {
       const result = await mermaid.render(elementId, diagramContent)
