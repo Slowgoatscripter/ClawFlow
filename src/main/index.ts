@@ -4,6 +4,7 @@ import fs from 'fs'
 import { registerIpcHandlers } from './ipc-handlers'
 import { closeAllDbs, listWorkshopMessages, listProjects, updateProjectBaseBranch, createWorkshopMessage, updateWorkshopSession } from './db'
 import { PipelineEngine } from './pipeline-engine'
+import type { PipelineStage } from '../shared/types'
 import { WorkshopEngine } from './workshop-engine'
 import { createSdkRunner, resolveApproval } from './sdk-manager'
 import { GitEngine } from './git-engine'
@@ -280,6 +281,11 @@ function registerPipelineIpc() {
   ipcMain.handle('pipeline:approveContextHandoff', async (_e, taskId: number) => {
     if (!currentEngine) throw new Error('Pipeline not initialized')
     await currentEngine.approveContextHandoff(taskId)
+  })
+
+  ipcMain.handle('pipeline:restartToStage', async (_e, taskId: number, targetStage: string) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    await currentEngine.restartToStage(taskId, targetStage as PipelineStage)
   })
 
   ipcMain.handle('usage:get-snapshot', () => {

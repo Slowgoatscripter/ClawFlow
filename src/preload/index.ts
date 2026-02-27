@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('api', {
       return () => ipcRenderer.removeListener('pipeline:context-update', handler)
     },
     approveContextHandoff: (taskId: number) => ipcRenderer.invoke('pipeline:approveContextHandoff', taskId),
+    restartToStage: (taskId: number, stage: string) => ipcRenderer.invoke('pipeline:restartToStage', taskId, stage),
     onContextHandoff: (callback: (data: any) => void) => {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('pipeline:contextHandoff', handler)
