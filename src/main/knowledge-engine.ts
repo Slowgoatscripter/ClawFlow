@@ -7,6 +7,12 @@ import type {
   KnowledgeStatus
 } from '../shared/knowledge-types'
 
+// Safe JSON parse — returns fallback on malformed input
+function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback
+  try { return JSON.parse(value) } catch { return fallback }
+}
+
 // ---------------------------------------------------------------------------
 // Helper: DB row → KnowledgeEntry
 // ---------------------------------------------------------------------------
@@ -18,7 +24,7 @@ export function rowToEntry(row: any): KnowledgeEntry {
     summary: row.summary,
     content: row.content,
     category: row.category as KnowledgeCategory,
-    tags: JSON.parse(row.tags ?? '[]'),
+    tags: safeJsonParse(row.tags, []),
     source: row.source as KnowledgeSource,
     sourceId: row.source_id ?? null,
     status: row.status as KnowledgeStatus,
