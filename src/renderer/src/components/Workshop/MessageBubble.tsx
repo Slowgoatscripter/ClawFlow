@@ -45,7 +45,7 @@ export function MessageBubble({ message, isStreaming = false, personaColor, stre
       <div
         className={`max-w-[80%] rounded-lg px-4 py-2.5 ${
           isUser
-            ? 'bg-accent-teal/15 text-text'
+            ? 'bg-accent-cyan/15 text-text'
             : colors
               ? `${colors.bg} text-text border ${colors.border}`
               : 'bg-surface text-text border border-border'
@@ -84,7 +84,7 @@ export function MessageBubble({ message, isStreaming = false, personaColor, stre
               return null
             })}
             {isStreaming && (
-              <span className="inline-block w-1.5 h-4 bg-accent-teal/70 animate-pulse ml-0.5 align-text-bottom" />
+              <span className="inline-block w-1.5 h-4 bg-accent-cyan/70 animate-pulse ml-0.5 align-text-bottom" />
             )}
           </div>
         ) : (

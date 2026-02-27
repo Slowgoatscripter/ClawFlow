@@ -12,8 +12,8 @@ const TIERS: { value: Tier; label: string }[] = [
 
 const tierActiveColors: Record<Tier, string> = {
   L1: 'bg-accent-green/20 text-accent-green border-accent-green',
-  L2: 'bg-accent-teal/20 text-accent-teal border-accent-teal',
-  L3: 'bg-accent-mauve/20 text-accent-mauve border-accent-mauve'
+  L2: 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan',
+  L3: 'bg-accent-violet/20 text-accent-violet border-accent-violet'
 }
 
 const PRIORITIES: { value: Priority; label: string }[] = [
@@ -25,9 +25,9 @@ const PRIORITIES: { value: Priority; label: string }[] = [
 
 const priorityActiveColors: Record<Priority, string> = {
   low: 'bg-text-muted/20 text-text-muted border-text-muted',
-  medium: 'bg-accent-teal/20 text-accent-teal border-accent-teal',
+  medium: 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan',
   high: 'bg-accent-peach/20 text-accent-peach border-accent-peach',
-  critical: 'bg-accent-red/20 text-accent-red border-accent-red'
+  critical: 'bg-accent-magenta/20 text-accent-magenta border-accent-magenta'
 }
 
 const inactiveBtn = 'border border-border text-text-secondary hover:text-text-primary'
@@ -90,7 +90,7 @@ export function TaskSuggestionModal() {
                 />
                 <button
                   onClick={() => handleRemoveTask(index)}
-                  className="text-text-muted hover:text-red-400 transition-colors text-xs shrink-0"
+                  className="text-text-muted hover:text-accent-magenta transition-colors text-xs shrink-0"
                 >
                   Remove
                 </button>
@@ -155,7 +155,7 @@ export function TaskSuggestionModal() {
               type="checkbox"
               checked={autoMode}
               onChange={(e) => setAutoMode(e.target.checked)}
-              className="accent-accent-teal w-3.5 h-3.5"
+              className="accent-accent-cyan w-3.5 h-3.5"
             />
             <span className="text-xs text-text-secondary">Auto Mode</span>
           </label>
@@ -170,7 +170,7 @@ export function TaskSuggestionModal() {
             <button
               onClick={handleApprove}
               disabled={tasks.length === 0}
-              className="px-4 py-2 rounded-md bg-accent-teal text-bg font-medium text-sm hover:bg-accent-teal/90 disabled:opacity-50 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-md bg-accent-cyan text-bg font-medium text-sm hover:bg-accent-cyan/90 disabled:opacity-50 transition-colors cursor-pointer"
             >
               Create {tasks.length} Task{tasks.length !== 1 ? 's' : ''}
             </button>

@@ -80,7 +80,7 @@ export function ActivityFeed() {
             onClick={() => setFilter(f.value)}
             className={`text-xs px-2.5 py-1 rounded-full transition-colors cursor-pointer ${
               filter === f.value
-                ? 'bg-accent-teal/20 text-accent-teal'
+                ? 'bg-accent-cyan/20 text-accent-cyan'
                 : 'bg-elevated text-text-muted hover:text-text-secondary'
             }`}
           >

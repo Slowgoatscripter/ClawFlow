@@ -5,7 +5,7 @@ export function TitleBar() {
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* Left: wordmark */}
-      <span className="pl-20 text-xs font-semibold tracking-widest text-accent-teal opacity-70">
+      <span className="pl-20 text-xs font-semibold tracking-widest text-accent-cyan opacity-70">
         CLAWFLOW
       </span>
 
@@ -39,7 +39,7 @@ export function TitleBar() {
         {/* Close */}
         <button
           onClick={() => window.api.window.close()}
-          className="h-full w-11 flex items-center justify-center text-text-muted hover:bg-accent-red hover:text-white transition-colors"
+          className="h-full w-11 flex items-center justify-center text-text-muted hover:bg-accent-magenta hover:text-white transition-colors"
           aria-label="Close"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.2">

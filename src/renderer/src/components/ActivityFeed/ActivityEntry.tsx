@@ -76,15 +76,15 @@ export function ActivityEntry({ event }: { event: StreamEvent }) {
         <span
           className={`text-xs px-1.5 py-0.5 rounded-full ${
             isError
-              ? 'bg-accent-red/20 text-accent-red'
+              ? 'bg-accent-magenta/20 text-accent-magenta'
               : isToolType
-                ? 'bg-accent-teal/20 text-accent-teal'
-                : 'bg-accent-mauve/20 text-accent-mauve'
+                ? 'bg-accent-cyan/20 text-accent-cyan'
+                : 'bg-accent-violet/20 text-accent-violet'
           }`}
         >
           {event.agent}
         </span>
-        <span className={isToolType ? 'text-accent-teal' : 'text-text-muted'}>
+        <span className={isToolType ? 'text-accent-cyan' : 'text-text-muted'}>
           <TypeBadge type={event.type} />
         </span>
       </div>

@@ -3,11 +3,11 @@ import { useGitStore } from '../../stores/gitStore'
 import type { FileStatus } from '../../../../shared/types'
 
 const STATUS_INDICATORS: Record<FileStatus['status'], { label: string; color: string }> = {
-  modified: { label: 'M', color: 'text-yellow-400' },
-  added: { label: 'A', color: 'text-green-400' },
-  deleted: { label: 'D', color: 'text-red-400' },
-  untracked: { label: '?', color: 'text-gray-400' },
-  renamed: { label: 'R', color: 'text-blue-400' }
+  modified: { label: 'M', color: 'text-accent-amber' },
+  added: { label: 'A', color: 'text-accent-green' },
+  deleted: { label: 'D', color: 'text-accent-magenta' },
+  untracked: { label: '?', color: 'text-text-muted' },
+  renamed: { label: 'R', color: 'text-accent-cyan' }
 }
 
 export function BranchDetail() {
@@ -29,7 +29,7 @@ export function BranchDetail() {
 
   if (!branch) {
     return (
-      <div className="flex-1 flex items-center justify-center text-textSecondary">
+      <div className="flex-1 flex items-center justify-center text-text-secondary">
         Select a branch to view details
       </div>
     )
@@ -38,45 +38,45 @@ export function BranchDetail() {
   return (
     <div className="flex-1 p-6 overflow-y-auto">
       <div className="max-w-2xl">
-        <h2 className="text-xl font-semibold text-text mb-1">{branch.branchName}</h2>
-        <p className="text-sm text-textSecondary mb-6">Task: {branch.taskTitle}</p>
+        <h2 className="text-xl font-semibold text-text-primary mb-1">{branch.branchName}</h2>
+        <p className="text-sm text-text-secondary mb-6">Task: {branch.taskTitle}</p>
 
         {error && (
           <div
             onClick={() => clearError()}
-            className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm cursor-pointer hover:bg-red-500/15 transition-colors"
+            className="mb-4 px-4 py-3 bg-accent-magenta/10 border border-accent-magenta/30 rounded-lg text-accent-magenta text-sm cursor-pointer hover:bg-accent-magenta/15 transition-colors"
           >
             {error}
-            <span className="text-red-400/50 text-xs ml-2">click to dismiss</span>
+            <span className="text-accent-magenta/50 text-xs ml-2">click to dismiss</span>
           </div>
         )}
 
         {/* Status grid */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-surface rounded-lg p-4">
-            <div className="text-xs text-textSecondary mb-1">Status</div>
-            <div className="text-sm font-medium text-text capitalize">
+            <div className="text-xs text-text-secondary mb-1">Status</div>
+            <div className="text-sm font-medium text-text-primary capitalize">
               {branch.status}{branch.worktreeActive && ' (worktree active)'}
             </div>
           </div>
           <div className="bg-surface rounded-lg p-4">
-            <div className="text-xs text-textSecondary mb-1">Commits</div>
-            <div className="text-sm font-medium text-text">
+            <div className="text-xs text-text-secondary mb-1">Commits</div>
+            <div className="text-sm font-medium text-text-primary">
               {branch.commitCount} total
               {branch.aheadOfBase > 0 && ` · ${branch.aheadOfBase} ahead`}
               {branch.behindBase > 0 && ` · ${branch.behindBase} behind`}
             </div>
           </div>
           <div className="bg-surface rounded-lg p-4">
-            <div className="text-xs text-textSecondary mb-1">Last Commit</div>
-            <div className="text-sm text-text truncate">{branch.lastCommitMessage || 'None'}</div>
-            <div className="text-xs text-textSecondary mt-1">
+            <div className="text-xs text-text-secondary mb-1">Last Commit</div>
+            <div className="text-sm text-text-primary truncate">{branch.lastCommitMessage || 'None'}</div>
+            <div className="text-xs text-text-secondary mt-1">
               {branch.lastCommitDate ? new Date(branch.lastCommitDate).toLocaleString() : ''}
             </div>
           </div>
           <div className="bg-surface rounded-lg p-4">
-            <div className="text-xs text-textSecondary mb-1">Remote</div>
-            <div className="text-sm font-medium text-text">
+            <div className="text-xs text-text-secondary mb-1">Remote</div>
+            <div className="text-sm font-medium text-text-primary">
               {branch.pushed ? 'Pushed to origin' : 'Local only'}
             </div>
           </div>
@@ -86,12 +86,12 @@ export function BranchDetail() {
         {fileStatuses.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-yellow-400">
+              <h3 className="text-sm font-medium text-accent-amber">
                 ⚠ Working Tree ({fileStatuses.length} uncommitted)
               </h3>
               <button
                 onClick={() => stageAllAction(branch.taskId)}
-                className="px-3 py-1 text-xs bg-surface border border-border rounded-lg text-text hover:bg-border transition-colors"
+                className="px-3 py-1 text-xs bg-surface border border-border rounded-lg text-text-primary hover:bg-border transition-colors"
               >
                 Stage All
               </button>
@@ -108,9 +108,9 @@ export function BranchDetail() {
                       {indicator.label}
                     </span>
                     {file.staged && (
-                      <span className="text-green-400 text-[10px]">staged</span>
+                      <span className="text-accent-green text-[10px]">staged</span>
                     )}
-                    <span className="text-text truncate">{file.path}</span>
+                    <span className="text-text-primary truncate">{file.path}</span>
                   </div>
                 )
               })}
@@ -119,24 +119,24 @@ export function BranchDetail() {
         )}
 
         {loadingStatus && fileStatuses.length === 0 && (
-          <div className="mb-6 text-xs text-textSecondary">Loading file status...</div>
+          <div className="mb-6 text-xs text-text-secondary">Loading file status...</div>
         )}
 
         {/* Manual commit */}
         <div className="mb-6">
-          <h3 className="text-sm font-medium text-textSecondary mb-2">Manual Commit</h3>
+          <h3 className="text-sm font-medium text-text-secondary mb-2">Manual Commit</h3>
           <div className="flex gap-2">
             <input
               type="text"
               value={commitMsg}
               onChange={(e) => setCommitMsg(e.target.value)}
               placeholder="Commit message..."
-              className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text placeholder-textSecondary focus:outline-none focus:border-accent"
+              className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-cyan"
             />
             <button
               onClick={() => { commitBranch(branch.taskId, commitMsg); setCommitMsg('') }}
               disabled={!commitMsg.trim()}
-              className="px-4 py-2 bg-accent text-bg rounded-lg text-sm font-medium hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-accent-cyan text-bg rounded-lg text-sm font-medium hover:bg-accent-cyan/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Commit
             </button>
@@ -147,7 +147,7 @@ export function BranchDetail() {
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => pushBranch(branch.taskId)}
-            className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text hover:bg-border transition-colors"
+            className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary hover:bg-border transition-colors"
           >
             Push to Origin
           </button>
@@ -156,13 +156,13 @@ export function BranchDetail() {
             <div className="flex gap-2">
               <button
                 onClick={() => { mergeBranch(branch.taskId); setConfirming(null) }}
-                className="px-4 py-2 bg-green-600 rounded-lg text-sm text-white hover:bg-green-700 transition-colors"
+                className="px-4 py-2 bg-accent-green rounded-lg text-sm text-white hover:bg-accent-green/90 transition-colors"
               >
                 Confirm Merge
               </button>
               <button
                 onClick={() => setConfirming(null)}
-                className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text hover:bg-border transition-colors"
+                className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary hover:bg-border transition-colors"
               >
                 Cancel
               </button>
@@ -171,7 +171,7 @@ export function BranchDetail() {
             <button
               onClick={() => setConfirming('merge')}
               disabled={branch.status === 'merged'}
-              className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text hover:bg-border disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary hover:bg-border disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Merge to Main
             </button>
@@ -181,13 +181,13 @@ export function BranchDetail() {
             <div className="flex gap-2">
               <button
                 onClick={() => { deleteBranch(branch.taskId); setConfirming(null) }}
-                className="px-4 py-2 bg-red-600 rounded-lg text-sm text-white hover:bg-red-700 transition-colors"
+                className="px-4 py-2 bg-accent-magenta rounded-lg text-sm text-white hover:bg-accent-magenta/90 transition-colors"
               >
                 Confirm Delete
               </button>
               <button
                 onClick={() => setConfirming(null)}
-                className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text hover:bg-border transition-colors"
+                className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary hover:bg-border transition-colors"
               >
                 Cancel
               </button>
@@ -195,7 +195,7 @@ export function BranchDetail() {
           ) : (
             <button
               onClick={() => setConfirming('delete')}
-              className="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 hover:bg-red-500/20 transition-colors"
+              className="px-4 py-2 bg-accent-magenta/10 border border-accent-magenta/30 rounded-lg text-sm text-accent-magenta hover:bg-accent-magenta/20 transition-colors"
             >
               Delete Branch
             </button>

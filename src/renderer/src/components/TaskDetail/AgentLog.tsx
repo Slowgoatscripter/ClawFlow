@@ -1,10 +1,10 @@
 import type { AgentLogEntry } from '../../../../shared/types'
 
 const AGENT_COLORS: Record<string, string> = {
-  brainstorm: 'bg-accent-mauve/20 text-accent-mauve',
-  planner: 'bg-accent-teal/20 text-accent-teal',
+  brainstorm: 'bg-accent-violet/20 text-accent-violet',
+  planner: 'bg-accent-cyan/20 text-accent-cyan',
   implementer: 'bg-accent-peach/20 text-accent-peach',
-  reviewer: 'bg-accent-gold/20 text-accent-gold',
+  reviewer: 'bg-accent-amber/20 text-accent-amber',
   verifier: 'bg-accent-green/20 text-accent-green'
 }
 
@@ -13,7 +13,7 @@ function getAgentColor(agent: string): string {
   for (const [key, value] of Object.entries(AGENT_COLORS)) {
     if (lower.includes(key)) return value
   }
-  return 'bg-accent-teal/20 text-accent-teal'
+  return 'bg-accent-cyan/20 text-accent-cyan'
 }
 
 export function AgentLog({ log }: { log: AgentLogEntry[] }) {

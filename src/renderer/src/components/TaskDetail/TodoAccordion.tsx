@@ -14,7 +14,7 @@ const stageOrder = ['verify', 'code_review', 'implement', 'plan', 'design_review
 
 function StatusIcon({ status }: { status: string }) {
   if (status === 'completed') return <span className="text-accent-green">&#10003;</span>
-  if (status === 'in_progress') return <span className="text-accent-teal animate-pulse">&#9679;</span>
+  if (status === 'in_progress') return <span className="text-accent-cyan animate-pulse">&#9679;</span>
   return <span className="text-text-muted">&#9675;</span>
 }
 

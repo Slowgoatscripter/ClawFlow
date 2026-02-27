@@ -71,7 +71,7 @@ export function MermaidDiagram({ content, id }: { content: string; id: string })
 
   if (error) {
     return (
-      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+      <div className="p-4 bg-accent-magenta/10 border border-accent-magenta/30 rounded-lg text-sm text-accent-magenta">
         <p className="font-medium">Diagram render error</p>
         <pre className="mt-2 text-xs overflow-auto">{error}</pre>
         <pre className="mt-2 text-xs text-text-muted overflow-auto">{content}</pre>
@@ -82,7 +82,7 @@ export function MermaidDiagram({ content, id }: { content: string; id: string })
   if (!svg) {
     return (
       <div className="w-full flex items-center justify-center p-4 text-text-muted text-sm">
-        <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse mr-2" />
+        <div className="w-2 h-2 rounded-full bg-accent-cyan animate-pulse mr-2" />
         Rendering diagram...
       </div>
     )

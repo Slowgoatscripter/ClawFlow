@@ -56,7 +56,7 @@ export function TaskTimeline({ task }: { task: Task }) {
                     isCompleted
                       ? 'bg-accent-green border-accent-green'
                       : isCurrent
-                        ? 'bg-accent-teal border-accent-teal animate-pulse'
+                        ? 'bg-accent-cyan border-accent-cyan animate-pulse'
                         : 'bg-transparent border-border'
                   }`}
                 >
@@ -85,7 +85,7 @@ export function TaskTimeline({ task }: { task: Task }) {
                     isCompleted
                       ? 'bg-accent-green'
                       : isCurrent
-                        ? 'border-t-2 border-dashed border-accent-teal bg-transparent'
+                        ? 'border-t-2 border-dashed border-accent-cyan bg-transparent'
                         : 'bg-border'
                   }`}
                 />

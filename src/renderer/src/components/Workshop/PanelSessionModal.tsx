@@ -84,7 +84,7 @@ export function PanelSessionModal({ onConfirm, onCancel }: PanelSessionModalProp
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Auth system design review"
-              className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent-teal/50"
+              className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent-cyan/50"
             />
           </div>
 
@@ -149,19 +149,19 @@ export function PanelSessionModal({ onConfirm, onCancel }: PanelSessionModalProp
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
                 placeholder="Persona name"
-                className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent-teal/50"
+                className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent-cyan/50"
               />
               <textarea
                 value={customDescription}
                 onChange={(e) => setCustomDescription(e.target.value)}
                 placeholder="Describe this persona's focus and expertise..."
                 rows={3}
-                className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text placeholder:text-text-muted/50 resize-none focus:outline-none focus:border-accent-teal/50"
+                className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text placeholder:text-text-muted/50 resize-none focus:outline-none focus:border-accent-cyan/50"
               />
               <button
                 onClick={handleAddCustom}
                 disabled={!customName.trim() || !customDescription.trim()}
-                className="px-4 py-1.5 rounded-md bg-accent-teal text-bg text-sm font-medium hover:bg-accent-teal/90 disabled:opacity-50 transition-colors cursor-pointer"
+                className="px-4 py-1.5 rounded-md bg-accent-cyan text-bg text-sm font-medium hover:bg-accent-cyan/90 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 Add Persona
               </button>
@@ -185,7 +185,7 @@ export function PanelSessionModal({ onConfirm, onCancel }: PanelSessionModalProp
             <button
               onClick={handleConfirm}
               disabled={selected.length < MIN_PERSONAS}
-              className="px-4 py-2 rounded-md bg-accent-teal text-bg font-medium text-sm hover:bg-accent-teal/90 disabled:opacity-50 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-md bg-accent-cyan text-bg font-medium text-sm hover:bg-accent-cyan/90 disabled:opacity-50 transition-colors cursor-pointer"
             >
               Start Panel
             </button>

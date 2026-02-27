@@ -28,7 +28,7 @@ class ArtifactErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 m-4">
+        <div className="p-4 bg-accent-magenta/10 border border-accent-magenta/30 rounded-lg text-sm text-accent-magenta m-4">
           <p className="font-medium">Render error</p>
           <pre className="mt-2 text-xs overflow-auto">{this.state.error}</pre>
         </div>
@@ -83,7 +83,7 @@ export function ArtifactPanel() {
             </div>
             <button
               onClick={() => setExpanded(false)}
-              className="px-3 py-1.5 rounded-md text-sm font-medium bg-surface border border-border text-text-muted hover:text-text hover:border-accent-teal transition-colors"
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-surface border border-border text-text-muted hover:text-text hover:border-accent-cyan transition-colors"
             >
               Close
             </button>
@@ -111,7 +111,7 @@ export function ArtifactPanel() {
             onClick={() => useWorkshopStore.getState().selectArtifact(artifact.id)}
             className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
               artifact.id === selectedArtifactId
-                ? 'border-accent-teal text-accent-teal'
+                ? 'border-accent-cyan text-accent-cyan'
                 : 'border-transparent text-text-muted hover:text-text'
             }`}
           >
@@ -124,7 +124,7 @@ export function ArtifactPanel() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {artifactLoading ? (
           <div className="p-4 flex items-center gap-2 text-text-muted text-sm">
-            <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-accent-cyan animate-pulse" />
             Loading artifact...
           </div>
         ) : selectedArtifact && artifactContent !== null ? (
@@ -133,7 +133,7 @@ export function ArtifactPanel() {
             <div className="flex justify-end px-4 pt-3">
               <button
                 onClick={() => setExpanded(true)}
-                className="text-xs text-text-muted hover:text-accent-teal transition-colors flex items-center gap-1"
+                className="text-xs text-text-muted hover:text-accent-cyan transition-colors flex items-center gap-1"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />

@@ -35,8 +35,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         <div className="h-full flex items-center justify-center bg-bg p-8">
           <div className="max-w-lg w-full bg-surface border border-border rounded-lg overflow-hidden">
             {/* Red accent header */}
-            <div className="bg-accent-red/20 border-b border-accent-red/40 px-6 py-4">
-              <h1 className="text-accent-red text-lg font-semibold">
+            <div className="bg-accent-magenta/20 border-b border-accent-magenta/40 px-6 py-4">
+              <h1 className="text-accent-magenta text-lg font-semibold">
                 Something went wrong
               </h1>
             </div>
@@ -49,7 +49,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
               {this.state.error && (
                 <div className="bg-elevated border border-border rounded-md p-4 overflow-auto max-h-48">
-                  <pre className="text-accent-red font-mono text-xs whitespace-pre-wrap break-words">
+                  <pre className="text-accent-magenta font-mono text-xs whitespace-pre-wrap break-words">
                     {this.state.error.message}
                   </pre>
                   {this.state.error.stack && (
@@ -62,7 +62,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
               <button
                 onClick={this.handleReload}
-                className="w-full px-4 py-2.5 bg-accent-red/20 hover:bg-accent-red/30 text-accent-red border border-accent-red/40 rounded-md text-sm font-medium transition-colors cursor-pointer"
+                className="w-full px-4 py-2.5 bg-accent-magenta/20 hover:bg-accent-magenta/30 text-accent-magenta border border-accent-magenta/40 rounded-md text-sm font-medium transition-colors cursor-pointer"
               >
                 Reload App
               </button>

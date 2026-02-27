@@ -56,7 +56,7 @@ export function StageTabs({ task }: { task: Task }) {
             onClick={() => setActiveTab(s.stage)}
             className={`px-4 py-2.5 text-sm whitespace-nowrap transition-colors ${
               activeTab === s.stage
-                ? 'text-accent-teal border-b-2 border-accent-teal'
+                ? 'text-accent-cyan border-b-2 border-accent-cyan'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >

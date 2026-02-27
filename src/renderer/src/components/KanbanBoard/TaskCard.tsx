@@ -7,15 +7,15 @@ import { isAwaitingReviewFromHandoffs } from '../../utils/taskHelpers'
 
 const tierColors: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
-  L2: 'bg-accent-teal/20 text-accent-teal',
-  L3: 'bg-accent-mauve/20 text-accent-mauve'
+  L2: 'bg-accent-cyan/20 text-accent-cyan',
+  L3: 'bg-accent-violet/20 text-accent-violet'
 }
 
 const priorityColors: Record<string, string> = {
   low: 'bg-text-muted',
-  medium: 'bg-accent-teal',
+  medium: 'bg-accent-cyan',
   high: 'bg-accent-peach',
-  critical: 'bg-accent-red'
+  critical: 'bg-accent-magenta'
 }
 
 function timeInStage(startedAt: string | null): string {
@@ -79,7 +79,7 @@ export function TaskCard({ task }: { task: Task }) {
   return (
     <div
       onClick={handleClick}
-      className={`relative group bg-elevated rounded-lg p-3 cursor-pointer border border-transparent hover:border-accent-teal transition-colors ${isAwaiting ? 'animate-[glow-pulse_2s_ease-in-out_infinite]' : ''}`}
+      className={`relative group bg-elevated rounded-lg p-3 cursor-pointer border border-transparent hover:border-accent-cyan transition-colors ${isAwaiting ? 'animate-[glow-pulse_2s_ease-in-out_infinite]' : ''}`}
     >
       {/* Pause/resume buttons */}
       {isRunning && (
@@ -105,7 +105,7 @@ export function TaskCard({ task }: { task: Task }) {
       {task.status === 'done' && (
         <button
           onClick={handleArchive}
-          className="absolute top-1.5 right-1.5 text-text-muted hover:text-accent-gold opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-1.5 right-1.5 text-text-muted hover:text-accent-amber opacity-0 group-hover:opacity-100 transition-opacity"
           title="Archive"
         >
           <svg
@@ -137,7 +137,7 @@ export function TaskCard({ task }: { task: Task }) {
 
       {/* Dependency-blocked indicator */}
       {isDependencyBlocked && (
-        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-accent-gold bg-accent-gold/10 rounded px-1.5 py-1">
+        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-accent-amber bg-accent-amber/10 rounded px-1.5 py-1">
           <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0110 0v4" />
@@ -151,8 +151,8 @@ export function TaskCard({ task }: { task: Task }) {
       {/* Agent + time row */}
       <div className="flex items-center justify-between mt-2">
         {task.currentAgent ? (
-          <span className="text-xs text-accent-gold flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-gold animate-pulse" />
+          <span className="text-xs text-accent-amber flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-amber animate-pulse" />
             {task.currentAgent}
           </span>
         ) : (

@@ -36,7 +36,7 @@ export function OpenQuestionsPanel({ task }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold text-accent-teal">Agent Has Questions</h3>
+      <h3 className="text-xl font-semibold text-accent-cyan">Agent Has Questions</h3>
 
       <pre className="bg-elevated rounded p-4 font-mono text-sm max-h-[400px] overflow-y-auto text-text-secondary whitespace-pre-wrap">
         {questions}
@@ -46,13 +46,13 @@ export function OpenQuestionsPanel({ task }: Props) {
         value={response}
         onChange={(e) => setResponse(e.target.value)}
         placeholder="Provide your response to the agent's questions..."
-        className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-teal"
+        className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-cyan"
       />
 
       <button
         onClick={handleSubmit}
         disabled={submitting || !response.trim()}
-        className="bg-accent-teal text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+        className="bg-accent-cyan text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
         Submit Response
       </button>

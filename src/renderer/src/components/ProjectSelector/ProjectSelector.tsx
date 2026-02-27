@@ -17,13 +17,13 @@ export function ProjectSelector() {
     <div className="h-full bg-bg flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-2xl flex flex-col items-center">
         {/* Wordmark */}
-        <h1 className="text-3xl font-bold tracking-widest text-accent-teal mb-1">CLAWFLOW</h1>
+        <h1 className="text-3xl font-bold tracking-widest text-accent-cyan mb-1">CLAWFLOW</h1>
         <p className="text-text-muted mb-8">Autonomous Development Pipeline</p>
 
         {/* Register Button */}
         <button
           onClick={() => setShowModal(true)}
-          className="bg-accent-teal text-bg px-5 py-2 rounded font-medium hover:opacity-90 transition-opacity cursor-pointer mb-8"
+          className="bg-accent-cyan text-bg px-5 py-2 rounded font-medium hover:opacity-90 transition-opacity cursor-pointer mb-8"
         >
           Register Project
         </button>

@@ -62,20 +62,20 @@ export function TopBar() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => useLayoutStore.getState().setView('workshop')}
-            className="px-3 py-1.5 rounded-md bg-accent-teal/10 text-accent-teal hover:bg-accent-teal/20 transition-colors text-sm font-medium cursor-pointer"
+            className="px-3 py-1.5 rounded-md bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors text-sm font-medium cursor-pointer"
           >
             Workshop
           </button>
           <button
             onClick={() => useLayoutStore.getState().setView('git')}
-            className="px-3 py-1.5 rounded-md bg-accent-teal/10 text-accent-teal hover:bg-accent-teal/20 transition-colors text-sm font-medium cursor-pointer"
+            className="px-3 py-1.5 rounded-md bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors text-sm font-medium cursor-pointer"
           >
             Git
           </button>
           <button
             onClick={toggleActivityFeed}
             className={`transition-colors cursor-pointer p-1 ${
-              activityFeedOpen ? 'text-accent-teal' : 'text-text-secondary hover:text-text-primary'
+              activityFeedOpen ? 'text-accent-cyan' : 'text-text-secondary hover:text-text-primary'
             }`}
             aria-label="Toggle activity feed"
           >

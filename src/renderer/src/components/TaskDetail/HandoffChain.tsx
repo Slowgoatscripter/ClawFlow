@@ -107,9 +107,9 @@ function HandoffField({
 }) {
   const bgClass =
     highlight === 'amber'
-      ? 'bg-accent-gold/10 border border-accent-gold/30'
+      ? 'bg-accent-amber/10 border border-accent-amber/30'
       : highlight === 'blue'
-        ? 'bg-accent-teal/10 border border-accent-teal/30'
+        ? 'bg-accent-cyan/10 border border-accent-cyan/30'
         : 'bg-elevated'
 
   return (

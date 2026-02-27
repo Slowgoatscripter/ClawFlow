@@ -54,13 +54,13 @@ export function PlanReviewGate({ task }: Props) {
   if (!planText || planText.trim() === '') {
     return (
       <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-accent-gold">{title}</h3>
+        <h3 className="text-xl font-semibold text-accent-amber">{title}</h3>
         <p className="text-text-muted text-sm">Plan output is empty. Consider rejecting and re-running the planning stage.</p>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setRejecting(!rejecting)}
             disabled={submitting}
-            className="bg-accent-red text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="bg-accent-magenta text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Reject
           </button>
@@ -71,12 +71,12 @@ export function PlanReviewGate({ task }: Props) {
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               placeholder="Provide feedback..."
-              className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-gold"
+              className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-amber"
             />
             <button
               onClick={handleReject}
               disabled={submitting || !feedback.trim()}
-              className="bg-accent-red text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="bg-accent-magenta text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               Submit Rejection
             </button>
@@ -88,7 +88,7 @@ export function PlanReviewGate({ task }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold text-accent-gold">{title}</h3>
+      <h3 className="text-xl font-semibold text-accent-amber">{title}</h3>
 
       <pre className="bg-elevated rounded p-4 font-mono text-sm max-h-[400px] overflow-y-auto text-text-secondary whitespace-pre-wrap">
         {planText}
@@ -105,7 +105,7 @@ export function PlanReviewGate({ task }: Props) {
         <button
           onClick={() => setRejecting(!rejecting)}
           disabled={submitting}
-          className="bg-accent-red text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="bg-accent-magenta text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           Reject
         </button>
@@ -117,12 +117,12 @@ export function PlanReviewGate({ task }: Props) {
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             placeholder="Provide feedback..."
-            className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-gold"
+            className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-amber"
           />
           <button
             onClick={handleReject}
             disabled={submitting || !feedback.trim()}
-            className="bg-accent-red text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="bg-accent-magenta text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Submit Rejection
           </button>

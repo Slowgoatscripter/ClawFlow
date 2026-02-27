@@ -32,13 +32,13 @@ export function ApprovalDialog() {
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-accent-mauve/20 text-accent-mauve flex items-center justify-center font-mono font-bold text-sm shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-accent-violet/20 text-accent-violet flex items-center justify-center font-mono font-bold text-sm shrink-0">
             {icon}
           </div>
           <div>
             <h2 className="text-lg font-semibold text-text-primary">Tool Approval</h2>
             <p className="text-sm text-text-secondary">
-              <span className="font-mono text-accent-mauve">{toolName}</span> wants to execute
+              <span className="font-mono text-accent-violet">{toolName}</span> wants to execute
             </p>
           </div>
         </div>
@@ -57,7 +57,7 @@ export function ApprovalDialog() {
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             onClick={handleDeny}
-            className="px-4 py-2 border border-accent-red text-accent-red rounded-lg text-sm font-medium hover:bg-accent-red/10 transition-colors"
+            className="px-4 py-2 border border-accent-magenta text-accent-magenta rounded-lg text-sm font-medium hover:bg-accent-magenta/10 transition-colors"
           >
             Deny
           </button>

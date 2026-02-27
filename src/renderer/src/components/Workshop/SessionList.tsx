@@ -55,13 +55,13 @@ export function SessionList() {
       <div className="p-3 border-b border-border">
         <button
           onClick={handleNewSession}
-          className="w-full px-3 py-2 rounded-md bg-accent-teal text-bg text-sm font-medium hover:bg-accent-teal/90 transition-colors"
+          className="w-full px-3 py-2 rounded-md bg-accent-cyan text-bg text-sm font-medium hover:bg-accent-cyan/90 transition-colors"
         >
           New Session
         </button>
         <button
           onClick={() => setShowPanelModal(true)}
-          className="w-full px-3 py-2 rounded-md bg-surface border border-border text-text text-sm font-medium hover:border-accent-teal/50 transition-colors"
+          className="w-full px-3 py-2 rounded-md bg-surface border border-border text-text text-sm font-medium hover:border-accent-cyan/50 transition-colors"
         >
           Panel Discussion
         </button>
@@ -155,7 +155,7 @@ function SessionItem({
     <button
       onClick={onClick}
       className={`group w-full text-left px-3 py-3 border-b border-border/50 transition-colors ${
-        isActive ? 'bg-accent-teal/10 border-l-2 border-l-accent-teal' : 'hover:bg-surface'
+        isActive ? 'bg-accent-cyan/10 border-l-2 border-l-accent-cyan' : 'hover:bg-surface'
       }`}
     >
       <div className="flex items-center justify-between">
@@ -167,20 +167,20 @@ function SessionItem({
             onBlur={handleSave}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
-            className="text-sm font-medium flex-1 bg-surface border border-accent-teal rounded px-1.5 py-0.5 text-text focus:outline-none"
+            className="text-sm font-medium flex-1 bg-surface border border-accent-cyan rounded px-1.5 py-0.5 text-text focus:outline-none"
           />
         ) : (
           <span
             onDoubleClick={handleDoubleClick}
-            className={`text-sm font-medium truncate flex-1 ${isActive ? 'text-accent-teal' : 'text-text'}`}
+            className={`text-sm font-medium truncate flex-1 ${isActive ? 'text-accent-cyan' : 'text-text'}`}
             title="Double-click to rename"
           >
             {isStreamingHere && (
-              <span className="inline-block w-2 h-2 rounded-full bg-accent-teal animate-pulse mr-1.5 align-middle" />
+              <span className="inline-block w-2 h-2 rounded-full bg-accent-cyan animate-pulse mr-1.5 align-middle" />
             )}
             {session.title}
             {session.sessionType === 'panel' && (
-              <span className="text-xs text-accent-teal ml-1">[Panel]</span>
+              <span className="text-xs text-accent-cyan ml-1">[Panel]</span>
             )}
           </span>
         )}
@@ -189,7 +189,7 @@ function SessionItem({
             <span
               onClick={onStop}
               title="Stop generation"
-              className="p-0.5 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 transition-colors"
+              className="p-0.5 rounded hover:bg-accent-magenta/20 text-text-muted hover:text-accent-magenta transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <rect x="3" y="3" width="10" height="10" rx="1" />
@@ -200,7 +200,7 @@ function SessionItem({
             <span
               onClick={onDelete}
               title="Delete session"
-              className="p-0.5 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+              className="p-0.5 rounded hover:bg-accent-magenta/20 text-text-muted hover:text-accent-magenta opacity-0 group-hover:opacity-100 transition-all"
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1M2 4h12M6 7v5M10 7v5M3 4l1 9a1 1 0 001 1h6a1 1 0 001-1l1-9" />

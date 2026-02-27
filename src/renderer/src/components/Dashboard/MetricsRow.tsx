@@ -27,8 +27,8 @@ export function MetricsRow() {
     <div className="flex gap-4 px-4 py-4">
       <MetricCard label="In Flight" value={inFlight} colorClass="text-accent-peach" />
       <MetricCard label="Completion Rate" value={completionRate} colorClass="text-accent-green" />
-      <MetricCard label="Avg Review Score" value={avgReview} colorClass="text-accent-gold" />
-      <MetricCard label="Circuit Breakers" value={circuitBreakers} colorClass="text-accent-red" />
+      <MetricCard label="Avg Review Score" value={avgReview} colorClass="text-accent-amber" />
+      <MetricCard label="Circuit Breakers" value={circuitBreakers} colorClass="text-accent-magenta" />
     </div>
   )
 }

@@ -6,10 +6,12 @@ import { SessionList } from './SessionList'
 import { ConversationPanel } from './ConversationPanel'
 import { ArtifactPanel } from './ArtifactPanel'
 import { TaskSuggestionModal } from './TaskSuggestionModal'
+import { ChoicesModal } from './ChoicesModal'
 
 export function Workshop() {
   const currentProject = useProjectStore((s) => s.currentProject)
   const pendingSuggestions = useWorkshopStore((s) => s.pendingSuggestions)
+  const pendingChoices = useWorkshopStore((s) => s.pendingChoices)
 
   useEffect(() => {
     const cleanup = useWorkshopStore.getState().setupListeners()
@@ -51,8 +53,9 @@ export function Workshop() {
         <ArtifactPanel />
       </div>
 
-      {/* Task suggestion modal */}
+      {/* Modals */}
       {pendingSuggestions && <TaskSuggestionModal />}
+      {pendingChoices && <ChoicesModal />}
     </div>
   )
 }
@@ -66,7 +69,7 @@ function AutoModeToggle() {
       onClick={toggle}
       className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
         autoMode
-          ? 'bg-accent-teal/20 text-accent-teal'
+          ? 'bg-accent-cyan/20 text-accent-cyan'
           : 'bg-surface text-text-muted hover:text-text'
       }`}
     >

@@ -17,8 +17,8 @@ const TIERS: { value: Tier; label: string }[] = [
 
 const tierActiveColors: Record<Tier, string> = {
   L1: 'bg-accent-green/20 text-accent-green border-accent-green',
-  L2: 'bg-accent-teal/20 text-accent-teal border-accent-teal',
-  L3: 'bg-accent-mauve/20 text-accent-mauve border-accent-mauve'
+  L2: 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan',
+  L3: 'bg-accent-violet/20 text-accent-violet border-accent-violet'
 }
 
 const PRIORITIES: { value: Priority; label: string }[] = [
@@ -30,9 +30,9 @@ const PRIORITIES: { value: Priority; label: string }[] = [
 
 const priorityActiveColors: Record<Priority, string> = {
   low: 'bg-text-muted/20 text-text-muted border-text-muted',
-  medium: 'bg-accent-teal/20 text-accent-teal border-accent-teal',
+  medium: 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan',
   high: 'bg-accent-peach/20 text-accent-peach border-accent-peach',
-  critical: 'bg-accent-red/20 text-accent-red border-accent-red'
+  critical: 'bg-accent-magenta/20 text-accent-magenta border-accent-magenta'
 }
 
 export function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProps) {
@@ -86,7 +86,7 @@ export function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProps) {
         placeholder="Task title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        className="w-full bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted mb-3 outline-none focus:border-accent-teal transition-colors"
+        className="w-full bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted mb-3 outline-none focus:border-accent-cyan transition-colors"
       />
 
       {/* Description */}
@@ -94,7 +94,7 @@ export function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProps) {
         placeholder="Description (optional)"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        className="w-full bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted min-h-[100px] mb-4 outline-none focus:border-accent-teal transition-colors resize-y"
+        className="w-full bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted min-h-[100px] mb-4 outline-none focus:border-accent-cyan transition-colors resize-y"
       />
 
       {/* Tier */}
@@ -135,7 +135,7 @@ export function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProps) {
           type="checkbox"
           checked={autoMode}
           onChange={(e) => setAutoMode(e.target.checked)}
-          className="accent-accent-teal w-4 h-4"
+          className="accent-accent-cyan w-4 h-4"
         />
         <span className="text-sm text-text-secondary">Auto Mode</span>
       </label>
@@ -151,7 +151,7 @@ export function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProps) {
         <button
           onClick={handleCreate}
           disabled={!title.trim() || submitting}
-          className="px-4 py-2 text-sm font-medium bg-accent-teal text-bg rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm font-medium bg-accent-cyan text-bg rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
         >
           {submitting ? 'Creating...' : 'Create'}
         </button>

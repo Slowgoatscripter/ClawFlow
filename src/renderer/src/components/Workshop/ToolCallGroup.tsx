@@ -4,16 +4,16 @@ import { ToolCallCard } from './ToolCallCard'
 import type { ToolCallData } from '../../../../shared/types'
 
 const TOOL_STYLES: Record<string, { color: string; bg: string; border: string }> = {
-  Read: { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-  Edit: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-  Write: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-  Bash: { color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
-  Grep: { color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
-  Glob: { color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
-  WebFetch: { color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
-  WebSearch: { color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
-  Task: { color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/20' },
-  LS: { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+  Read: { color: 'text-accent-cyan', bg: 'bg-accent-cyan/10', border: 'border-accent-cyan/20' },
+  Edit: { color: 'text-accent-amber', bg: 'bg-accent-amber/10', border: 'border-accent-amber/20' },
+  Write: { color: 'text-accent-amber', bg: 'bg-accent-amber/10', border: 'border-accent-amber/20' },
+  Bash: { color: 'text-accent-green', bg: 'bg-accent-green/10', border: 'border-accent-green/20' },
+  Grep: { color: 'text-accent-violet', bg: 'bg-accent-violet/10', border: 'border-accent-violet/20' },
+  Glob: { color: 'text-accent-violet', bg: 'bg-accent-violet/10', border: 'border-accent-violet/20' },
+  WebFetch: { color: 'text-accent-cyan', bg: 'bg-accent-cyan/10', border: 'border-accent-cyan/20' },
+  WebSearch: { color: 'text-accent-cyan', bg: 'bg-accent-cyan/10', border: 'border-accent-cyan/20' },
+  Task: { color: 'text-text-secondary', bg: 'bg-elevated', border: 'border-border' },
+  LS: { color: 'text-accent-cyan', bg: 'bg-accent-cyan/10', border: 'border-accent-cyan/20' },
 }
 
 const DEFAULT_STYLE = { color: 'text-text-muted', bg: 'bg-surface', border: 'border-border' }

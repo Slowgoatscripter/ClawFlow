@@ -10,8 +10,8 @@ interface Props {
 
 function scoreColor(score: number): string {
   if (score >= 4) return 'text-accent-green'
-  if (score >= 3) return 'text-accent-gold'
-  return 'text-accent-red'
+  if (score >= 3) return 'text-accent-amber'
+  return 'text-accent-magenta'
 }
 
 export function CodeReviewGate({ task }: Props) {
@@ -57,7 +57,7 @@ export function CodeReviewGate({ task }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold text-accent-gold">Code Review</h3>
+      <h3 className="text-xl font-semibold text-accent-amber">Code Review</h3>
 
       {task.reviewScore !== null && task.reviewScore !== undefined && (
         <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ export function CodeReviewGate({ task }: Props) {
         <button
           onClick={() => setRejecting(!rejecting)}
           disabled={submitting}
-          className="bg-accent-red text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="bg-accent-magenta text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           Reject
         </button>
@@ -97,12 +97,12 @@ export function CodeReviewGate({ task }: Props) {
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             placeholder="Provide feedback..."
-            className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-gold"
+            className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-amber"
           />
           <button
             onClick={handleReject}
             disabled={submitting || !feedback.trim()}
-            className="bg-accent-red text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="bg-accent-magenta text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Submit Rejection
           </button>

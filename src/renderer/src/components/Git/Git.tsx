@@ -30,18 +30,18 @@ export function Git() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => useLayoutStore.getState().setView('dashboard')}
-            className="text-sm text-textSecondary hover:text-text transition-colors"
+            className="text-sm text-text-secondary hover:text-text-primary transition-colors"
           >
             &larr; Dashboard
           </button>
-          <h1 className="text-lg font-semibold text-text">Git</h1>
+          <h1 className="text-lg font-semibold text-text-primary">Git</h1>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-textSecondary">Base:</span>
+          <span className="text-sm text-text-secondary">Base:</span>
           <select
             value={baseBranch}
             onChange={(e) => setBaseBranch(e.target.value)}
-            className="bg-surface border border-border rounded-lg px-2 py-1 text-sm text-text focus:outline-none focus:border-accent"
+            className="bg-surface border border-border rounded-lg px-2 py-1 text-sm text-text-primary focus:outline-none focus:border-accent-cyan"
           >
             {localBranches.map((b) => (
               <option key={b} value={b}>{b}</option>

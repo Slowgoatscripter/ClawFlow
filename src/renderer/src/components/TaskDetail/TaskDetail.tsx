@@ -15,23 +15,23 @@ import type { PipelineStage } from '../../../../shared/types'
 
 const tierClasses: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
-  L2: 'bg-accent-teal/20 text-accent-teal',
-  L3: 'bg-accent-mauve/20 text-accent-mauve'
+  L2: 'bg-accent-cyan/20 text-accent-cyan',
+  L3: 'bg-accent-violet/20 text-accent-violet'
 }
 
 const priorityClasses: Record<string, string> = {
   low: 'bg-text-muted/20 text-text-muted',
-  medium: 'bg-accent-teal/20 text-accent-teal',
+  medium: 'bg-accent-cyan/20 text-accent-cyan',
   high: 'bg-accent-peach/20 text-accent-peach',
-  critical: 'bg-accent-red/20 text-accent-red'
+  critical: 'bg-accent-magenta/20 text-accent-magenta'
 }
 
 const eventTypeColors: Record<string, string> = {
-  text: 'bg-accent-teal/20 text-accent-teal',
-  tool_use: 'bg-accent-mauve/20 text-accent-mauve',
+  text: 'bg-accent-cyan/20 text-accent-cyan',
+  tool_use: 'bg-accent-violet/20 text-accent-violet',
   tool_result: 'bg-accent-green/20 text-accent-green',
-  status: 'bg-accent-gold/20 text-accent-gold',
-  error: 'bg-accent-red/20 text-accent-red',
+  status: 'bg-accent-amber/20 text-accent-amber',
+  error: 'bg-accent-magenta/20 text-accent-magenta',
   complete: 'bg-accent-green/20 text-accent-green'
 }
 
@@ -151,7 +151,7 @@ export function TaskDetail() {
           <p className="text-text-muted text-lg">Task not found</p>
           <button
             onClick={handleBack}
-            className="mt-4 px-4 py-2 bg-accent-teal text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            className="mt-4 px-4 py-2 bg-accent-cyan text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
           >
             Back to Dashboard
           </button>
@@ -222,11 +222,11 @@ export function TaskDetail() {
             </span>
           )}
           {task.autoMode ? (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-gold/20 text-accent-gold">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-amber/20 text-accent-amber">
               AUTO
             </span>
           ) : (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-teal/20 text-accent-teal">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-cyan/20 text-accent-cyan">
               GATED
             </span>
           )}
@@ -234,7 +234,7 @@ export function TaskDetail() {
 
         {/* Dependency-blocked banner */}
         {isDependencyBlocked && (
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-accent-gold/10 border border-accent-gold/30 rounded-lg text-sm text-accent-gold">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-accent-amber/10 border border-accent-amber/30 rounded-lg text-sm text-accent-amber">
             <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0110 0v4" />
@@ -266,7 +266,7 @@ export function TaskDetail() {
                 Start Pipeline
               </button>
               {isDependencyBlocked && (
-                <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-elevated border border-accent-gold/30 rounded-lg text-xs text-accent-gold whitespace-nowrap opacity-0 group-hover/start:opacity-100 transition-opacity pointer-events-none">
+                <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-elevated border border-accent-amber/30 rounded-lg text-xs text-accent-amber whitespace-nowrap opacity-0 group-hover/start:opacity-100 transition-opacity pointer-events-none">
                   Waiting on: {pendingDeps.map((d) => d!.title).join(', ')}
                 </div>
               )}
@@ -275,7 +275,7 @@ export function TaskDetail() {
           {isActive && !hasOpenQuestions && (
             <button
               onClick={handleStep}
-              className="px-4 py-2 bg-accent-teal text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              className="px-4 py-2 bg-accent-cyan text-bg rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
             >
               Retry Stage
             </button>
@@ -302,7 +302,7 @@ export function TaskDetail() {
             <div className="relative">
               <button
                 onClick={() => setRestartMenuOpen(!restartMenuOpen)}
-                className="px-4 py-2 border border-accent-gold text-accent-gold rounded-lg text-sm font-medium hover:bg-accent-gold/10 transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 border border-accent-amber text-accent-amber rounded-lg text-sm font-medium hover:bg-accent-amber/10 transition-colors flex items-center gap-1.5"
               >
                 Restart
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -315,7 +315,7 @@ export function TaskDetail() {
                   <div className="absolute top-full left-0 mt-1 z-20 bg-elevated border border-border rounded-lg shadow-lg py-1 min-w-[220px]">
                     <button
                       onClick={handleFullRestart}
-                      className="w-full text-left px-4 py-2 text-sm text-accent-gold hover:bg-accent-gold/10 transition-colors"
+                      className="w-full text-left px-4 py-2 text-sm text-accent-amber hover:bg-accent-amber/10 transition-colors"
                     >
                       Full Restart
                     </button>
@@ -326,7 +326,7 @@ export function TaskDetail() {
                       <button
                         key={stage}
                         onClick={() => handleRestartToStage(stage)}
-                        className="w-full text-left px-4 py-2 text-sm text-text-secondary hover:bg-accent-teal/10 hover:text-text-primary transition-colors"
+                        className="w-full text-left px-4 py-2 text-sm text-text-secondary hover:bg-accent-cyan/10 hover:text-text-primary transition-colors"
                       >
                         Restart from {STAGE_TO_STATUS[stage].replace('_', ' ')}
                       </button>
@@ -338,7 +338,7 @@ export function TaskDetail() {
           )}
           <button
             onClick={handleDelete}
-            className="px-4 py-2 border border-accent-red text-accent-red rounded-lg text-sm font-medium hover:bg-accent-red/10 transition-colors"
+            className="px-4 py-2 border border-accent-magenta text-accent-magenta rounded-lg text-sm font-medium hover:bg-accent-magenta/10 transition-colors"
           >
             Delete
           </button>

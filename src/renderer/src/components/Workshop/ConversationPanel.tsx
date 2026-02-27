@@ -105,18 +105,18 @@ export function ConversationPanel() {
         )}
         {isStreaming && streamingSegments.length === 0 && (
           <div className="flex items-center gap-2 text-text-muted text-sm">
-            <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-accent-cyan animate-pulse" />
             Claude is {currentToolActivity ?? 'thinking'}...
           </div>
         )}
         {isStalled && isStreaming && (
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-sm">
-            <span className="text-yellow-400">No activity for 60 seconds — session may be stalled</span>
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent-amber/10 border border-accent-amber/30 text-sm">
+            <span className="text-accent-amber">No activity for 60 seconds — session may be stalled</span>
             <button
               onClick={() => {
                 useWorkshopStore.getState().stopSession(currentSessionId!)
               }}
-              className="px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 text-xs font-medium transition-colors"
+              className="px-2 py-1 rounded bg-accent-magenta/20 text-accent-magenta hover:bg-accent-magenta/30 text-xs font-medium transition-colors"
             >
               Stop
             </button>
@@ -136,7 +136,7 @@ export function ConversationPanel() {
           <div className="flex justify-center py-3">
             <button
               onClick={() => currentSession && triggerDiscuss(currentSession.id)}
-              className="px-4 py-1.5 text-xs font-medium text-text-muted border border-border rounded-full hover:border-accent-teal/50 hover:text-text transition-colors"
+              className="px-4 py-1.5 text-xs font-medium text-text-muted border border-border rounded-full hover:border-accent-cyan/50 hover:text-text transition-colors"
             >
               Discuss further
             </button>
@@ -154,13 +154,13 @@ export function ConversationPanel() {
             onKeyDown={handleKeyDown}
             placeholder="Message Claude..."
             rows={1}
-            className="flex-1 resize-none rounded-lg bg-surface border border-border px-4 py-3 text-text placeholder-text-muted/50 focus:outline-none focus:border-accent-teal text-sm"
+            className="flex-1 resize-none rounded-lg bg-surface border border-border px-4 py-3 text-text placeholder-text-muted/50 focus:outline-none focus:border-accent-cyan text-sm"
             disabled={isStreaming}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
-            className="px-4 py-3 rounded-lg bg-accent-teal text-bg font-medium text-sm hover:bg-accent-teal/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-3 rounded-lg bg-accent-cyan text-bg font-medium text-sm hover:bg-accent-cyan/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Send
           </button>

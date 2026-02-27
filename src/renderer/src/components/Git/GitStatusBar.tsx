@@ -8,12 +8,12 @@ export function GitStatusBar() {
   const stale = branches.filter((b) => b.status === 'stale').length
 
   return (
-    <div className="px-4 py-2 border-t border-border text-xs text-textSecondary flex gap-4">
+    <div className="px-4 py-2 border-t border-border text-xs text-text-secondary flex gap-4">
       <span>{branches.length} branches</span>
-      {active > 0 && <span className="text-green-400">{active} active</span>}
-      {completed > 0 && <span className="text-blue-400">{completed} completed</span>}
-      {merged > 0 && <span className="text-gray-400">{merged} merged</span>}
-      {stale > 0 && <span className="text-yellow-400">{stale} stale</span>}
+      {active > 0 && <span className="text-accent-green">{active} active</span>}
+      {completed > 0 && <span className="text-accent-cyan">{completed} completed</span>}
+      {merged > 0 && <span className="text-text-muted">{merged} merged</span>}
+      {stale > 0 && <span className="text-accent-amber">{stale} stale</span>}
     </div>
   )
 }

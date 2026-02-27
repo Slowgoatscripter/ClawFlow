@@ -86,7 +86,7 @@ export function CircuitBreakerPanel({ task }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold text-accent-red flex items-center gap-2">
+      <h3 className="text-xl font-semibold text-accent-magenta flex items-center gap-2">
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
           <path
             fillRule="evenodd"
@@ -99,7 +99,7 @@ export function CircuitBreakerPanel({ task }: Props) {
 
       <p className="text-sm text-text-secondary">
         The {rejectionType} has been rejected{' '}
-        <span className="font-bold text-accent-red">{rejectionCount} times</span>, reaching the
+        <span className="font-bold text-accent-magenta">{rejectionCount} times</span>, reaching the
         circuit breaker limit of {CIRCUIT_BREAKER_LIMIT}. The pipeline has been halted to prevent
         infinite loops. Choose how to proceed:
       </p>
@@ -108,21 +108,21 @@ export function CircuitBreakerPanel({ task }: Props) {
         <button
           onClick={handleRetry}
           disabled={submitting}
-          className="bg-accent-teal text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="bg-accent-cyan text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           Retry
         </button>
         <button
           onClick={() => setMode(mode === 'change' ? 'idle' : 'change')}
           disabled={submitting}
-          className="bg-accent-gold text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="bg-accent-amber text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           Change Approach
         </button>
         <button
           onClick={handleForceAdvance}
           disabled={submitting}
-          className="border border-accent-red text-accent-red rounded px-4 py-2 text-sm font-medium hover:bg-accent-red/10 transition-colors disabled:opacity-50"
+          className="border border-accent-magenta text-accent-magenta rounded px-4 py-2 text-sm font-medium hover:bg-accent-magenta/10 transition-colors disabled:opacity-50"
         >
           Force Advance
         </button>
@@ -134,12 +134,12 @@ export function CircuitBreakerPanel({ task }: Props) {
             value={newDirection}
             onChange={(e) => setNewDirection(e.target.value)}
             placeholder="Describe the new direction or approach..."
-            className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-gold"
+            className="bg-elevated border border-border rounded text-text-primary w-full min-h-[80px] p-3 text-sm resize-y focus:outline-none focus:border-accent-amber"
           />
           <button
             onClick={handleChangeApproach}
             disabled={submitting || !newDirection.trim()}
-            className="bg-accent-gold text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="bg-accent-amber text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Submit New Direction
           </button>

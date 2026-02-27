@@ -34,7 +34,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
     : 'Never'
 
   return (
-    <div className="bg-surface rounded-lg p-4 border border-border flex flex-col gap-2 hover:border-accent-teal/40 transition-colors">
+    <div className="bg-surface rounded-lg p-4 border border-border flex flex-col gap-2 hover:border-accent-cyan/40 transition-colors">
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="text-lg font-bold text-text-primary truncate">{project.name}</h3>
@@ -45,13 +45,13 @@ export function ProjectCard({ project }: ProjectCardProps) {
       <div className="flex items-center gap-2 mt-auto pt-2">
         <button
           onClick={handleOpen}
-          className="bg-accent-teal text-bg px-4 py-1.5 rounded text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer"
+          className="bg-accent-cyan text-bg px-4 py-1.5 rounded text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer"
         >
           Open
         </button>
         <button
           onClick={handleDelete}
-          className="text-accent-red text-sm hover:opacity-80 transition-opacity cursor-pointer ml-auto"
+          className="text-accent-magenta text-sm hover:opacity-80 transition-opacity cursor-pointer ml-auto"
         >
           Delete
         </button>

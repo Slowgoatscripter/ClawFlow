@@ -4,8 +4,8 @@ import { useProjectStore } from '../../stores/projectStore'
 
 const tierClasses: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
-  L2: 'bg-accent-teal/20 text-accent-teal',
-  L3: 'bg-accent-mauve/20 text-accent-mauve'
+  L2: 'bg-accent-cyan/20 text-accent-cyan',
+  L3: 'bg-accent-violet/20 text-accent-violet'
 }
 
 function formatDate(dateStr: string): string {
@@ -108,7 +108,7 @@ export function ArchiveDrawer() {
                   {/* Unarchive button */}
                   <button
                     onClick={() => handleUnarchive(task.id)}
-                    className="w-full text-xs font-medium px-3 py-1.5 rounded-md bg-accent-teal/10 text-accent-teal hover:bg-accent-teal/20 transition-colors cursor-pointer"
+                    className="w-full text-xs font-medium px-3 py-1.5 rounded-md bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors cursor-pointer"
                   >
                     Unarchive
                   </button>

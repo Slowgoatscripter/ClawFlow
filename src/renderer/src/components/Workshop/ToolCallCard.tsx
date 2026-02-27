@@ -3,16 +3,16 @@ import { ChevronRight, ChevronDown, FileText, Pencil, Terminal, Search, Globe, U
 import type { ToolCallData } from '../../../../shared/types'
 
 const TOOL_STYLES: Record<string, { color: string; bg: string; border: string; icon: any }> = {
-  Read: { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: FileText },
-  Edit: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Pencil },
-  Write: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Pencil },
-  Bash: { color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', icon: Terminal },
-  Grep: { color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20', icon: Search },
-  Glob: { color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20', icon: Search },
-  WebFetch: { color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', icon: Globe },
-  WebSearch: { color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', icon: Globe },
-  Task: { color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/20', icon: Users },
-  LS: { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: FileText },
+  Read: { color: 'text-accent-cyan', bg: 'bg-accent-cyan/10', border: 'border-accent-cyan/20', icon: FileText },
+  Edit: { color: 'text-accent-amber', bg: 'bg-accent-amber/10', border: 'border-accent-amber/20', icon: Pencil },
+  Write: { color: 'text-accent-amber', bg: 'bg-accent-amber/10', border: 'border-accent-amber/20', icon: Pencil },
+  Bash: { color: 'text-accent-green', bg: 'bg-accent-green/10', border: 'border-accent-green/20', icon: Terminal },
+  Grep: { color: 'text-accent-violet', bg: 'bg-accent-violet/10', border: 'border-accent-violet/20', icon: Search },
+  Glob: { color: 'text-accent-violet', bg: 'bg-accent-violet/10', border: 'border-accent-violet/20', icon: Search },
+  WebFetch: { color: 'text-accent-cyan', bg: 'bg-accent-cyan/10', border: 'border-accent-cyan/20', icon: Globe },
+  WebSearch: { color: 'text-accent-cyan', bg: 'bg-accent-cyan/10', border: 'border-accent-cyan/20', icon: Globe },
+  Task: { color: 'text-text-secondary', bg: 'bg-elevated', border: 'border-border', icon: Users },
+  LS: { color: 'text-accent-cyan', bg: 'bg-accent-cyan/10', border: 'border-accent-cyan/20', icon: FileText },
 }
 
 const DEFAULT_STYLE = { color: 'text-text-muted', bg: 'bg-surface', border: 'border-border', icon: Terminal }
@@ -56,9 +56,13 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           <span className="text-text-muted/60 font-mono truncate">{context}</span>
         )}
       </button>
-      {expanded && tool.toolInput && (
+      {expanded && (
         <div className="px-3 py-2 border-t border-white/5 text-xs font-mono text-text-muted/80 max-h-32 overflow-y-auto">
-          <pre className="whitespace-pre-wrap">{JSON.stringify(tool.toolInput, null, 2)}</pre>
+          {tool.toolInput ? (
+            <pre className="whitespace-pre-wrap">{JSON.stringify(tool.toolInput, null, 2)}</pre>
+          ) : (
+            <span className="text-text-muted/40 italic">Tool executed</span>
+          )}
         </div>
       )}
     </div>

@@ -35,7 +35,7 @@ export function KanbanColumn({ status, tasks }: { status: TaskStatus; tasks: Tas
           {status === 'done' && tasks.length > 0 && (
             <button
               onClick={handleArchiveAll}
-              className="text-[10px] text-text-muted hover:text-accent-gold transition-colors ml-auto"
+              className="text-[10px] text-text-muted hover:text-accent-amber transition-colors ml-auto"
               title="Archive all done tasks"
             >
               Archive All

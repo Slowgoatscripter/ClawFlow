@@ -43,7 +43,7 @@ export function RegisterProjectModal({ onClose }: RegisterProjectModalProps) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="my-awesome-project"
-            className="w-full bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-teal"
+            className="w-full bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan"
           />
         </label>
 
@@ -55,12 +55,12 @@ export function RegisterProjectModal({ onClose }: RegisterProjectModalProps) {
               value={path}
               onChange={(e) => setPath(e.target.value)}
               placeholder="/path/to/project"
-              className="flex-1 bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-teal"
+              className="flex-1 bg-elevated border border-border rounded px-3 py-2 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan"
             />
             <button
               type="button"
               onClick={handleBrowse}
-              className="bg-elevated border border-border rounded px-3 py-2 text-text-secondary hover:text-text-primary hover:border-accent-teal transition-colors cursor-pointer"
+              className="bg-elevated border border-border rounded px-3 py-2 text-text-secondary hover:text-text-primary hover:border-accent-cyan transition-colors cursor-pointer"
             >
               Browse
             </button>
@@ -78,7 +78,7 @@ export function RegisterProjectModal({ onClose }: RegisterProjectModalProps) {
           <button
             type="submit"
             disabled={submitting || !name.trim() || !path.trim()}
-            className="bg-accent-teal text-bg px-4 py-2 rounded font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="bg-accent-cyan text-bg px-4 py-2 rounded font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {submitting ? 'Registering...' : 'Register'}
           </button>

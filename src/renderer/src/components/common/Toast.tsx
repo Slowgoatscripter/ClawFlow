@@ -25,16 +25,16 @@ const AUTO_DISMISS_MS = 5000
 
 const TYPE_STYLES: Record<ToastType, { border: string; icon: string }> = {
   success: { border: 'border-l-accent-green', icon: '\u2713' },
-  error: { border: 'border-l-accent-red', icon: '\u2717' },
-  warning: { border: 'border-l-accent-gold', icon: '\u26A0' },
-  info: { border: 'border-l-accent-teal', icon: '\u2139' }
+  error: { border: 'border-l-accent-magenta', icon: '\u2717' },
+  warning: { border: 'border-l-accent-amber', icon: '\u26A0' },
+  info: { border: 'border-l-accent-cyan', icon: '\u2139' }
 }
 
 const TYPE_TEXT_COLOR: Record<ToastType, string> = {
   success: 'text-accent-green',
-  error: 'text-accent-red',
-  warning: 'text-accent-gold',
-  info: 'text-accent-teal'
+  error: 'text-accent-magenta',
+  warning: 'text-accent-amber',
+  info: 'text-accent-cyan'
 }
 
 // --- Store ---
