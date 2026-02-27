@@ -6,6 +6,12 @@ export const TIER_STAGES: Record<Tier, PipelineStage[]> = {
   L3: ['brainstorm', 'design_review', 'plan', 'implement', 'code_review', 'verify', 'done']
 }
 
+export const GROUPED_STAGES: PipelineStage[] = ['implement', 'code_review', 'verify', 'done']
+
+export function getTaskStages(tier: Tier, isGrouped: boolean): PipelineStage[] {
+  return isGrouped ? GROUPED_STAGES : TIER_STAGES[tier]
+}
+
 export const STAGE_CONFIGS: Record<PipelineStage, StageConfig> = {
   brainstorm: {
     stage: 'brainstorm',
