@@ -807,8 +807,12 @@ ${feedback}`
         }, stageConfig.timeoutMs)
       })
 
-      const result = await Promise.race([sdkPromise, timeoutPromise])
-      clearTimeout(timeoutHandle)
+      let result: SdkResult
+      try {
+        result = await Promise.race([sdkPromise, timeoutPromise])
+      } finally {
+        clearTimeout(timeoutHandle)
+      }
 
       // Store session ID for potential resume and continuation
       if (result.sessionId) {
