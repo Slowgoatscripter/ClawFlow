@@ -6,7 +6,6 @@ import { colors } from './theme'
 import { ProjectSelector } from './components/ProjectSelector/ProjectSelector'
 import { Dashboard } from './components/Dashboard/Dashboard'
 import { TaskDetail } from './components/TaskDetail/TaskDetail'
-import { Workshop } from './components/Workshop/Workshop'
 import { Git } from './components/Git/Git'
 import { TitleBar } from './components/common/TitleBar'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
@@ -16,6 +15,7 @@ import { ArchiveDrawer } from './components/ArchiveDrawer/ArchiveDrawer'
 
 export default function App() {
   const view = useLayoutStore((s) => s.view)
+  const taskDetailOverlayId = useLayoutStore((s) => s.taskDetailOverlayId)
   const approvalRequest = usePipelineStore((s) => s.approvalRequest)
   const usagePausedToast = usePipelineStore((s) => s.usagePausedToast)
   const dismissToast = usePipelineStore((s) => s.dismissUsagePausedToast)
@@ -42,10 +42,9 @@ export default function App() {
           <div className="h-full animate-[fade-scale-in_0.3s_cubic-bezier(0.4,0,0.2,1)]">
             {view === 'projects' && <ProjectSelector />}
             {view === 'dashboard' && <Dashboard />}
-            {view === 'task-detail' && <TaskDetail />}
-            {view === 'workshop' && <Workshop />}
             {view === 'git' && <Git />}
           </div>
+          {taskDetailOverlayId !== null && <TaskDetail />}
         </div>
       </ErrorBoundary>
       {approvalRequest && <ApprovalDialog />}

@@ -45,7 +45,7 @@ export function TaskCard({ task, index = 0 }: { task: Task; index?: number }) {
   const selectTask = useTaskStore((s) => s.selectTask)
   const archiveTask = useTaskStore((s) => s.archiveTask)
   const allTasks = useTaskStore((s) => s.tasks)
-  const setView = useLayoutStore((s) => s.setView)
+  const openTaskDetail = useLayoutStore((s) => s.openTaskDetail)
   const todosByTaskId = usePipelineStore((s) => s.todosByTaskId)
   const awaitingReview = usePipelineStore((s) => s.awaitingReview[task.id] ?? false)
   const currentProject = useProjectStore((s) => s.currentProject)
@@ -66,7 +66,7 @@ export function TaskCard({ task, index = 0 }: { task: Task; index?: number }) {
 
   const handleClick = () => {
     selectTask(task.id)
-    setView('task-detail')
+    openTaskDetail(task.id)
   }
 
   const handleArchive = (e: React.MouseEvent) => {

@@ -1,21 +1,37 @@
 import { create } from 'zustand'
 
-type View = 'projects' | 'dashboard' | 'task-detail' | 'workshop' | 'git'
+type View = 'projects' | 'dashboard' | 'git' | 'settings'
 
 interface LayoutState {
   view: View
-  activityFeedOpen: boolean
+  workshopPanelWidth: number
+  workshopPanelCollapsed: boolean
+  workshopPanelMaximized: boolean
   archiveDrawerOpen: boolean
-  setView: (view: View) => void
-  toggleActivityFeed: () => void
+  taskDetailOverlayId: number | null
+
+  setView: (v: View) => void
+  setWorkshopWidth: (width: number) => void
+  toggleWorkshopPanel: () => void
+  setWorkshopMaximized: (max: boolean) => void
   toggleArchiveDrawer: () => void
+  openTaskDetail: (taskId: number) => void
+  closeTaskDetail: () => void
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
   view: 'projects',
-  activityFeedOpen: true,
+  workshopPanelWidth: 350,
+  workshopPanelCollapsed: false,
+  workshopPanelMaximized: false,
   archiveDrawerOpen: false,
+  taskDetailOverlayId: null,
+
   setView: (view) => set({ view }),
-  toggleActivityFeed: () => set(s => ({ activityFeedOpen: !s.activityFeedOpen })),
-  toggleArchiveDrawer: () => set(s => ({ archiveDrawerOpen: !s.archiveDrawerOpen }))
+  setWorkshopWidth: (width) => set({ workshopPanelWidth: Math.max(300, Math.min(800, width)) }),
+  toggleWorkshopPanel: () => set((s) => ({ workshopPanelCollapsed: !s.workshopPanelCollapsed })),
+  setWorkshopMaximized: (max) => set({ workshopPanelMaximized: max }),
+  toggleArchiveDrawer: () => set((s) => ({ archiveDrawerOpen: !s.archiveDrawerOpen })),
+  openTaskDetail: (taskId) => set({ taskDetailOverlayId: taskId }),
+  closeTaskDetail: () => set({ taskDetailOverlayId: null }),
 }))

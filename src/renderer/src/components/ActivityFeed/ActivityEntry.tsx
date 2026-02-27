@@ -56,11 +56,11 @@ function TypeBadge({ type }: { type: StreamEvent['type'] }) {
 
 export function ActivityEntry({ event }: { event: StreamEvent }) {
   const selectTask = useTaskStore((s) => s.selectTask)
-  const setView = useLayoutStore((s) => s.setView)
+  const openTaskDetail = useLayoutStore((s) => s.openTaskDetail)
 
   const handleClick = () => {
     selectTask(event.taskId)
-    setView('task-detail')
+    openTaskDetail(event.taskId)
   }
 
   const isToolType = event.type === 'tool_use' || event.type === 'tool_result'

@@ -63,7 +63,7 @@ export function TaskDetail() {
       await useTaskStore.getState().loadTasks(project.dbPath)
     }
     useTaskStore.getState().selectTask(null)
-    useLayoutStore.getState().setView('dashboard')
+    useLayoutStore.getState().closeTaskDetail()
   }
 
   const handleStartPipeline = async () => {
@@ -141,7 +141,7 @@ export function TaskDetail() {
       await useTaskStore.getState().deleteTask(project.dbPath, task.id)
     }
     useTaskStore.getState().selectTask(null)
-    useLayoutStore.getState().setView('dashboard')
+    useLayoutStore.getState().closeTaskDetail()
   }
 
   if (!task) {

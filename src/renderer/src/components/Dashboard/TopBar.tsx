@@ -12,8 +12,7 @@ export function TopBar() {
   const currentProject = useProjectStore((s) => s.currentProject)
   const clearCurrentProject = useProjectStore((s) => s.clearCurrentProject)
   const setView = useLayoutStore((s) => s.setView)
-  const activityFeedOpen = useLayoutStore((s) => s.activityFeedOpen)
-  const toggleActivityFeed = useLayoutStore((s) => s.toggleActivityFeed)
+  const toggleWorkshopPanel = useLayoutStore((s) => s.toggleWorkshopPanel)
   const toggleArchiveDrawer = useLayoutStore((s) => s.toggleArchiveDrawer)
   const openSettingsModal = useSettingsStore((s) => s.openSettingsModal)
   const usageSnapshot = usePipelineStore((s) => s.usageSnapshot)
@@ -61,7 +60,7 @@ export function TopBar() {
         {/* Right side */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => useLayoutStore.getState().setView('workshop')}
+            onClick={toggleWorkshopPanel}
             className="px-3 py-1.5 rounded-md border border-border text-accent-cyan hover:border-accent-cyan/40 hover:bg-accent-cyan/5 transition-colors text-sm font-medium cursor-pointer"
           >
             Workshop
@@ -71,27 +70,6 @@ export function TopBar() {
             className="px-3 py-1.5 rounded-md border border-border text-accent-cyan hover:border-accent-cyan/40 hover:bg-accent-cyan/5 transition-colors text-sm font-medium cursor-pointer"
           >
             Git
-          </button>
-          <button
-            onClick={toggleActivityFeed}
-            className={`transition-colors cursor-pointer p-1 ${
-              activityFeedOpen ? 'text-accent-cyan' : 'text-text-secondary hover:text-text-primary'
-            }`}
-            aria-label="Toggle activity feed"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
           </button>
           <button
             onClick={toggleArchiveDrawer}
