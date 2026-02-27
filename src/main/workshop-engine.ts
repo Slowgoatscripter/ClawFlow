@@ -187,6 +187,67 @@ export class WorkshopEngine extends EventEmitter {
     }
 
     let lastEventType: string = 'text'
+    let toolCallBuffer = ''
+    let insideToolCall = false
+
+    const emitText = (text: string) => {
+      if (!text) return
+      if (lastEventType === 'tool_use' && text.trim()) {
+        this.emit('stream', { type: 'thinking' as any, sessionId })
+      }
+      lastEventType = 'text'
+      accumulatedText += text
+      debouncedSave()
+      this.emit('stream', { type: 'text', content: text, sessionId } as WorkshopStreamEvent)
+    }
+
+    const processTextChunk = (chunk: string) => {
+      let remaining = chunk
+
+      while (remaining.length > 0) {
+        if (insideToolCall) {
+          const endIdx = remaining.indexOf('</tool_call>')
+          if (endIdx !== -1) {
+            // End of tool_call block found — discard buffered content
+            toolCallBuffer = ''
+            insideToolCall = false
+            remaining = remaining.slice(endIdx + '</tool_call>'.length)
+          } else {
+            // Still inside — buffer everything
+            toolCallBuffer += remaining
+            remaining = ''
+          }
+        } else {
+          const startIdx = remaining.indexOf('<tool_call')
+          if (startIdx !== -1) {
+            // Emit text before the tag
+            if (startIdx > 0) emitText(remaining.slice(0, startIdx))
+            insideToolCall = true
+            toolCallBuffer = remaining.slice(startIdx)
+            remaining = ''
+          } else {
+            // Check for partial match at end (e.g. "<tool_" waiting for more chars)
+            const partialTag = '<tool_call'
+            let partialLen = 0
+            for (let i = Math.max(0, remaining.length - partialTag.length); i < remaining.length; i++) {
+              const tail = remaining.slice(i)
+              if (partialTag.startsWith(tail)) {
+                partialLen = tail.length
+                break
+              }
+            }
+            if (partialLen > 0) {
+              emitText(remaining.slice(0, remaining.length - partialLen))
+              toolCallBuffer = remaining.slice(remaining.length - partialLen)
+              insideToolCall = false // not confirmed yet, hold in buffer
+            } else {
+              emitText(remaining)
+            }
+            remaining = ''
+          }
+        }
+      }
+    }
 
     try {
       this.emit('stream', { type: 'text', content: '', sessionId } as WorkshopStreamEvent)
@@ -201,6 +262,11 @@ export class WorkshopEngine extends EventEmitter {
         resumeSessionId,
         sessionKey: sessionId,
         onStream: (streamContent: string, streamType: string) => {
+          if (streamType === 'context') {
+            const parts = streamContent.replace('__context:', '').split(':')
+            this.emit('context-update', { sessionId, contextTokens: parseInt(parts[0], 10), contextMax: parseInt(parts[1], 10) })
+            return
+          }
           if (streamType === 'tool_use') {
             lastEventType = 'tool_use'
             this.emit('stream', {
@@ -209,18 +275,14 @@ export class WorkshopEngine extends EventEmitter {
               sessionId,
             } as WorkshopStreamEvent)
           } else {
-            // If we were doing tool work and now getting text, emit thinking marker
-            if (lastEventType === 'tool_use' && streamContent.trim()) {
-              this.emit('stream', { type: 'thinking' as any, sessionId })
+            // If we have a partial buffer from a potential tag start, prepend it
+            if (toolCallBuffer && !insideToolCall) {
+              const combined = toolCallBuffer + streamContent
+              toolCallBuffer = ''
+              processTextChunk(combined)
+            } else {
+              processTextChunk(streamContent)
             }
-            lastEventType = 'text'
-            accumulatedText += streamContent
-            debouncedSave()
-            this.emit('stream', {
-              type: 'text',
-              content: streamContent,
-              sessionId,
-            } as WorkshopStreamEvent)
           }
         },
         onApprovalRequest: () => {
@@ -318,6 +380,9 @@ export class WorkshopEngine extends EventEmitter {
         resumeSessionId,
         sessionKey: sessionId,
         onStream: (event: any) => {
+          if (typeof event === 'string' || event?.type === 'context') {
+            return // filter out context events
+          }
           if (event.type === 'tool_use') {
             this.emit('stream', { type: 'tool_call', toolName: event.name, sessionId })
           } else {

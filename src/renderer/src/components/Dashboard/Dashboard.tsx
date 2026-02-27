@@ -27,11 +27,16 @@ export function Dashboard() {
     }
 
     // Start initial timer
-    startTimer(usePipelineStore.getState().streaming)
+    let lastStreaming = usePipelineStore.getState().streaming
+    startTimer(lastStreaming)
 
-    // Re-subscribe when streaming state changes
+    // Re-subscribe only when the streaming boolean actually changes
+    // (not on every store update, which would reset the timer on every stream event)
     const unsubscribe = usePipelineStore.subscribe((state) => {
-      startTimer(state.streaming)
+      if (state.streaming !== lastStreaming) {
+        lastStreaming = state.streaming
+        startTimer(state.streaming)
+      }
     })
 
     return () => {

@@ -11,7 +11,8 @@ const COLUMN_ORDER: TaskStatus[] = [
   'code_review',
   'verifying',
   'done',
-  'blocked'
+  'blocked',
+  'paused'
 ]
 
 function sortTasksNewestFirst(tasks: Task[], status: TaskStatus): Task[] {

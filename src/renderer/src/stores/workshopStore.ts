@@ -28,6 +28,7 @@ interface WorkshopState {
   isStalled: boolean
   pendingSuggestions: WorkshopSuggestedTask[] | null
   suggestionsSessionId: string | null
+  pendingChoices: { question: string; options: { label: string; description: string }[]; sessionId: string } | null
   autoMode: boolean
   sessionTokens: { input: number; output: number }
   discussRound: number
@@ -45,6 +46,8 @@ interface WorkshopState {
   renameSession: (sessionId: string, title: string) => Promise<void>
   approveSuggestions: (sessionId: string, tasks: WorkshopSuggestedTask[], autoMode?: boolean) => Promise<void>
   dismissSuggestions: () => void
+  selectChoice: (label: string) => void
+  dismissChoices: () => void
   toggleAutoMode: () => void
   startPanelSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title: string, panelPersonas: PanelPersona[]) => Promise<void>
   sendPanelMessage: (sessionId: string, content: string) => Promise<void>
@@ -98,6 +101,7 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   isStalled: false,
   pendingSuggestions: null,
   suggestionsSessionId: null,
+  pendingChoices: null,
   autoMode: false,
   sessionTokens: { input: 0, output: 0 },
   discussRound: 0,
@@ -173,6 +177,11 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       currentSession: session,
       messages: recoveredMessages,
       isStreaming: false,
+      streamingContent: '',
+      streamingSegments: [],
+      streamingToolCalls: [],
+      currentToolActivity: null,
+      toolActivityLog: [],
       sessionTokens: { input: 0, output: 0 },
       discussRound: 0
     })
@@ -292,6 +301,16 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
 
   dismissSuggestions: () => set({ pendingSuggestions: null, suggestionsSessionId: null }),
 
+  selectChoice: (label: string) => {
+    const { pendingChoices } = get()
+    if (!pendingChoices) return
+    const sessionId = pendingChoices.sessionId
+    set({ pendingChoices: null })
+    get().sendMessage(sessionId, label)
+  },
+
+  dismissChoices: () => set({ pendingChoices: null }),
+
   toggleAutoMode: () => set((state) => ({ autoMode: !state.autoMode })),
 
   setupListeners: () => {
@@ -351,6 +370,11 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
     const cleanupStream = window.api.workshop.onStream((event: WorkshopStreamEvent) => {
       const state = get()
 
+      // Ignore events for sessions other than the one currently viewed
+      if (event.sessionId && event.sessionId !== state.currentSessionId) {
+        return
+      }
+
       // Reset stall timer on any meaningful event
       if (state.isStreaming && (event.type === 'text' || event.type === 'tool_call')) {
         resetStallTimer()
@@ -368,6 +392,17 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
           streamingContent: state.streamingContent + event.content,
           streamingSegments: segments
         })
+      } else if (event.type === 'tool_call' && event.toolName === 'present_choices' && event.toolInput) {
+        const input = event.toolInput as { question?: string; options?: { label: string; description: string }[] }
+        if (input.question && input.options?.length) {
+          set({
+            pendingChoices: {
+              question: input.question,
+              options: input.options,
+              sessionId: event.sessionId || state.currentSessionId || ''
+            }
+          })
+        }
       } else if (event.type === 'tool_call' && event.toolName) {
         const verb = TOOL_VERBS[event.toolName] ?? `using ${event.toolName}`
         const toolData: ToolCallData = {
@@ -409,7 +444,7 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
         const groupedSegments = groupConsecutiveTools(state.streamingSegments)
         const assistantMsg: WorkshopMessage = {
           id: crypto.randomUUID(),
-          sessionId: event.sessionId ?? state.currentSessionId ?? '',
+          sessionId: state.currentSessionId ?? event.sessionId ?? '',
           role: 'assistant',
           content: state.streamingContent,
           messageType: 'text',
