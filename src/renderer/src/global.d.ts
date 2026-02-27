@@ -24,6 +24,16 @@ interface WindowApi {
     onStream: (callback: (event: any) => void) => () => void
     onApprovalRequest: (callback: (event: any) => void) => () => void
     onStatusChange: (callback: (event: any) => void) => () => void
+    pause: (taskId: number) => Promise<any>
+    resume: (taskId: number) => Promise<any>
+    pauseAll: () => Promise<number>
+    onContextUpdate: (cb: (data: { taskId: number; contextTokens: number; contextMax: number }) => void) => () => void
+    approveContextHandoff: (taskId: number) => Promise<void>
+    onContextHandoff: (callback: (data: { taskId: number; currentStage: string; nextStage: string; usagePercent: number; remainingTokens: number; estimatedNeed: number }) => void) => () => void
+  }
+  usage: {
+    getSnapshot: () => Promise<any>
+    onSnapshot: (cb: (data: any) => void) => () => void
   }
   workshop: {
     startSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title?: string) => Promise<any>
@@ -37,6 +47,16 @@ interface WindowApi {
     createTasks: (sessionId: string, tasks: any[]) => Promise<void>
     onStream: (callback: (event: any) => void) => () => void
     onToolEvent: (callback: (event: any) => void) => () => void
+  }
+  settings: {
+    getAllGlobal: () => Promise<Record<string, string>>
+    getGlobal: (key: string) => Promise<string | null>
+    setGlobal: (key: string, value: string) => Promise<void>
+    deleteGlobal: (key: string) => Promise<void>
+    getAllProject: (dbPath: string) => Promise<Record<string, string>>
+    getProject: (dbPath: string, key: string) => Promise<string | null>
+    setProject: (dbPath: string, key: string, value: string) => Promise<void>
+    deleteProject: (dbPath: string, key: string) => Promise<void>
   }
   fs: {
     pickDirectory: () => Promise<string | null>

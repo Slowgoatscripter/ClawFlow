@@ -7,6 +7,7 @@ import { PipelineEngine } from './pipeline-engine'
 import { WorkshopEngine } from './workshop-engine'
 import { createSdkRunner, resolveApproval } from './sdk-manager'
 import { GitEngine } from './git-engine'
+import { UsageMonitor } from './usage-monitor'
 
 let mainWindow: BrowserWindow | null = null
 let currentEngine: PipelineEngine | null = null
@@ -183,6 +184,8 @@ function registerGitIpc() {
 }
 
 function registerPipelineIpc() {
+  let usageMonitor: UsageMonitor | null = null
+
   ipcMain.handle('pipeline:init', (_e, dbPath: string, projectPath: string) => {
     currentEngine = new PipelineEngine(dbPath, projectPath)
     const sdkRunner = createSdkRunner(mainWindow!)
@@ -193,9 +196,35 @@ function registerPipelineIpc() {
     currentEngine.on('stage:error', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'error', ...data }))
     currentEngine.on('circuit-breaker', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'circuit-breaker', ...data }))
     currentEngine.on('stage:awaiting-review', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'awaiting-review', ...data }))
+    currentEngine.on('stage:paused', (data) =>
+      mainWindow?.webContents.send('pipeline:status', { type: 'paused', ...data }))
+    currentEngine.on('context-update', (data) =>
+      mainWindow?.webContents.send('pipeline:context-update', data))
+    currentEngine.on('stage:context_handoff', (data) =>
+      mainWindow?.webContents.send('pipeline:contextHandoff', data))
 
     const gitEngine = ensureGitEngine(dbPath, projectPath)
     currentEngine.setGitEngine(gitEngine)
+
+    // Usage monitoring
+    usageMonitor = new UsageMonitor()
+
+    usageMonitor.on('snapshot', (snapshot) => {
+      mainWindow?.webContents.send('usage:snapshot', snapshot)
+    })
+
+    usageMonitor.on('limit-approaching', async (data) => {
+      if (!currentEngine) return
+      const count = await currentEngine.pauseAllTasks('usage_limit')
+      mainWindow?.webContents.send('pipeline:status', {
+        type: 'usage-paused',
+        pausedCount: count,
+        utilization: data.utilization,
+        countdown: data.countdown
+      })
+    })
+
+    usageMonitor.start()
 
     return true
   })
@@ -227,6 +256,30 @@ function registerPipelineIpc() {
 
   ipcMain.handle('pipeline:resolve-approval', (_e, requestId: string, approved: boolean, message?: string) => {
     resolveApproval(requestId, approved, message)
+  })
+
+  ipcMain.handle('pipeline:pause', async (_e, taskId: number) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    return currentEngine.pauseTask(taskId, 'manual')
+  })
+
+  ipcMain.handle('pipeline:resume', async (_e, taskId: number) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    return currentEngine.resumeTask(taskId)
+  })
+
+  ipcMain.handle('pipeline:pause-all', async () => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    return currentEngine.pauseAllTasks('manual')
+  })
+
+  ipcMain.handle('pipeline:approveContextHandoff', async (_e, taskId: number) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    await currentEngine.approveContextHandoff(taskId)
+  })
+
+  ipcMain.handle('usage:get-snapshot', () => {
+    return usageMonitor?.getSnapshot() ?? null
   })
 }
 

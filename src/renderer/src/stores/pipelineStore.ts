@@ -8,6 +8,10 @@ interface PipelineState {
   approvalRequest: ApprovalRequest | null
   awaitingReview: Record<number, boolean>
   todosByTaskId: Record<number, Record<string, any[]>>
+  contextByTaskId: Record<number, { tokens: number; max: number }>
+  contextHandoff: { taskId: number; currentStage: string; nextStage: string; usagePercent: number; remainingTokens: number; estimatedNeed: number } | null
+  usageSnapshot: { connected: boolean; error: string | null; fiveHour: { utilization: number; countdown: string } | null; sevenDay: { utilization: number; countdown: string } | null; sevenDayOpus: { utilization: number; countdown: string } | null; sevenDaySonnet: { utilization: number; countdown: string } | null } | null
+  usagePausedToast: { pausedCount: number; utilization: number; countdown: string } | null
   startPipeline: (taskId: number) => Promise<void>
   stepPipeline: (taskId: number) => Promise<void>
   approveStage: (taskId: number) => Promise<void>
@@ -18,6 +22,12 @@ interface PipelineState {
   setApprovalRequest: (request: ApprovalRequest | null) => void
   clearStream: () => void
   setupListeners: () => () => void
+  pauseTask: (taskId: number) => Promise<void>
+  resumeTask: (taskId: number) => Promise<void>
+  pauseAll: () => Promise<void>
+  approveContextHandoff: (taskId: number) => Promise<void>
+  dismissContextHandoff: () => void
+  dismissUsagePausedToast: () => void
 }
 
 export const usePipelineStore = create<PipelineState>((set) => ({
@@ -27,6 +37,10 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   approvalRequest: null,
   awaitingReview: {},
   todosByTaskId: {},
+  contextByTaskId: {},
+  contextHandoff: null,
+  usageSnapshot: null,
+  usagePausedToast: null,
 
   startPipeline: async (taskId) => {
     set(state => ({
@@ -79,6 +93,23 @@ export const usePipelineStore = create<PipelineState>((set) => ({
 
   clearStream: () => set({ streamEvents: [], streaming: false, activeTaskId: null, awaitingReview: {} }),
 
+  pauseTask: async (taskId) => {
+    await window.api.pipeline.pause(taskId)
+  },
+  resumeTask: async (taskId) => {
+    set({ streaming: true, activeTaskId: taskId })
+    await window.api.pipeline.resume(taskId)
+  },
+  pauseAll: async () => {
+    await window.api.pipeline.pauseAll()
+  },
+  approveContextHandoff: async (taskId) => {
+    set({ contextHandoff: null, streaming: true })
+    await window.api.pipeline.approveContextHandoff(taskId)
+  },
+  dismissContextHandoff: () => set({ contextHandoff: null }),
+  dismissUsagePausedToast: () => set({ usagePausedToast: null }),
+
   setupListeners: () => {
     const cleanupStream = window.api.pipeline.onStream((event) => {
       set(state => ({
@@ -97,6 +128,19 @@ export const usePipelineStore = create<PipelineState>((set) => ({
           awaitingReview: { ...state.awaitingReview, [event.taskId]: true }
         }))
       }
+      if (event.type === 'paused') {
+        set({ streaming: false })
+      }
+      if (event.type === 'usage-paused') {
+        set({
+          streaming: false,
+          usagePausedToast: {
+            pausedCount: (event as any).pausedCount,
+            utilization: (event as any).utilization,
+            countdown: (event as any).countdown
+          }
+        })
+      }
     })
     const cleanupTodos = window.api.pipeline.onTodosUpdated((event: any) => {
       set(state => ({
@@ -109,11 +153,31 @@ export const usePipelineStore = create<PipelineState>((set) => ({
         }
       }))
     })
+    const cleanupContext = window.api.pipeline.onContextUpdate((data) => {
+      set((state) => ({
+        contextByTaskId: {
+          ...state.contextByTaskId,
+          [data.taskId]: { tokens: data.contextTokens, max: data.contextMax }
+        }
+      }))
+    })
+    const cleanupContextHandoff = window.api.pipeline.onContextHandoff((data) => {
+      set({ contextHandoff: data, streaming: false })
+    })
+    const cleanupUsage = window.api.usage.onSnapshot((snapshot) => {
+      set({ usageSnapshot: snapshot })
+    })
+    window.api.usage.getSnapshot().then((snapshot) => {
+      if (snapshot) set({ usageSnapshot: snapshot })
+    })
     return () => {
       cleanupStream()
       cleanupApproval()
       cleanupStatus()
       cleanupTodos()
+      cleanupContext()
+      cleanupContextHandoff()
+      cleanupUsage()
     }
   }
 }))

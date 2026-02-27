@@ -313,6 +313,11 @@ export class PipelineEngine extends EventEmitter {
       return this.getTaskOrThrow(taskId)
     }
 
+    // Clear session state — rejection means we start fresh
+    updateTask(this.dbPath, taskId, { activeSessionId: null })
+    this.sessionIds.delete(taskId)
+    this.contextUsage.delete(taskId)
+
     // Re-run the stage with feedback
     await this.runStage(taskId, currentStage, feedback)
     return this.getTaskOrThrow(taskId)

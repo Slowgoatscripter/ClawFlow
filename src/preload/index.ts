@@ -46,6 +46,28 @@ contextBridge.exposeInMainWorld('api', {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('pipeline:todos-updated', handler)
       return () => { ipcRenderer.removeListener('pipeline:todos-updated', handler) }
+    },
+    pause: (taskId: number) => ipcRenderer.invoke('pipeline:pause', taskId),
+    resume: (taskId: number) => ipcRenderer.invoke('pipeline:resume', taskId),
+    pauseAll: () => ipcRenderer.invoke('pipeline:pause-all'),
+    onContextUpdate: (cb: (data: any) => void) => {
+      const handler = (_e: any, data: any) => cb(data)
+      ipcRenderer.on('pipeline:context-update', handler)
+      return () => ipcRenderer.removeListener('pipeline:context-update', handler)
+    },
+    approveContextHandoff: (taskId: number) => ipcRenderer.invoke('pipeline:approveContextHandoff', taskId),
+    onContextHandoff: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:contextHandoff', handler)
+      return () => ipcRenderer.removeListener('pipeline:contextHandoff', handler)
+    },
+  },
+  usage: {
+    getSnapshot: () => ipcRenderer.invoke('usage:get-snapshot'),
+    onSnapshot: (cb: (data: any) => void) => {
+      const handler = (_e: any, data: any) => cb(data)
+      ipcRenderer.on('usage:snapshot', handler)
+      return () => ipcRenderer.removeListener('usage:snapshot', handler)
     }
   },
   workshop: {
@@ -149,6 +171,16 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('git:error', handler)
       return () => { ipcRenderer.removeListener('git:error', handler) }
     }
+  },
+  settings: {
+    getAllGlobal: () => ipcRenderer.invoke('settings:get-all-global'),
+    getGlobal: (key: string) => ipcRenderer.invoke('settings:get-global', key),
+    setGlobal: (key: string, value: string) => ipcRenderer.invoke('settings:set-global', key, value),
+    deleteGlobal: (key: string) => ipcRenderer.invoke('settings:delete-global', key),
+    getAllProject: (dbPath: string) => ipcRenderer.invoke('settings:get-all-project', dbPath),
+    getProject: (dbPath: string, key: string) => ipcRenderer.invoke('settings:get-project', dbPath, key),
+    setProject: (dbPath: string, key: string, value: string) => ipcRenderer.invoke('settings:set-project', dbPath, key, value),
+    deleteProject: (dbPath: string, key: string) => ipcRenderer.invoke('settings:delete-project', dbPath, key),
   },
   fs: {
     pickDirectory: () => ipcRenderer.invoke('fs:pick-directory')
