@@ -80,6 +80,14 @@ export interface TodoItem {
 
 // --- Task ---
 
+export interface TaskArtifacts {
+  filesCreated: string[]
+  filesModified: string[]
+  exportsAdded: string[]
+  typesAdded: string[]
+  summary: string
+}
+
 export interface Task {
   id: number
   title: string
@@ -114,6 +122,8 @@ export interface Task {
   pauseReason: 'manual' | 'usage_limit' | null
   activeSessionId: string | null
   richHandoff: string | null
+  dependencyIds: number[]
+  artifacts: TaskArtifacts | null
 }
 
 export interface CreateTaskInput {
@@ -122,6 +132,7 @@ export interface CreateTaskInput {
   tier: Tier
   priority: Priority
   autoMode?: boolean
+  dependencyIds?: number[]
 }
 
 // --- Project ---
@@ -308,6 +319,7 @@ export interface WorkshopSuggestedTask {
   tier: 'L1' | 'L2' | 'L3'
   priority?: Priority
   linkedArtifactIds?: string[]
+  dependsOn?: number[]
 }
 
 // --- IPC ---
@@ -365,6 +377,8 @@ export type IpcChannel =
   | 'pipeline:resume'
   | 'pipeline:pause-all'
   | 'pipeline:context-update'
+  | 'tasks:get-dependencies'
+  | 'pipeline:task-unblocked'
   | 'usage:get-snapshot'
   | 'usage:snapshot'
   | 'fs:pick-directory'
