@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
 import { TopBar } from './TopBar'
 import { MetricsStrip } from './MetricsStrip'
-import { KanbanBoard } from '../KanbanBoard/KanbanBoard'
-import { ActivityFeed } from '../ActivityFeed/ActivityFeed'
+import { Canvas } from '../Canvas/Canvas'
 import { useProjectStore } from '../../stores/projectStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { usePipelineStore } from '../../stores/pipelineStore'
+import { useCanvasStore } from '../../stores/canvasStore'
+import { useMetricsStore } from '../../stores/metricsStore'
 
 export function Dashboard() {
   useEffect(() => {
@@ -19,6 +20,8 @@ export function Dashboard() {
       const interval = isStreaming ? 2000 : 5000
       timer = setInterval(async () => {
         await useTaskStore.getState().loadTasks(project.dbPath)
+        await useCanvasStore.getState().refreshAll(project.dbPath)
+        await useMetricsStore.getState().refresh(project.dbPath)
         const stats = await window.api.tasks.stats(project.dbPath)
         useProjectStore.setState({ stats })
       }, interval)
@@ -47,10 +50,7 @@ export function Dashboard() {
     <div className="h-full bg-bg flex flex-col">
       <TopBar />
       <MetricsStrip />
-      <div className="flex flex-1 min-h-0">
-        <KanbanBoard />
-        <ActivityFeed />
-      </div>
+      <Canvas />
     </div>
   )
 }

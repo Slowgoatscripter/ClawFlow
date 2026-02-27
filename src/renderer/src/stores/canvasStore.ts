@@ -69,7 +69,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     })),
 
   refreshAll: async (dbPath: string) => {
-    const tasks = await window.api.tasks.list(dbPath)
+    const allTasks = await window.api.tasks.list(dbPath)
+    const tasks = allTasks.filter((t: Task) => !t.archivedAt)
     const standalone = tasks.filter((t: Task) => !t.groupId)
     const grouped = tasks.filter((t: Task) => t.groupId)
 
