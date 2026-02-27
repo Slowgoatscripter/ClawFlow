@@ -218,6 +218,8 @@ function registerPipelineIpc() {
       mainWindow?.webContents.send('pipeline:context-update', data))
     currentEngine.on('stage:context_handoff', (data) =>
       mainWindow?.webContents.send('pipeline:contextHandoff', data))
+    currentEngine.on('stage:context_degraded', (data) =>
+      mainWindow?.webContents.send('pipeline:contextDegraded', data))
     currentEngine.on('task:unblocked', ({ taskId }: { taskId: number }) => {
       mainWindow?.webContents.send('pipeline:task-unblocked', { taskId })
     })
@@ -225,6 +227,16 @@ function registerPipelineIpc() {
       mainWindow?.webContents.send('pipeline:review-candidates', data))
     currentEngine.on('task:merged', (data) =>
       mainWindow?.webContents.send('pipeline:task-merged', data))
+
+    currentEngine.on('group:launched', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'group-launched', ...data }))
+    currentEngine.on('group:paused', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'group-paused', ...data }))
+    currentEngine.on('group:resumed', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'group-resumed', ...data }))
+    currentEngine.on('group:completed', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'group-completed', ...data }))
+    currentEngine.on('group:task-stage-complete', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'group-task-stage-complete', ...data }))
+
+    if (currentWorkshopEngine) {
+      currentWorkshopEngine.setPipelineEngine(currentEngine)
+    }
 
     const gitEngine = ensureGitEngine(dbPath, projectPath)
     currentEngine.setGitEngine(gitEngine)
@@ -301,6 +313,11 @@ function registerPipelineIpc() {
     await currentEngine.approveContextHandoff(taskId)
   })
 
+  ipcMain.handle('pipeline:rejectContextHandoff', async (_e, taskId: number) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    await currentEngine.rejectContextHandoff(taskId)
+  })
+
   ipcMain.handle('pipeline:restartToStage', async (_e, taskId: number, targetStage: string) => {
     if (!currentEngine) throw new Error('Pipeline not initialized')
     await currentEngine.restartToStage(taskId, targetStage as PipelineStage)
@@ -308,6 +325,26 @@ function registerPipelineIpc() {
 
   ipcMain.handle('usage:get-snapshot', () => {
     return usageMonitor?.getSnapshot() ?? null
+  })
+
+  ipcMain.handle('pipeline:launchGroup', async (_e, groupId: number) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    await currentEngine.launchGroup(groupId)
+  })
+
+  ipcMain.handle('pipeline:pauseGroup', async (_e, groupId: number) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    return currentEngine.pauseGroup(groupId)
+  })
+
+  ipcMain.handle('pipeline:resumeGroup', async (_e, groupId: number) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    return currentEngine.resumeGroup(groupId)
+  })
+
+  ipcMain.handle('pipeline:getGroupStatus', (_e, groupId: number) => {
+    if (!currentEngine) throw new Error('Pipeline not initialized')
+    return currentEngine.getGroupStatus(groupId)
   })
 }
 
