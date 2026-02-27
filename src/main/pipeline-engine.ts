@@ -83,6 +83,8 @@ export class PipelineEngine extends EventEmitter {
   private sessionIds = new Map<number, string>()
   // Track context window usage per task for budget decisions
   private contextUsage = new Map<number, { tokens: number; max: number }>()
+  // Track rejection feedback history per task+stage for two-strike detection
+  private rejectionHistory: Map<string, string[]> = new Map()
 
   constructor(dbPath: string, projectPath: string) {
     super()
@@ -356,8 +358,30 @@ export class PipelineEngine extends EventEmitter {
     this.sessionIds.delete(taskId)
     this.contextUsage.delete(taskId)
 
+    // Two-Strike Intelligence: detect similar consecutive rejections
+    const detection = this.detectSimilarRejection(taskId, currentStage, feedback)
+    let enhancedFeedback = feedback
+
+    if (detection.similar && detection.previous) {
+      enhancedFeedback = `## Two-Strike Protocol
+
+Your previous two attempts at this stage were rejected for similar reasons:
+- Previous: ${detection.previous.split('\n')[0].substring(0, 200)}
+- Current: ${feedback.split('\n')[0].substring(0, 200)}
+
+Before proceeding, you MUST:
+1. Explain why your previous approach failed
+2. List 3 fundamentally different strategies to solve this
+3. Choose the best strategy and explain why
+4. Only then proceed with implementation
+
+## Original Feedback
+
+${feedback}`
+    }
+
     // Re-run the stage with feedback
-    await this.runStage(taskId, currentStage, feedback)
+    await this.runStage(taskId, currentStage, enhancedFeedback)
     return this.getTaskOrThrow(taskId)
   }
 
@@ -824,6 +848,7 @@ export class PipelineEngine extends EventEmitter {
 
       // Stage completed successfully
       this.emit('stage:complete', { taskId, stage })
+      this.rejectionHistory.delete(`${taskId}-${stage}`)
 
       // If this stage pauses for review, notify the renderer
       if (stageConfig.pauses && !task.autoMode) {
@@ -1068,6 +1093,40 @@ export class PipelineEngine extends EventEmitter {
     }
 
     setTaskArtifacts(this.dbPath, taskId, artifacts)
+  }
+
+  /**
+   * Detect whether the current rejection feedback is similar to the previous one
+   * for the same task+stage. Stores feedback history for comparison.
+   */
+  private detectSimilarRejection(taskId: number, stage: string, feedback: string): { similar: boolean; previous?: string } {
+    const key = `${taskId}-${stage}`
+    const history = this.rejectionHistory.get(key) ?? []
+
+    if (history.length === 0) {
+      this.rejectionHistory.set(key, [feedback])
+      return { similar: false }
+    }
+
+    const lastFeedback = history[history.length - 1]
+
+    // Extract significant terms (words 4+ chars, lowercased)
+    const extractTerms = (text: string): Set<string> =>
+      new Set(text.toLowerCase().match(/\b[a-z]{4,}\b/g) ?? [])
+
+    const currentTerms = extractTerms(feedback)
+    const previousTerms = extractTerms(lastFeedback)
+
+    let overlap = 0
+    for (const term of currentTerms) {
+      if (previousTerms.has(term)) overlap++
+    }
+
+    const similarity = currentTerms.size > 0 ? overlap / currentTerms.size : 0
+    history.push(feedback)
+    this.rejectionHistory.set(key, history)
+
+    return { similar: similarity > 0.5, previous: lastFeedback }
   }
 
   /**
