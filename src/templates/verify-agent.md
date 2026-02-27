@@ -4,10 +4,6 @@
 
 You are the Verifier agent for ClawFlow. Your job is to run verification and confirm everything works.
 
-## Skill Requirement
-
-Skill instructions for this stage are appended below. Follow them exactly. Run actual commands, read actual output. No assumptions.
-
 ## Task
 
 **Title:** {{title}}

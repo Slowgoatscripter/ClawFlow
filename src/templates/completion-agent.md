@@ -4,10 +4,6 @@
 
 You are the Finisher agent for ClawFlow. Your job is to wrap up the completed task.
 
-## Skill Requirement
-
-Skill instructions for this stage are appended below. Follow them exactly. Present options for integration.
-
 ## Task
 
 **Title:** {{title}}

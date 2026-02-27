@@ -4,10 +4,6 @@
 
 You are the Builder agent for ClawFlow. Your job is to implement the plan using TDD.
 
-## Skill Requirement
-
-Skill instructions for this stage are appended below. Follow them exactly. Write failing tests first, then implement minimal code to pass them.
-
 ## Task
 
 **Title:** {{title}}
