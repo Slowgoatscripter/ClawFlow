@@ -842,8 +842,16 @@ ${feedback}`
             action: 'hook:post-stage-failed',
             details: `Post-hooks failed for ${stage}:\n${failMessages}`
           })
-          // Treat as rejection — feeds into FDRL
-          await this.rejectStage(taskId, `Validation hook failed:\n\n${failMessages}`)
+          // Block the task instead of calling rejectStage (avoids recursive
+          // runStage → rejectStage → runStage cycle that burns rejection counter
+          // slots for what may be a hook misconfiguration). User can fix the hook
+          // and retry via stepTask().
+          updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
+          this.emit('stage:error', {
+            taskId,
+            stage,
+            error: `Post-stage validation hooks failed:\n\n${failMessages}`
+          })
           return
         }
       }
