@@ -125,6 +125,9 @@ export interface Task {
   richHandoff: string | null
   dependencyIds: number[]
   artifacts: TaskArtifacts | null
+  groupId: number | null
+  workOrder: WorkOrder | null
+  assignedSkill: string | null
 }
 
 export interface CreateTaskInput {
@@ -135,6 +138,44 @@ export interface CreateTaskInput {
   autoMode?: boolean
   autoMerge?: boolean
   dependencyIds?: number[]
+  groupId?: number
+  workOrder?: WorkOrder
+  assignedSkill?: string
+}
+
+export interface FileTarget {
+  path: string
+  action: 'create' | 'modify'
+  description: string
+}
+
+export interface WorkOrder {
+  objective: string
+  files: FileTarget[]
+  patterns: string[]
+  integration: string[]
+  constraints: string[]
+  tests: string[]
+}
+
+export type TaskGroupStatus = 'planning' | 'queued' | 'running' | 'paused' | 'completed' | 'failed'
+
+export interface TaskGroup {
+  id: number
+  title: string
+  sessionId: number
+  status: TaskGroupStatus
+  designArtifactId: number | null
+  sharedContext: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateTaskGroupInput {
+  title: string
+  sessionId: number
+  designArtifactId?: number
+  sharedContext: string
 }
 
 // --- Project ---
@@ -322,6 +363,8 @@ export interface WorkshopSuggestedTask {
   priority?: Priority
   linkedArtifactIds?: string[]
   dependsOn?: number[]
+  workOrder?: WorkOrder
+  assignedSkill?: string
 }
 
 // --- IPC ---
