@@ -16,10 +16,14 @@ import {
   createWorkshopTaskLink,
   listTasks,
   createTask,
+  addTaskDependencies,
+  getGlobalSetting,
 } from './db'
 import { abortSession } from './sdk-manager'
+import { SETTING_KEYS } from '../shared/settings'
 import { constructWorkshopPrompt, loadSkillContent } from './template-engine'
 import type {
+  Task,
   WorkshopSession,
   WorkshopSessionType,
   PanelPersona,
@@ -28,6 +32,10 @@ import type {
   WorkshopSuggestedTask,
   WorkshopArtifactType,
 } from '../shared/types'
+
+function getWorkshopModel(): string {
+  return getGlobalSetting(SETTING_KEYS.WORKSHOP_MODEL) ?? 'claude-sonnet-4-6'
+}
 
 type SdkRunner = (params: any) => Promise<any>
 
@@ -185,7 +193,7 @@ export class WorkshopEngine extends EventEmitter {
 
       const result = await this.sdkRunner({
         prompt,
-        model: 'claude-sonnet-4-20250514',
+        model: getWorkshopModel(),
         maxTurns: 10,
         cwd: this.projectPath,
         taskId: 0,
@@ -302,8 +310,10 @@ export class WorkshopEngine extends EventEmitter {
     try {
       const result = await this.sdkRunner({
         prompt,
-        model: 'claude-sonnet-4-20250514',
+        model: getWorkshopModel(),
         maxTurns: 10,
+        cwd: this.projectPath,
+        taskId: 0,
         autoMode: true,
         resumeSessionId,
         sessionKey: sessionId,
@@ -387,8 +397,10 @@ export class WorkshopEngine extends EventEmitter {
       try {
         const result = await this.sdkRunner!({
           prompt,
-          model: 'claude-sonnet-4-20250514',
+          model: getWorkshopModel(),
           maxTurns: 1,
+          cwd: this.projectPath,
+          taskId: 0,
           autoMode: true,
           sessionKey: `${sessionId}-discuss-${persona.id}-${nextRound}`,
           onStream: () => {},
@@ -636,15 +648,31 @@ export class WorkshopEngine extends EventEmitter {
 
   async suggestTasks(sessionId: string, tasks: WorkshopSuggestedTask[]): Promise<void> {
     if (this.autoMode) {
-      for (const task of tasks) {
-        await this.createPipelineTask(sessionId, task)
+      // Create all tasks first to get real IDs
+      const createdTasks: { id: number; index: number }[] = []
+      for (let i = 0; i < tasks.length; i++) {
+        const created = await this.createPipelineTask(sessionId, tasks[i])
+        createdTasks.push({ id: created.id, index: i })
+      }
+
+      // Wire up dependencies using real IDs
+      for (let i = 0; i < tasks.length; i++) {
+        const depIndices = tasks[i].dependsOn ?? []
+        if (depIndices.length > 0) {
+          const depIds = depIndices
+            .filter((idx) => idx >= 0 && idx < createdTasks.length)
+            .map((idx) => createdTasks[idx].id)
+          if (depIds.length > 0) {
+            addTaskDependencies(this.dbPath, createdTasks[i].id, depIds)
+          }
+        }
       }
     } else {
       this.emit('tasks:suggested', { sessionId, tasks })
     }
   }
 
-  async createPipelineTask(sessionId: string, task: WorkshopSuggestedTask & { autoMode?: boolean }): Promise<void> {
+  async createPipelineTask(sessionId: string, task: WorkshopSuggestedTask & { autoMode?: boolean }): Promise<Task> {
     const created = createTask(this.dbPath, {
       title: task.title,
       description: task.description,
@@ -670,6 +698,7 @@ export class WorkshopEngine extends EventEmitter {
     )
 
     this.emit('task:created', { sessionId, task: created })
+    return created
   }
 
   // Artifact Reading

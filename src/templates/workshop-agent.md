@@ -42,6 +42,7 @@ Suggest tasks to add to the development pipeline. Params:
   - `description`: Structured description (see format below)
   - `tier`: L1 (quick fix), L2 (standard feature), or L3 (full pipeline with design review)
   - `priority`: low, medium, high, or critical (optional, defaults to medium)
+  - `dependsOn`: Array of 0-based indices referencing other tasks in the same batch (optional). Use this when a task requires output from an earlier task — e.g., if task 2 needs files created by task 0, set `"dependsOn": [0]`
 
 **Task description format — always use this structure:**
 
@@ -55,14 +56,22 @@ Suggest tasks to add to the development pipeline. Params:
 - [Another condition]
 ```
 
+**When tasks build on each other, use `dependsOn` to declare ordering.** For example, if task 1 requires the schema created by task 0, set `"dependsOn": [0]` on task 1. This ensures they execute in the correct order.
+
 **Example:**
 <tool_call name="suggest_tasks">
 {
   "tasks": [{
-    "title": "Fix gradient overlay mismatch in PlatformBar",
-    "description": "**What:** Change fade gradient overlays to use the section background color instead of teal-muted.\n**Why:** The current `from-teal-muted/20` doesn't match the hero section's `background` color, creating visible rectangular patches at the marquee edges.\n**Where:** `src/components/landing/PlatformBar.tsx` (lines 33-34)\n\n**Acceptance criteria:**\n- Gradient overlays use `from-background` instead of `from-teal-muted/20`\n- No visible rectangular patches at marquee edges\n- Fade effect blends seamlessly with the surrounding section",
-    "tier": "L1",
-    "priority": "low"
+    "title": "Create user preferences database schema",
+    "description": "**What:** Add a user_preferences table with key-value storage.\n**Why:** Needed as foundation for theme and notification settings.\n**Where:** `src/db/migrations/`\n\n**Acceptance criteria:**\n- Migration creates user_preferences table\n- Table supports key-value pairs per user",
+    "tier": "L2",
+    "priority": "medium"
+  }, {
+    "title": "Build preferences API endpoints",
+    "description": "**What:** Add GET/PUT /api/preferences endpoints.\n**Why:** Frontend needs to read and write user preferences.\n**Where:** `src/api/preferences.ts`\n\n**Acceptance criteria:**\n- GET returns current preferences\n- PUT validates and saves preferences",
+    "tier": "L2",
+    "priority": "medium",
+    "dependsOn": [0]
   }]
 }
 </tool_call>
