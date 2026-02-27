@@ -33,6 +33,29 @@ Check the Domain Knowledge Index above before proceeding. Use fetch_knowledge() 
 {"skill_name": "brainstorming"}
 </tool_call>
 
+## Browser Automation
+
+You have access to `agent-browser`, a headless browser CLI. Run commands via Bash.
+
+### Key Commands
+- `agent-browser open <url>` — Navigate to a URL
+- `agent-browser snapshot` — Get accessibility tree of current page
+
+### When to Use
+- Check API documentation to validate implementation feasibility
+- Browse library/framework docs to verify assumptions in the plan
+- Look up compatibility information for dependencies
+
+### When NOT to Use
+- Don't browse for information already provided in the brainstorm context
+- Focus on feasibility checks, not general research (that's the brainstormer's job)
+
+### Rules
+- ALWAYS close the browser when done: `agent-browser close`
+- One browser session at a time
+- If a page doesn't load in 10 seconds, move on
+- Use `snapshot` sparingly — output can be verbose
+
 ## Output
 
 Produce a numbered implementation plan following the skill's format. Every task must have exact file paths, code, test commands, and expected outputs.

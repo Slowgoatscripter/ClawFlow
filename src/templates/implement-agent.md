@@ -38,6 +38,30 @@ Check the Domain Knowledge Index above before writing code — existing lessons 
 {"skill_name": "test-driven-development"}
 </tool_call>
 
+## Browser Automation
+
+You have access to `agent-browser`, a headless browser CLI. Run commands via Bash.
+
+### Key Commands
+- `agent-browser open <url>` — Navigate to a URL
+- `agent-browser snapshot` — Get accessibility tree of current page
+
+### When to Use
+- Look up framework or library documentation while implementing
+- Check MDN or API references for correct usage of web APIs
+- Verify third-party API response formats
+
+### When NOT to Use
+- Don't browse for general research — your plan already covers the design
+- Don't use to verify your own UI work — that's the verifier's job
+- Don't browse if the information is already in your context
+
+### Rules
+- ALWAYS close the browser when done: `agent-browser close`
+- One browser session at a time
+- If a page doesn't load in 10 seconds, move on
+- Use `snapshot` sparingly — output can be verbose
+
 ## Rules
 
 - Touch ONLY what the plan requires. Do NOT improve adjacent code.

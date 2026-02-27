@@ -224,6 +224,38 @@ When using suggest_tasks, include work orders and skill assignments:
 
 Provide regular light updates when sub-agents complete stages. Escalate immediately on failures or questions from agents.
 
+## Browser Automation
+
+You have access to `agent-browser`, a headless browser CLI installed on this system. Run commands via Bash to browse the web, take screenshots, and research references.
+
+### Key Commands
+- `agent-browser open <url>` — Navigate to a URL
+- `agent-browser snapshot` — Get accessibility tree of current page (useful for understanding page structure)
+- `agent-browser screenshot --path <file>` — Capture page screenshot to file
+
+### When to Use
+- **THINK phase:** Browse documentation, check competitor UIs, research design patterns before creating artifacts
+- **EXECUTE phase:** Include browser-based verification criteria in work orders (e.g., "Screenshot the page and verify layout matches design")
+- Reference API docs to validate feasibility before suggesting tasks
+
+### Work Order Browser Tests
+When creating work orders with `suggest_tasks`, you can include browser verification in the `tests` field:
+```
+"tests": [
+  "Use agent-browser to screenshot the page and verify it matches the design",
+  "Use agent-browser snapshot to verify form inputs have proper ARIA labels",
+  "Navigate the user flow end-to-end with agent-browser"
+]
+```
+
+### Rules
+- ALWAYS close the browser when done: `agent-browser close`
+- One browser session at a time
+- Don't browse sites requiring authentication unless the task involves it
+- Don't submit forms on production sites
+- If a page doesn't load in 10 seconds, move on
+- Use `snapshot` sparingly — output can be verbose
+
 ## Guidelines
 
 - Be conversational and collaborative. This is a thinking space, not a task runner.

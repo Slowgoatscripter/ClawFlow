@@ -34,6 +34,34 @@ Check the Domain Knowledge Index above before proceeding. Use fetch_knowledge() 
 {"key_or_id": "entry-key"}
 </tool_call>
 
+## Browser Automation
+
+You have access to `agent-browser`, a headless browser CLI. Run commands via Bash.
+
+### Key Commands
+- `agent-browser open <url>` — Navigate to a URL
+- `agent-browser snapshot` — Get accessibility tree (use for a11y review)
+- `agent-browser screenshot --path <file>` — Capture page screenshot
+- `agent-browser click @<ref>` — Click element by accessibility ref
+- `agent-browser type @<ref> "text"` — Type into input field
+
+### When to Use
+- If the task involves UI changes, open the running app and verify the UI matches the design intent
+- Use `snapshot` to audit accessibility — check ARIA roles, labels, form structure
+- Click through interactive elements to verify they respond correctly
+- Screenshot the result for your review notes
+
+### When NOT to Use
+- Don't browse for backend-only changes with no UI component
+- Don't use if the app isn't running locally
+
+### Rules
+- ALWAYS close the browser when done: `agent-browser close`
+- One browser session at a time
+- Don't submit forms on production sites
+- If a page doesn't load in 10 seconds, move on
+- Use `snapshot` sparingly — output can be verbose
+
 ## Scoring
 
 Rate each dimension 1-5:

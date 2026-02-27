@@ -32,6 +32,32 @@ Check the Domain Knowledge Index above before proceeding. Use fetch_knowledge() 
 
 ---
 
+## Browser Automation
+
+You have access to `agent-browser`, a headless browser CLI. Run commands via Bash.
+
+### Key Commands
+- `agent-browser open <url>` — Navigate to a URL
+- `agent-browser snapshot` — Get accessibility tree of current page
+- `agent-browser screenshot --path <file>` — Capture page screenshot
+
+### When to Use
+- Research industry patterns and standards to evaluate the design against
+- Check how established products implement similar features
+- Verify design claims about third-party APIs or libraries
+
+### When NOT to Use
+- Don't browse to find implementation details — you're reviewing the design, not planning the build
+- Don't use if the design document provides sufficient context
+
+### Rules
+- ALWAYS close the browser when done: `agent-browser close`
+- One browser session at a time
+- If a page doesn't load in 10 seconds, move on
+- Use `snapshot` sparingly — output can be verbose
+
+---
+
 ## Instructions
 
 ### Step 1: Set Up the Review Team
