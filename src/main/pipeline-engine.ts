@@ -576,7 +576,29 @@ export class PipelineEngine extends EventEmitter {
         prompt += `\n\n---\n\n## Autonomous Mode\n\nYou are running autonomously without a human in the loop. When a skill or workflow asks for user input, make reasonable decisions based on the task description and context. Document all decisions you make in the handoff block. Do NOT pause or ask questions — keep moving forward.`
       }
     } else {
-      prompt = constructPrompt(stage, task, this.projectPath)
+      // Build dependency context from completed prerequisite tasks
+      let dependencyContext: string | undefined
+      if (task.dependencyIds?.length > 0) {
+        const depContextParts: string[] = []
+        for (const depId of task.dependencyIds) {
+          const depTask = getTask(this.dbPath, depId)
+          if (depTask?.artifacts) {
+            const a = depTask.artifacts
+            const parts: string[] = [`**Task "${depTask.title}"** completed.`]
+            if (a.filesCreated.length) parts.push(`Files created: ${a.filesCreated.map(f => '`' + f + '`').join(', ')}`)
+            if (a.filesModified.length) parts.push(`Files modified: ${a.filesModified.map(f => '`' + f + '`').join(', ')}`)
+            if (a.exportsAdded.length) parts.push(`Exports added: ${a.exportsAdded.join(', ')}`)
+            if (a.typesAdded.length) parts.push(`Types added: ${a.typesAdded.join(', ')}`)
+            if (a.summary) parts.push(`Summary: ${a.summary}`)
+            depContextParts.push(parts.join('\n'))
+          }
+        }
+        if (depContextParts.length) {
+          dependencyContext = depContextParts.join('\n\n')
+        }
+      }
+
+      prompt = constructPrompt(stage, task, this.projectPath, dependencyContext)
 
       // Auto mode: inject autonomous decision-making instructions
       if (task.autoMode) {

@@ -137,7 +137,12 @@ export function loadSkillContent(skillName: string): string {
   }
 }
 
-export function constructPrompt(stage: PipelineStage, task: Task, projectPath?: string): string {
+export function constructPrompt(
+  stage: PipelineStage,
+  task: Task,
+  projectPath?: string,
+  dependencyContext?: string
+): string {
   const template = loadTemplate(stage)
   const config = STAGE_CONFIGS[stage]
   const skillContent = loadSkillContent(config.skill)
@@ -152,6 +157,12 @@ export function constructPrompt(stage: PipelineStage, task: Task, projectPath?: 
   if (task.richHandoff) {
     const handoffContext = `\n\n---\n## Context from Previous Session\n\nA prior agent worked on this task but reached context limits. Here is their knowledge transfer:\n\n${task.richHandoff}\n\n---\n\n`
     prompt = handoffContext + prompt
+  }
+
+  // Inject dependency context from completed prerequisite tasks
+  if (dependencyContext) {
+    const depBlock = `\n\n---\n## Context from Dependency Tasks\n\n${dependencyContext}\n\n---\n\n`
+    prompt = depBlock + prompt
   }
 
   return prompt
