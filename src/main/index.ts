@@ -313,6 +313,10 @@ function registerPipelineIpc() {
 
 function ensureWorkshopEngine(dbPath: string, projectPath: string, projectId: string, projectName: string): WorkshopEngine {
   if (!currentWorkshopEngine || currentWorkshopEngine['dbPath'] !== dbPath) {
+    // Clean up old listeners to prevent memory leaks on project switch
+    if (currentWorkshopEngine) {
+      currentWorkshopEngine.removeAllListeners()
+    }
     currentWorkshopEngine = new WorkshopEngine(dbPath, projectPath, projectId, projectName)
     const sdkRunner = createSdkRunner(mainWindow!)
     currentWorkshopEngine.setSdkRunner(sdkRunner)
@@ -346,15 +350,18 @@ function registerWorkshopIpc() {
   })
 
   ipcMain.handle('workshop:end-session', async (_e, sessionId) => {
-    await currentWorkshopEngine?.endSession(sessionId)
+    if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+    await currentWorkshopEngine.endSession(sessionId)
   })
 
   ipcMain.handle('workshop:stop-session', (_e, sessionId) => {
-    currentWorkshopEngine?.stopSession(sessionId)
+    if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+    currentWorkshopEngine.stopSession(sessionId)
   })
 
   ipcMain.handle('workshop:delete-session', (_e, sessionId) => {
-    currentWorkshopEngine?.deleteSession(sessionId)
+    if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+    currentWorkshopEngine.deleteSession(sessionId)
   })
 
   ipcMain.handle('workshop:list-sessions', (_e, dbPath, projectPath, projectId, projectName) => {
@@ -367,7 +374,8 @@ function registerWorkshopIpc() {
   })
 
   ipcMain.handle('workshop:send-message', async (_e, sessionId, content) => {
-    await currentWorkshopEngine?.sendMessage(sessionId, content)
+    if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+    await currentWorkshopEngine.sendMessage(sessionId, content)
   })
 
   ipcMain.handle('workshop:list-messages', (_e, dbPath, sessionId) => {
@@ -386,9 +394,16 @@ function registerWorkshopIpc() {
   })
 
   ipcMain.handle('workshop:create-tasks', async (_e, sessionId, tasks) => {
-    if (!currentWorkshopEngine) return
+    if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+    let created = 0
     for (const task of tasks) {
-      await currentWorkshopEngine.createPipelineTask(sessionId, task)
+      try {
+        await currentWorkshopEngine.createPipelineTask(sessionId, task)
+        created++
+      } catch (err: any) {
+        console.error(`[Workshop] Failed to create task ${created + 1}/${tasks.length}:`, err.message)
+        throw new Error(`Created ${created}/${tasks.length} tasks. Failed on: ${err.message}`)
+      }
     }
   })
 
@@ -416,14 +431,16 @@ function registerWorkshopIpc() {
   ipcMain.handle(
     'workshop:send-panel-message',
     async (_e, sessionId, content) => {
-      await currentWorkshopEngine?.sendPanelMessage(sessionId, content)
+      if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+      await currentWorkshopEngine.sendPanelMessage(sessionId, content)
     }
   )
 
   ipcMain.handle(
     'workshop:trigger-discuss',
     async (_e, sessionId) => {
-      await currentWorkshopEngine?.triggerDiscuss(sessionId)
+      if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+      await currentWorkshopEngine.triggerDiscuss(sessionId)
     }
   )
 }
