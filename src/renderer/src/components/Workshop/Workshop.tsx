@@ -7,6 +7,7 @@ import { ConversationPanel } from './ConversationPanel'
 import { ArtifactPanel } from './ArtifactPanel'
 import { TaskSuggestionModal } from './TaskSuggestionModal'
 import { ChoicesModal } from './ChoicesModal'
+import { WorkshopErrorBanner } from './WorkshopErrorBanner'
 
 export function Workshop() {
   const currentProject = useProjectStore((s) => s.currentProject)
@@ -49,7 +50,10 @@ export function Workshop() {
       {/* Three-panel layout */}
       <div className="flex-1 flex overflow-hidden">
         <SessionList />
-        <ConversationPanel />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <WorkshopErrorBanner />
+          <ConversationPanel />
+        </div>
         <ArtifactPanel />
       </div>
 
