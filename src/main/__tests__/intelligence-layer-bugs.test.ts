@@ -49,6 +49,90 @@ describe('Bug 3: Global knowledge dedup on promotion', () => {
   })
 })
 
+// --- Bug 4: fillTemplate handoff JSON parsing is unguarded ---
+// --- Bug 5: formatPreviousHandoff / formatHandoffChain crash on null ---
+
+describe('Bugs 4+5: Template engine handoff safety', () => {
+  function safeParseHandoffsLocal(handoffs: unknown): Array<{ stage: string; summary: string }> {
+    if (Array.isArray(handoffs)) return handoffs
+    if (typeof handoffs === 'string') {
+      try { return JSON.parse(handoffs) ?? [] } catch { return [] }
+    }
+    return []
+  }
+
+  function formatPreviousHandoffLocal(handoffs: any[] | null | undefined): string {
+    if (!handoffs || handoffs.length === 0) return 'No previous stages.'
+    return `Last: ${handoffs[handoffs.length - 1].stage}`
+  }
+
+  function formatHandoffChainLocal(handoffs: any[] | null | undefined): string {
+    if (!handoffs || handoffs.length === 0) return 'No handoff history.'
+    return handoffs.map((h, i) => `${i + 1}: ${h.stage}`).join(', ')
+  }
+
+  // Bug 4 tests
+  test('safeParseHandoffs returns array when given valid array', () => {
+    const arr = [{ stage: 'plan', summary: 'did stuff' }]
+    expect(safeParseHandoffsLocal(arr)).toEqual(arr)
+  })
+
+  test('safeParseHandoffs returns [] for malformed JSON string', () => {
+    expect(safeParseHandoffsLocal('{not valid')).toEqual([])
+  })
+
+  test('safeParseHandoffs parses valid JSON string', () => {
+    const json = JSON.stringify([{ stage: 'plan', summary: 'x' }])
+    expect(safeParseHandoffsLocal(json)).toEqual([{ stage: 'plan', summary: 'x' }])
+  })
+
+  test('safeParseHandoffs returns [] for null', () => {
+    expect(safeParseHandoffsLocal(null)).toEqual([])
+  })
+
+  test('safeParseHandoffs returns [] for undefined', () => {
+    expect(safeParseHandoffsLocal(undefined)).toEqual([])
+  })
+
+  test('safeParseHandoffs returns [] for non-string/non-array', () => {
+    expect(safeParseHandoffsLocal(42)).toEqual([])
+  })
+
+  // Bug 5 tests — formatPreviousHandoff
+  test('formatPreviousHandoff handles null', () => {
+    expect(formatPreviousHandoffLocal(null)).toBe('No previous stages.')
+  })
+
+  test('formatPreviousHandoff handles undefined', () => {
+    expect(formatPreviousHandoffLocal(undefined)).toBe('No previous stages.')
+  })
+
+  test('formatPreviousHandoff handles empty array', () => {
+    expect(formatPreviousHandoffLocal([])).toBe('No previous stages.')
+  })
+
+  test('formatPreviousHandoff formats non-empty array', () => {
+    expect(formatPreviousHandoffLocal([{ stage: 'plan' }])).toBe('Last: plan')
+  })
+
+  // Bug 5 tests — formatHandoffChain
+  test('formatHandoffChain handles null', () => {
+    expect(formatHandoffChainLocal(null)).toBe('No handoff history.')
+  })
+
+  test('formatHandoffChain handles undefined', () => {
+    expect(formatHandoffChainLocal(undefined)).toBe('No handoff history.')
+  })
+
+  test('formatHandoffChain handles empty array', () => {
+    expect(formatHandoffChainLocal([])).toBe('No handoff history.')
+  })
+
+  test('formatHandoffChain formats non-empty array', () => {
+    expect(formatHandoffChainLocal([{ stage: 'plan' }, { stage: 'implement' }])).toBe('1: plan, 2: implement')
+  })
+})
+
 // --- Bug 2: Retry sleep not abort-aware + unbounded delay ---
 
 describe('Bug 2: Abort-aware sleep + delay cap', () => {

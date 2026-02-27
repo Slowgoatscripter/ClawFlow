@@ -18,6 +18,14 @@ function extractOutput(field: unknown): string {
   return JSON.stringify(field)
 }
 
+function safeParseHandoffs(handoffs: unknown): Handoff[] {
+  if (Array.isArray(handoffs)) return handoffs
+  if (typeof handoffs === 'string') {
+    try { return JSON.parse(handoffs) ?? [] } catch { return [] }
+  }
+  return []
+}
+
 const SKIP_HANDOFF_STAGES: PipelineStage[] = ['design_review']
 
 export function loadTemplate(stage: PipelineStage): string {
@@ -64,7 +72,7 @@ export function fillTemplate(template: string, task: Task, projectPath?: string)
     '{{test_results}}': extractOutput(task.testResults),
     '{{verify_result}}': task.verifyResult ?? 'N/A',
     '{{plan_summary}}': (() => {
-      const handoffs = typeof task.handoffs === 'string' ? JSON.parse(task.handoffs) : task.handoffs
+      const handoffs = safeParseHandoffs(task.handoffs)
       const planHandoff = handoffs?.find((h: any) => h.stage === 'plan')
       if (planHandoff) {
         return `**Plan Summary:** ${planHandoff.summary}\n**Key Decisions:** ${planHandoff.keyDecisions ?? 'N/A'}\n**Files to Modify:** ${planHandoff.filesModified ?? 'N/A'}`
@@ -72,7 +80,7 @@ export function fillTemplate(template: string, task: Task, projectPath?: string)
       return extractOutput(task.plan)
     })(),
     '{{implementation_summary}}': (() => {
-      const handoffs = typeof task.handoffs === 'string' ? JSON.parse(task.handoffs) : task.handoffs
+      const handoffs = safeParseHandoffs(task.handoffs)
       const implHandoff = handoffs?.find((h: any) => h.stage === 'implement')
       if (implHandoff) {
         return `**Implementation Summary:** ${implHandoff.summary}\n**Key Decisions:** ${implHandoff.keyDecisions ?? 'N/A'}\n**Files Modified:** ${implHandoff.filesModified ?? 'N/A'}`
@@ -258,8 +266,8 @@ export function parseHandoff(output: string): Partial<Handoff> | null {
   }
 }
 
-function formatPreviousHandoff(handoffs: Handoff[]): string {
-  if (handoffs.length === 0) return 'No previous stages.'
+function formatPreviousHandoff(handoffs: Handoff[] | null | undefined): string {
+  if (!handoffs || handoffs.length === 0) return 'No previous stages.'
   const last = handoffs[handoffs.length - 1]
   return [
     `> **${last.agent}** \`${last.model}\` · ${last.timestamp}`,
@@ -273,8 +281,8 @@ function formatPreviousHandoff(handoffs: Handoff[]): string {
   ].join('\n')
 }
 
-function formatHandoffChain(handoffs: Handoff[]): string {
-  if (handoffs.length === 0) return 'No handoff history.'
+function formatHandoffChain(handoffs: Handoff[] | null | undefined): string {
+  if (!handoffs || handoffs.length === 0) return 'No handoff history.'
   return handoffs.map((h, i) =>
     `**Stage ${i + 1}: ${h.stage}** (${h.agent})\n${h.summary}`
   ).join('\n\n')
