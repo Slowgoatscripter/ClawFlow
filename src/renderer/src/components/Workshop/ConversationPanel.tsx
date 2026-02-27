@@ -32,11 +32,17 @@ export function ConversationPanel() {
   const handleSend = async () => {
     const trimmed = input.trim()
     if (!trimmed || !currentSessionId || isStreaming) return
+    const savedInput = input
     setInput('')
-    if (isPanelSession) {
-      await sendPanelMessage(currentSessionId, trimmed)
-    } else {
-      await useWorkshopStore.getState().sendMessage(currentSessionId, trimmed)
+    try {
+      if (isPanelSession) {
+        await sendPanelMessage(currentSessionId, trimmed)
+      } else {
+        await useWorkshopStore.getState().sendMessage(currentSessionId, trimmed)
+      }
+    } catch {
+      // Restore input so user can retry
+      setInput(savedInput)
     }
   }
 
