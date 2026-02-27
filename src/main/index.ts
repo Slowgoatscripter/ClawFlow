@@ -9,6 +9,20 @@ import { WorkshopEngine } from './workshop-engine'
 import { createSdkRunner, resolveApproval } from './sdk-manager'
 import { GitEngine } from './git-engine'
 import { UsageMonitor } from './usage-monitor'
+import {
+  listKnowledge,
+  getKnowledgeEntry,
+  getKnowledgeByKey,
+  createKnowledgeEntry,
+  updateKnowledgeEntry,
+  deleteKnowledgeEntry,
+  listCandidates,
+  promoteCandidate,
+  discardCandidate,
+  listGlobalKnowledge,
+  createGlobalKnowledgeEntry
+} from './knowledge-engine'
+import { listSkills, viewSkill, editSkill, loadSkillExtended } from './skill-loader'
 
 let mainWindow: BrowserWindow | null = null
 let currentEngine: PipelineEngine | null = null
@@ -426,12 +440,35 @@ function registerWindowIpc() {
   })
 }
 
+function registerKnowledgeIpc() {
+  ipcMain.handle('knowledge:list', (_e, dbPath: string, options?: any) => listKnowledge(dbPath, options))
+  ipcMain.handle('knowledge:get', (_e, dbPath: string, id: string) => getKnowledgeEntry(dbPath, id))
+  ipcMain.handle('knowledge:getByKey', (_e, dbPath: string, key: string) => getKnowledgeByKey(dbPath, key))
+  ipcMain.handle('knowledge:create', (_e, dbPath: string, entry: any) => createKnowledgeEntry(dbPath, entry))
+  ipcMain.handle('knowledge:update', (_e, dbPath: string, id: string, updates: any) => updateKnowledgeEntry(dbPath, id, updates))
+  ipcMain.handle('knowledge:delete', (_e, dbPath: string, id: string) => deleteKnowledgeEntry(dbPath, id))
+  ipcMain.handle('knowledge:listCandidates', (_e, dbPath: string, taskId?: string) => listCandidates(dbPath, taskId))
+  ipcMain.handle('knowledge:promote', (_e, dbPath: string, id: string, global: boolean) => promoteCandidate(dbPath, id, global))
+  ipcMain.handle('knowledge:discard', (_e, dbPath: string, id: string) => discardCandidate(dbPath, id))
+  ipcMain.handle('knowledge:listGlobal', () => listGlobalKnowledge())
+  ipcMain.handle('knowledge:createGlobal', (_e, entry: any) => createGlobalKnowledgeEntry(entry))
+}
+
+function registerSkillIpc() {
+  ipcMain.handle('skills:list', () => listSkills())
+  ipcMain.handle('skills:view', (_e, name: string, tier?: 'core' | 'extended') => viewSkill(name, tier))
+  ipcMain.handle('skills:edit', (_e, name: string, tier: 'core' | 'extended', content: string) => editSkill(name, tier, content))
+  ipcMain.handle('skills:fetchExtended', (_e, name: string) => loadSkillExtended(name))
+}
+
 app.whenReady().then(() => {
   registerIpcHandlers()
   registerPipelineIpc()
   registerWorkshopIpc()
   registerGitIpc()
   registerWindowIpc()
+  registerKnowledgeIpc()
+  registerSkillIpc()
   createWindow()
 })
 
