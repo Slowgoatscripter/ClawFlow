@@ -122,7 +122,8 @@ export class PipelineEngine extends EventEmitter {
       throw new Error(`Task blocked by incomplete dependencies: ${blockers.join(', ')}`)
     }
 
-    const firstStage = getFirstStage(task.tier)
+    const isGrouped = task.groupId !== null
+    const firstStage = isGrouped ? 'implement' as PipelineStage : getFirstStage(task.tier)
     const status = STAGE_TO_STATUS[firstStage] as TaskStatus
 
     const updated = updateTask(this.dbPath, taskId, {
