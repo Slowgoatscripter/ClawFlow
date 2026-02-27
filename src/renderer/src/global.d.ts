@@ -43,15 +43,23 @@ interface WindowApi {
   workshop: {
     startSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title?: string) => Promise<any>
     endSession: (sessionId: string) => Promise<void>
+    stopSession: (sessionId: string) => Promise<void>
+    deleteSession: (sessionId: string) => Promise<void>
     listSessions: (dbPath: string, projectPath: string, projectId: string, projectName: string) => Promise<any[]>
     getSession: (sessionId: string) => Promise<any>
     sendMessage: (sessionId: string, content: string) => Promise<void>
+    sendPanelMessage: (sessionId: string, content: string) => Promise<void>
+    triggerDiscuss: (sessionId: string) => Promise<void>
     listMessages: (dbPath: string, sessionId: string) => Promise<any[]>
     listArtifacts: () => Promise<any[]>
     getArtifact: (artifactId: string) => Promise<{ artifact: any; content: string | null }>
     createTasks: (sessionId: string, tasks: any[]) => Promise<void>
+    recoverSession: (sessionId: string) => Promise<void>
+    renameSession: (sessionId: string, title: string) => Promise<any>
+    startPanelSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title: string, panelPersonas: any[]) => Promise<any>
     onStream: (callback: (event: any) => void) => () => void
     onToolEvent: (callback: (event: any) => void) => () => void
+    onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void
   }
   knowledge: {
     list: (dbPath: string, options?: { category?: string; status?: string; includeArchived?: boolean }) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry[]>
