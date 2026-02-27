@@ -82,6 +82,7 @@ export function resolveApproval(requestId: string, approved: boolean, message?: 
 const MAX_RETRIES = 3
 const BASE_DELAY_MS = 1000
 const DEFAULT_RATE_LIMIT_WAIT_MS = 30000
+const MAX_RETRY_DELAY_MS = 120_000 // 2-minute cap on any retry delay
 
 const RETRYABLE_NETWORK_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED', 'EAI_AGAIN'])
 const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404, 422])
@@ -104,52 +105,68 @@ function getRetryDelay(error: unknown, attempt: number): number {
     const retryAfter = (error as any)?.headers?.['retry-after']
     if (retryAfter) {
       const parsed = parseInt(retryAfter, 10)
-      if (!isNaN(parsed)) return parsed * 1000
+      if (!isNaN(parsed)) return Math.min(parsed * 1000, MAX_RETRY_DELAY_MS)
     }
-    return DEFAULT_RATE_LIMIT_WAIT_MS
+    return Math.min(DEFAULT_RATE_LIMIT_WAIT_MS, MAX_RETRY_DELAY_MS)
   }
-  return BASE_DELAY_MS * Math.pow(2, attempt)
+  return Math.min(BASE_DELAY_MS * Math.pow(2, attempt), MAX_RETRY_DELAY_MS)
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (signal?.aborted) { resolve(); return }
+    const timer = setTimeout(resolve, ms)
+    const onAbort = () => { clearTimeout(timer); resolve() }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 export function createSdkRunner(win: BrowserWindow) {
   return async function runSdkSession(params: SdkRunnerParams): Promise<SdkResult> {
     let lastError: unknown
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      if (attempt > 0) {
-        const delay = getRetryDelay(lastError, attempt - 1)
-        console.log(`[sdk-manager] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms...`)
-        await sleep(delay)
-      }
-
-      try {
-        return await runSdkSessionOnce(win, params)
-      } catch (error) {
-        lastError = error
-        const errorMessage = error instanceof Error ? error.message : String(error)
-
-        if (!isRetryableError(error) || attempt === MAX_RETRIES) {
-          console.error(`[sdk-manager] Non-retryable error or max retries reached: ${errorMessage}`)
-          throw error
-        }
-
-        console.warn(`[sdk-manager] Retryable error (attempt ${attempt + 1}/${MAX_RETRIES}): ${errorMessage}`)
-      }
+    // Create a persistent controller for the entire retry sequence
+    const retryAbortController = new AbortController()
+    if (params.sessionKey) {
+      activeControllers.set(params.sessionKey, retryAbortController)
     }
 
-    throw lastError
+    try {
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          const delay = getRetryDelay(lastError, attempt - 1)
+          console.log(`[sdk-manager] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms...`)
+          await abortableSleep(delay, retryAbortController.signal)
+          if (retryAbortController.signal.aborted) {
+            throw new Error('Session aborted during retry backoff')
+          }
+        }
+
+        try {
+          return await runSdkSessionOnce(win, params, retryAbortController)
+        } catch (error) {
+          lastError = error
+          const errorMessage = error instanceof Error ? error.message : String(error)
+
+          if (!isRetryableError(error) || attempt === MAX_RETRIES) {
+            console.error(`[sdk-manager] Non-retryable error or max retries reached: ${errorMessage}`)
+            throw error
+          }
+
+          console.warn(`[sdk-manager] Retryable error (attempt ${attempt + 1}/${MAX_RETRIES}): ${errorMessage}`)
+        }
+      }
+
+      throw lastError
+    } finally {
+      if (params.sessionKey) {
+        activeControllers.delete(params.sessionKey)
+      }
+    }
   }
 }
 
-async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): Promise<SdkResult> {
-    const abortController = new AbortController()
-    if (params.sessionKey) {
-      activeControllers.set(params.sessionKey, abortController)
-    }
+async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, abortCtrl?: AbortController): Promise<SdkResult> {
+    const abortController = abortCtrl ?? new AbortController()
     let sessionId = ''
     let output = ''
     let cost = 0
@@ -351,9 +368,6 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
         if (params.dbPath && Object.keys(todoState).length > 0) {
           updateTask(params.dbPath, params.taskId, { todos: todoState })
         }
-      }
-      if (params.sessionKey) {
-        activeControllers.delete(params.sessionKey)
       }
     }
 }

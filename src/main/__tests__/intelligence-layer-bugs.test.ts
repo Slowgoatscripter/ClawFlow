@@ -31,6 +31,73 @@ describe('Bug 1: Knowledge dedup logic', () => {
   })
 })
 
+// --- Bug 2: Retry sleep not abort-aware + unbounded delay ---
+
+describe('Bug 2: Abort-aware sleep + delay cap', () => {
+  function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise<void>((resolve) => {
+      if (signal?.aborted) { resolve(); return }
+      const timer = setTimeout(resolve, ms)
+      const onAbort = () => { clearTimeout(timer); resolve() }
+      signal?.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+
+  const MAX_RETRY_DELAY_MS = 120_000
+
+  function getRetryDelayCapped(retryAfterSeconds: number | null, attempt: number): number {
+    const BASE_DELAY_MS = 1000
+    const DEFAULT_RATE_LIMIT_WAIT_MS = 30000
+    let delay: number
+    if (retryAfterSeconds !== null) {
+      delay = retryAfterSeconds * 1000
+    } else {
+      delay = BASE_DELAY_MS * Math.pow(2, attempt)
+    }
+    return Math.min(delay, MAX_RETRY_DELAY_MS)
+  }
+
+  test('abortableSleep resolves immediately when signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const start = Date.now()
+    await abortableSleep(60_000, controller.signal)
+    expect(Date.now() - start).toBeLessThan(100)
+  })
+
+  test('abortableSleep resolves early when aborted mid-sleep', async () => {
+    const controller = new AbortController()
+    const start = Date.now()
+    setTimeout(() => controller.abort(), 50)
+    await abortableSleep(60_000, controller.signal)
+    expect(Date.now() - start).toBeLessThan(500)
+  })
+
+  test('abortableSleep resolves normally without abort', async () => {
+    const start = Date.now()
+    await abortableSleep(50)
+    const elapsed = Date.now() - start
+    expect(elapsed).toBeGreaterThanOrEqual(40)
+    expect(elapsed).toBeLessThan(500)
+  })
+
+  test('retry delay caps at MAX_RETRY_DELAY_MS for huge retry-after', () => {
+    expect(getRetryDelayCapped(3600, 0)).toBe(MAX_RETRY_DELAY_MS)
+  })
+
+  test('retry delay uses retry-after when under cap', () => {
+    expect(getRetryDelayCapped(10, 0)).toBe(10_000)
+  })
+
+  test('exponential backoff caps at MAX_RETRY_DELAY_MS', () => {
+    expect(getRetryDelayCapped(null, 20)).toBe(MAX_RETRY_DELAY_MS)
+  })
+
+  test('exponential backoff works normally under cap', () => {
+    expect(getRetryDelayCapped(null, 2)).toBe(4000)
+  })
+})
+
 // --- Bug 8: rowToEntry crashes on corrupted tags JSON ---
 
 function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
