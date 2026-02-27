@@ -18,7 +18,7 @@ function ensureDirs() {
 
 let globalDb: Database.Database | null = null
 
-function getGlobalDb(): Database.Database {
+export function getGlobalDb(): Database.Database {
   if (globalDb) return globalDb
   ensureDirs()
   globalDb = new Database(GLOBAL_DB_PATH)
@@ -243,7 +243,7 @@ function initProjectDb(dbPath: string): Database.Database {
   return db
 }
 
-function getProjectDb(dbPath: string): Database.Database {
+export function getProjectDb(dbPath: string): Database.Database {
   let db = projectDbs.get(dbPath)
   if (db) return db
   db = initProjectDb(dbPath)
