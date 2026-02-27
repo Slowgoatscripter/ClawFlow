@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
-import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig } from '../shared/types'
+import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig, TaskArtifacts } from '../shared/types'
 import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS } from '../shared/constants'
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
-import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting } from './db'
+import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting, areDependenciesMet, getTaskDependencies, getTaskDependents, setTaskArtifacts, listTasks } from './db'
 import { SETTING_KEYS } from '../shared/settings'
 import { constructPrompt, constructContinuationPrompt, parseHandoff } from './template-engine'
 import { checkContextBudget } from './context-budget'
@@ -105,6 +105,17 @@ export class PipelineEngine extends EventEmitter {
 
     if (task.status !== 'backlog') {
       throw new Error(`Task ${taskId} is not in backlog (current status: ${task.status})`)
+    }
+
+    // Check dependencies are met before starting
+    if (!areDependenciesMet(this.dbPath, taskId)) {
+      const depIds = getTaskDependencies(this.dbPath, taskId)
+      const allTasks = listTasks(this.dbPath)
+      const blockers = depIds
+        .map(id => allTasks.find(t => t.id === id))
+        .filter(t => t && t.status !== 'done')
+        .map(t => t!.title)
+      throw new Error(`Task blocked by incomplete dependencies: ${blockers.join(', ')}`)
     }
 
     const firstStage = getFirstStage(task.tier)
@@ -246,7 +257,8 @@ export class PipelineEngine extends EventEmitter {
     const nextStage = getNextStage(task.tier, currentStage)
 
     if (!nextStage) {
-      // Pipeline complete
+      // Pipeline complete — extract artifacts before marking done
+      await this.extractArtifacts(taskId)
       updateTask(this.dbPath, taskId, {
         status: 'done' as TaskStatus,
         currentAgent: 'done',
@@ -508,6 +520,10 @@ export class PipelineEngine extends EventEmitter {
     // Continue pipeline with next stage (fresh session with rich handoff context injected)
     if (nextStage) {
       const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
+      // Extract artifacts before marking done
+      if (nextStage === 'done') {
+        await this.extractArtifacts(taskId)
+      }
       updateTask(this.dbPath, taskId, {
         status: nextStatus,
         currentAgent: nextStage,
@@ -712,6 +728,10 @@ export class PipelineEngine extends EventEmitter {
           const transition = canTransition(this.getTaskOrThrow(taskId), nextStage)
           if (transition.allowed) {
             const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
+            // Extract artifacts before marking done
+            if (nextStage === 'done') {
+              await this.extractArtifacts(taskId)
+            }
             // Update status and currentAgent before running the next stage
             // so the UI reflects the correct column during execution
             updateTask(this.dbPath, taskId, {
@@ -722,7 +742,8 @@ export class PipelineEngine extends EventEmitter {
             await this.runStage(taskId, nextStage)
           }
         } else {
-          // No next stage — pipeline complete
+          // No next stage — pipeline complete — extract artifacts before marking done
+          await this.extractArtifacts(taskId)
           updateTask(this.dbPath, taskId, {
             status: 'done' as TaskStatus,
             currentAgent: 'done',
@@ -825,15 +846,91 @@ export class PipelineEngine extends EventEmitter {
       }
     }
 
-    // Clean up worktree on task completion (keeps branch)
+    // Auto-merge and cleanup worktree on task completion
     if (stage === 'done' && this.gitEngine) {
       try {
-        await this.gitEngine.cleanupWorktree(taskId)
-        this.taskWorktrees.delete(taskId)
-      } catch (err: any) {
-        console.warn(`Git worktree cleanup failed for task ${taskId}: ${err.message}`)
+        // Auto-merge completed task branch to base
+        const mergeResult = await this.gitEngine.merge(taskId)
+        if (!mergeResult.success) {
+          this.emit('stream', {
+            taskId,
+            agent: 'pipeline',
+            type: 'error' as const,
+            content: `Auto-merge failed: ${mergeResult.message ?? 'merge conflict'}. Resolve manually before dependent tasks can start.`,
+            timestamp: new Date().toISOString()
+          })
+          // Don't cleanup worktree on merge failure
+          return
+        }
+      } catch (err) {
+        this.emit('stream', {
+          taskId,
+          agent: 'pipeline',
+          type: 'error' as const,
+          content: `Auto-merge error: ${err instanceof Error ? err.message : String(err)}`,
+          timestamp: new Date().toISOString()
+        })
+        return
+      }
+
+      // Check if any dependent tasks are now unblocked
+      const dependents = getTaskDependents(this.dbPath, taskId)
+      for (const depId of dependents) {
+        if (areDependenciesMet(this.dbPath, depId)) {
+          this.emit('task:unblocked', { taskId: depId })
+        }
+      }
+
+      await this.gitEngine.cleanupWorktree(taskId)
+      this.taskWorktrees.delete(taskId)
+    }
+  }
+
+  /**
+   * Extract artifact metadata from a completed task's agent log.
+   */
+  private async extractArtifacts(taskId: number): Promise<void> {
+    const task = getTask(this.dbPath, taskId)
+    if (!task) return
+
+    const artifacts: TaskArtifacts = {
+      filesCreated: [],
+      filesModified: [],
+      exportsAdded: [],
+      typesAdded: [],
+      summary: ''
+    }
+
+    // Extract file paths from agent log details
+    // Log entries with action containing 'write' or 'edit' may reference files
+    for (const entry of task.agentLog) {
+      if (entry.action === 'tool_use' || entry.action === 'stage:complete') {
+        // Parse file paths from details - look for common patterns
+        const writeMatch = entry.details.match(/(?:write|create|Write)\s+(?:to\s+)?["']?([^\s"',]+)/)
+        if (writeMatch) {
+          artifacts.filesCreated.push(writeMatch[1])
+        }
+        const editMatch = entry.details.match(/(?:edit|Edit|modify|Modify)\s+(?:to\s+)?["']?([^\s"',]+)/)
+        if (editMatch) {
+          artifacts.filesModified.push(editMatch[1])
+        }
       }
     }
+
+    // Deduplicate: if a file was both created and modified, keep only in created
+    const createdSet = new Set(artifacts.filesCreated)
+    artifacts.filesModified = Array.from(new Set(artifacts.filesModified)).filter(f => !createdSet.has(f))
+    artifacts.filesCreated = Array.from(createdSet)
+
+    // Build summary from implementation notes
+    if (task.implementationNotes) {
+      const notes = typeof task.implementationNotes === 'string'
+        ? task.implementationNotes
+        : JSON.stringify(task.implementationNotes)
+      artifacts.summary = notes.slice(0, 500)
+    }
+
+    setTaskArtifacts(this.dbPath, taskId, artifacts)
   }
 
   /**
