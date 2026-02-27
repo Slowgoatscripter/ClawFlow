@@ -4,6 +4,7 @@ import os from 'os'
 import fs from 'fs'
 import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff, WorkshopSession, WorkshopMessage, WorkshopArtifact, WorkshopTaskLink, WorkshopMessageRole, WorkshopMessageType, WorkshopArtifactType, WorkshopSessionType, PanelPersona, TaskArtifacts } from '../shared/types'
 import crypto from 'crypto'
+import { buildGraph, validateNoCycles } from './task-graph'
 
 const CLAWFLOW_DIR = path.join(os.homedir(), '.clawflow')
 const DBS_DIR = path.join(CLAWFLOW_DIR, 'dbs')
@@ -529,6 +530,20 @@ export function areDependenciesMet(dbPath: string, taskId: number): boolean {
 }
 
 export function addTaskDependencies(dbPath: string, taskId: number, depIds: number[]): void {
+  // Cycle validation: build hypothetical graph with proposed edges and check for cycles
+  const allTasks = listTasks(dbPath)
+  const targetTask = allTasks.find(t => t.id === taskId)
+  if (targetTask) {
+    const proposedDeps = [...new Set([...(targetTask.dependencyIds ?? []), ...depIds])]
+    targetTask.dependencyIds = proposedDeps
+    const graph = buildGraph(allTasks)
+    const validation = validateNoCycles(graph)
+    if (!validation.valid) {
+      console.warn(`Cycle detected in task dependencies: ${validation.cycle?.join(' -> ')}. Skipping dependency addition.`)
+      return
+    }
+  }
+
   const db = getProjectDb(dbPath)
   const insert = db.prepare(
     'INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)'
