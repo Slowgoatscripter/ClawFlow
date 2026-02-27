@@ -70,8 +70,8 @@ export function KanbanColumn({ status, tasks }: { status: TaskStatus; tasks: Tas
       {/* Scrollable task list */}
       {!(status === 'done' && collapsed) && (
         <div className="flex flex-col gap-2 overflow-y-auto flex-1 pr-1">
-          {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+          {tasks.map((task, index) => (
+            <TaskCard key={task.id} task={task} index={index} />
           ))}
         </div>
       )}

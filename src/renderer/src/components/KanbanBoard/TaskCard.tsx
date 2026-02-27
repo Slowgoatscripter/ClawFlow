@@ -41,7 +41,7 @@ function todoCounts(todos: Record<string, any[]> | undefined, status: string | u
   }
 }
 
-export function TaskCard({ task }: { task: Task }) {
+export function TaskCard({ task, index = 0 }: { task: Task; index?: number }) {
   const selectTask = useTaskStore((s) => s.selectTask)
   const archiveTask = useTaskStore((s) => s.archiveTask)
   const allTasks = useTaskStore((s) => s.tasks)
@@ -76,10 +76,18 @@ export function TaskCard({ task }: { task: Task }) {
     }
   }
 
+  const runningStyle = isRunning ? {
+    background: `linear-gradient(var(--color-elevated), var(--color-elevated)) padding-box, linear-gradient(90deg, var(--color-accent-cyan), var(--color-accent-violet), var(--color-accent-cyan)) border-box`,
+    border: '2px solid transparent',
+    backgroundSize: '100% 100%, 200% 100%',
+    animation: 'neon-border-sweep 4s linear infinite',
+  } : {}
+
   return (
     <div
       onClick={handleClick}
-      className={`relative group bg-elevated rounded-lg p-3 cursor-pointer border border-transparent hover:border-border-bright hover:shadow-[0_0_12px_rgba(0,229,255,0.06)] transition-colors ${isAwaiting ? 'animate-[glow-pulse_2s_ease-in-out_infinite]' : ''}`}
+      style={{ animationDelay: `${index * 50}ms`, ...runningStyle }}
+      className={`relative group bg-elevated rounded-lg p-3 cursor-pointer ${isRunning ? '' : 'border border-transparent'} hover:border-border-bright hover:shadow-[0_0_12px_rgba(0,229,255,0.06)] transition-colors animate-[stagger-in_0.2s_cubic-bezier(0.4,0,0.2,1)_both] ${isAwaiting ? 'animate-[glow-pulse_3s_ease-in-out_infinite] border-l-[3px] border-l-accent-amber' : ''}`}
     >
       {/* Pause/resume buttons */}
       {isRunning && (

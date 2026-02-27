@@ -35,15 +35,17 @@ export default function App() {
   }, [])
 
   return (
-    <div className={`h-screen bg-bg flex flex-col density-${density} font-size-${fontSize}`}>
+    <div className={`h-screen bg-bg flex flex-col density-${density} font-size-${fontSize} scanlines`}>
       <TitleBar />
       <ErrorBoundary>
-        <div className="flex-1 min-h-0">
-          {view === 'projects' && <ProjectSelector />}
-          {view === 'dashboard' && <Dashboard />}
-          {view === 'task-detail' && <TaskDetail />}
-          {view === 'workshop' && <Workshop />}
-          {view === 'git' && <Git />}
+        <div className="flex-1 min-h-0" key={view}>
+          <div className="h-full animate-[fade-scale-in_0.3s_cubic-bezier(0.4,0,0.2,1)]">
+            {view === 'projects' && <ProjectSelector />}
+            {view === 'dashboard' && <Dashboard />}
+            {view === 'task-detail' && <TaskDetail />}
+            {view === 'workshop' && <Workshop />}
+            {view === 'git' && <Git />}
+          </div>
         </div>
       </ErrorBoundary>
       {approvalRequest && <ApprovalDialog />}

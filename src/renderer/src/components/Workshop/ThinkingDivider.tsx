@@ -9,9 +9,9 @@ export function ThinkingDivider({ isActive = false }: ThinkingDividerProps) {
       {isActive ? (
         <span className="text-xs text-text-muted flex items-center gap-1">
           <span className="flex gap-0.5">
-            <span className="w-1 h-1 rounded-full bg-accent-cyan animate-bounce [animation-delay:0ms]" />
-            <span className="w-1 h-1 rounded-full bg-accent-cyan animate-bounce [animation-delay:150ms]" />
-            <span className="w-1 h-1 rounded-full bg-accent-cyan animate-bounce [animation-delay:300ms]" />
+            <span className="w-1 h-1 rounded-full bg-accent-cyan shadow-[0_0_4px_rgba(0,229,255,0.3)] animate-bounce [animation-delay:0ms]" />
+            <span className="w-1 h-1 rounded-full bg-accent-cyan shadow-[0_0_4px_rgba(0,229,255,0.3)] animate-bounce [animation-delay:150ms]" />
+            <span className="w-1 h-1 rounded-full bg-accent-cyan shadow-[0_0_4px_rgba(0,229,255,0.3)] animate-bounce [animation-delay:300ms]" />
           </span>
           thinking
         </span>

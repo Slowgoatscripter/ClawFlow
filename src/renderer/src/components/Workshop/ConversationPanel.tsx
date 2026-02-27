@@ -105,7 +105,7 @@ export function ConversationPanel() {
         )}
         {isStreaming && streamingSegments.length === 0 && (
           <div className="flex items-center gap-2 text-text-muted text-sm">
-            <div className="w-2 h-2 rounded-full bg-accent-cyan animate-pulse" />
+            <div className="w-0.5 h-4 bg-accent-cyan shadow-[0_0_6px_rgba(0,229,255,0.5)] animate-[cursor-blink_1.2s_steps(1)_infinite]" />
             Claude is {currentToolActivity ?? 'thinking'}...
           </div>
         )}
