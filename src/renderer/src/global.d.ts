@@ -31,10 +31,16 @@ interface WindowApi {
     pauseAll: () => Promise<number>
     onContextUpdate: (cb: (data: { taskId: number; contextTokens: number; contextMax: number }) => void) => () => void
     approveContextHandoff: (taskId: number) => Promise<void>
+    rejectContextHandoff: (taskId: number) => Promise<void>
     onContextHandoff: (callback: (data: { taskId: number; currentStage: string; nextStage: string; usagePercent: number; remainingTokens: number; estimatedNeed: number }) => void) => () => void
+    onContextDegraded: (callback: (data: { taskId: number; nextStage: string; message: string }) => void) => () => void
     onTaskUnblocked: (callback: (data: { taskId: number }) => void) => () => void
     onReviewCandidates: (callback: (data: any) => void) => () => void
     onTaskMerged: (callback: (data: any) => void) => () => void
+    launchGroup: (groupId: number) => Promise<any>
+    pauseGroup: (groupId: number) => Promise<any>
+    resumeGroup: (groupId: number) => Promise<any>
+    getGroupStatus: (groupId: number) => Promise<any>
   }
   usage: {
     getSnapshot: () => Promise<any>

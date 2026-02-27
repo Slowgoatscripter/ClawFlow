@@ -58,11 +58,17 @@ contextBridge.exposeInMainWorld('api', {
       return () => ipcRenderer.removeListener('pipeline:context-update', handler)
     },
     approveContextHandoff: (taskId: number) => ipcRenderer.invoke('pipeline:approveContextHandoff', taskId),
+    rejectContextHandoff: (taskId: number) => ipcRenderer.invoke('pipeline:rejectContextHandoff', taskId),
     restartToStage: (taskId: number, stage: string) => ipcRenderer.invoke('pipeline:restartToStage', taskId, stage),
     onContextHandoff: (callback: (data: any) => void) => {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('pipeline:contextHandoff', handler)
       return () => ipcRenderer.removeListener('pipeline:contextHandoff', handler)
+    },
+    onContextDegraded: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:contextDegraded', handler)
+      return () => ipcRenderer.removeListener('pipeline:contextDegraded', handler)
     },
     onTaskUnblocked: (callback: (data: { taskId: number }) => void) => {
       const handler = (_e: any, data: any) => callback(data)
@@ -79,6 +85,10 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('pipeline:task-merged', handler)
       return () => { ipcRenderer.removeListener('pipeline:task-merged', handler) }
     },
+    launchGroup: (groupId: number) => ipcRenderer.invoke('pipeline:launchGroup', groupId),
+    pauseGroup: (groupId: number) => ipcRenderer.invoke('pipeline:pauseGroup', groupId),
+    resumeGroup: (groupId: number) => ipcRenderer.invoke('pipeline:resumeGroup', groupId),
+    getGroupStatus: (groupId: number) => ipcRenderer.invoke('pipeline:getGroupStatus', groupId),
   },
   usage: {
     getSnapshot: () => ipcRenderer.invoke('usage:get-snapshot'),
