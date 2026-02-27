@@ -31,6 +31,55 @@ describe('Bug 1: Knowledge dedup logic', () => {
   })
 })
 
+// --- Bug 6: Pending approval promises leak on session abort ---
+
+describe('Bug 6: Pending approval cleanup', () => {
+  test('session-scoped approval IDs are tracked and only session entries cleaned', () => {
+    const globalMap = new Map<string, { resolve: (v: string) => void }>()
+    const sessionIds = new Set<string>()
+
+    globalMap.set('req-1', { resolve: () => {} })
+    sessionIds.add('req-1')
+    globalMap.set('req-2', { resolve: () => {} })
+    sessionIds.add('req-2')
+
+    // Approval from a different session
+    globalMap.set('other-session-req', { resolve: () => {} })
+
+    expect(globalMap.size).toBe(3)
+
+    // Simulate cleanup — only clean session-scoped IDs
+    for (const reqId of sessionIds) {
+      globalMap.delete(reqId)
+    }
+
+    expect(globalMap.size).toBe(1)
+    expect(globalMap.has('other-session-req')).toBe(true)
+    expect(globalMap.has('req-1')).toBe(false)
+    expect(globalMap.has('req-2')).toBe(false)
+  })
+
+  test('cleanup resolves dangling promises with deny', () => {
+    const resolved: string[] = []
+    const globalMap = new Map<string, { resolve: (v: any) => void }>()
+    const sessionIds = new Set<string>()
+
+    globalMap.set('req-a', { resolve: (v) => resolved.push(`a:${v.behavior}`) })
+    sessionIds.add('req-a')
+
+    for (const reqId of sessionIds) {
+      const pending = globalMap.get(reqId)
+      if (pending) {
+        pending.resolve({ behavior: 'deny', message: 'Session ended' })
+        globalMap.delete(reqId)
+      }
+    }
+
+    expect(resolved).toEqual(['a:deny'])
+    expect(globalMap.size).toBe(0)
+  })
+})
+
 // --- Bug 3: promoteCandidate duplicates global entries ---
 
 describe('Bug 3: Global knowledge dedup on promotion', () => {

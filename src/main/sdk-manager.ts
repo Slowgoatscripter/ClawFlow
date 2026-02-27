@@ -178,6 +178,7 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
     const todoState: Record<string, Array<{ id: string; subject: string; status: string; createdAt: string; updatedAt: string }>> = {}
     let todoPersistTimer: ReturnType<typeof setTimeout> | null = null
     const currentStage = params.stage || 'implement'
+    const sessionApprovalIds = new Set<string>()
 
     try {
     const q = query({
@@ -228,6 +229,7 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
           }
 
           const requestId = randomUUID()
+          sessionApprovalIds.add(requestId)
           params.onApprovalRequest(requestId, toolName, toolInput)
           win.webContents.send('pipeline:approval-request', {
             requestId,
@@ -367,6 +369,14 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
         clearTimeout(todoPersistTimer)
         if (params.dbPath && Object.keys(todoState).length > 0) {
           updateTask(params.dbPath, params.taskId, { todos: todoState })
+        }
+      }
+      // Clean up any dangling approval promises from this session
+      for (const reqId of sessionApprovalIds) {
+        const pending = pendingApprovals.get(reqId)
+        if (pending) {
+          pending.resolve({ behavior: 'deny', message: 'Session ended' })
+          pendingApprovals.delete(reqId)
         }
       }
     }
