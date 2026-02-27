@@ -8,6 +8,7 @@ import {
   type UIFontSize,
 } from '../../../shared/settings'
 import type { PipelineStage } from '../../../shared/types'
+import type { ValidationHook } from '../../../shared/hook-types'
 
 interface SettingsStore extends SettingsState {
   settingsModalOpen: boolean
@@ -34,6 +35,10 @@ interface SettingsStore extends SettingsState {
   setActivityFeedDefault: (open: boolean) => Promise<void>
   setDensity: (density: UIDensity) => Promise<void>
   setFontSize: (size: UIFontSize) => Promise<void>
+
+  // Hook setters
+  setHookPreset: (preset: string | null, projectDbPath: string) => Promise<void>
+  setHooks: (hooks: Record<string, ValidationHook[]>, projectDbPath: string) => Promise<void>
 
   // Reset
   resetToDefaults: () => Promise<void>
@@ -76,6 +81,23 @@ function parseSettingsRecord(
       partial.density = value as UIDensity
     } else if (key === SETTING_KEYS.UI_FONT_SIZE) {
       partial.fontSize = value as UIFontSize
+    } else if (key === SETTING_KEYS.HOOK_PRESET) {
+      partial.hookPreset = value === 'null' ? null : value
+    } else if (key.startsWith(SETTING_KEYS.HOOK_PRE_PREFIX) || key.startsWith(SETTING_KEYS.HOOK_POST_PREFIX)) {
+      try {
+        const hooks = partial.hooks ?? {}
+        // Determine the stage key: e.g. "pipeline.hooks.pre.implement" → "pre.implement"
+        let stageKey: string
+        if (key.startsWith(SETTING_KEYS.HOOK_PRE_PREFIX)) {
+          stageKey = 'pre.' + key.slice(SETTING_KEYS.HOOK_PRE_PREFIX.length)
+        } else {
+          stageKey = 'post.' + key.slice(SETTING_KEYS.HOOK_POST_PREFIX.length)
+        }
+        hooks[stageKey] = JSON.parse(value) as ValidationHook[]
+        partial.hooks = hooks
+      } catch {
+        // ignore malformed hook JSON
+      }
     }
   }
 
@@ -237,6 +259,26 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setFontSize: async (size: UIFontSize) => {
     await window.api.settings.setGlobal(SETTING_KEYS.UI_FONT_SIZE, size)
     set({ fontSize: size })
+  },
+
+  // --- Hook setters ---
+  setHookPreset: async (preset: string | null, projectDbPath: string) => {
+    await window.api.settings.setProject(projectDbPath, SETTING_KEYS.HOOK_PRESET, preset === null ? 'null' : preset)
+    set({ hookPreset: preset })
+  },
+
+  setHooks: async (hooks: Record<string, ValidationHook[]>, projectDbPath: string) => {
+    // Persist each stage bucket under its prefix key
+    for (const [stageKey, hookList] of Object.entries(hooks)) {
+      let settingsKey: string
+      if (stageKey.startsWith('pre.')) {
+        settingsKey = SETTING_KEYS.HOOK_PRE_PREFIX + stageKey.slice('pre.'.length)
+      } else {
+        settingsKey = SETTING_KEYS.HOOK_POST_PREFIX + stageKey.slice('post.'.length)
+      }
+      await window.api.settings.setProject(projectDbPath, settingsKey, JSON.stringify(hookList))
+    }
+    set({ hooks })
   },
 
   // --- Reset ---
