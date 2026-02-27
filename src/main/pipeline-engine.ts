@@ -1,13 +1,13 @@
 import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
-import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig, TaskArtifacts } from '../shared/types'
-import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS, getClearFieldsPayload } from '../shared/constants'
+import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig, TaskArtifacts, TaskGroup } from '../shared/types'
+import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS, getClearFieldsPayload, GROUPED_STAGES } from '../shared/constants'
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
-import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting, areDependenciesMet, getTaskDependencies, getTaskDependents, setTaskArtifacts, listTasks } from './db'
+import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting, areDependenciesMet, getTaskDependencies, getTaskDependents, setTaskArtifacts, listTasks, getTaskGroup, updateTaskGroup, getTasksByGroup } from './db'
 import { createKnowledgeEntry, listCandidates } from './knowledge-engine'
 import { SETTING_KEYS } from '../shared/settings'
-import { constructPrompt, constructContinuationPrompt, parseHandoff } from './template-engine'
+import { constructPrompt, constructContinuationPrompt, constructGroupedPrompt, parseHandoff } from './template-engine'
 import { checkContextBudget } from './context-budget'
 import { getHooksForStage, runHooks } from './hook-runner'
 import { GitEngine } from './git-engine'
@@ -594,6 +594,53 @@ ${feedback}`
       })
       updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
       this.emit('stage:error', { taskId, stage: currentStage, error: `Context handoff failed: ${errorMessage}` })
+    }
+  }
+
+  /**
+   * Reject a context handoff — skip the fresh session and continue in the
+   * existing (large) session. Emits a degradation warning to the UI before
+   * advancing, so the user knows quality may degrade.
+   */
+  async rejectContextHandoff(taskId: number): Promise<void> {
+    const task = this.getTaskOrThrow(taskId)
+    const currentStage = task.currentAgent as PipelineStage
+    const nextStage = getNextStage(task.tier, currentStage)
+
+    appendAgentLog(this.dbPath, taskId, {
+      timestamp: new Date().toISOString(),
+      agent: 'pipeline-engine',
+      model: 'system',
+      action: 'context_handoff_rejected',
+      details: `User rejected context handoff. Advancing to ${nextStage} in same session (context may be degraded).`
+    })
+
+    if (nextStage) {
+      const transition = canTransition(task, nextStage)
+      if (!transition.allowed) {
+        updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
+        this.emit('circuit-breaker', { taskId, reason: transition.reason })
+        return
+      }
+
+      const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
+      if (nextStage === 'done') {
+        await this.extractArtifacts(taskId)
+      }
+      updateTask(this.dbPath, taskId, {
+        status: nextStatus,
+        currentAgent: nextStage,
+        ...(nextStage === 'done' ? { completedAt: new Date().toISOString() } : {})
+      })
+
+      // Warn renderer that we are continuing without a context handoff
+      this.emit('stage:context_degraded', {
+        taskId,
+        nextStage,
+        message: 'Continuing without context handoff. Quality may degrade as the context window is nearly full.'
+      })
+
+      await this.runStage(taskId, nextStage)
     }
   }
 
@@ -1211,6 +1258,306 @@ ${feedback}`
     this.rejectionHistory.set(key, history)
 
     return { similar: similarity > 0.5, previous: lastFeedback }
+  }
+
+  // --- Group Operations ---
+
+  /**
+   * Launch all tasks in a group in parallel.
+   * Validates file ownership conflicts, creates worktrees, and runs grouped stages.
+   */
+  async launchGroup(groupId: number): Promise<void> {
+    const group = getTaskGroup(this.dbPath, groupId)
+    if (!group) throw new Error(`Group ${groupId} not found`)
+    if (group.status !== 'queued') throw new Error(`Group ${groupId} is not queued (status: ${group.status})`)
+
+    const tasks = getTasksByGroup(this.dbPath, groupId)
+    if (tasks.length === 0) throw new Error(`Group ${groupId} has no tasks`)
+
+    // Validate no file ownership conflicts
+    const fileOwnership = new Map<string, number>()
+    for (const task of tasks) {
+      if (!task.workOrder?.files) continue
+      for (const file of task.workOrder.files) {
+        const existing = fileOwnership.get(file.path)
+        if (existing !== undefined) {
+          throw new Error(`File conflict: "${file.path}" is assigned to both Task #${existing} and Task #${task.id}`)
+        }
+        fileOwnership.set(file.path, task.id)
+      }
+    }
+
+    updateTaskGroup(this.dbPath, groupId, { status: 'running' })
+    this.emit('group:launched', { groupId, taskCount: tasks.length })
+
+    // Launch all tasks in parallel
+    const launchPromises = tasks.map(async (task) => {
+      try {
+        if (this.gitEngine) {
+          try {
+            const worktreePath = await this.gitEngine.createWorktree(task.id, task.title)
+            this.taskWorktrees.set(task.id, worktreePath)
+          } catch (err: any) {
+            console.warn(`Git worktree creation failed for task ${task.id}: ${err.message}`)
+          }
+        }
+
+        updateTask(this.dbPath, task.id, {
+          status: 'implementing' as TaskStatus,
+          currentAgent: 'implement',
+          startedAt: new Date().toISOString()
+        })
+
+        appendAgentLog(this.dbPath, task.id, {
+          timestamp: new Date().toISOString(),
+          agent: 'pipeline-engine',
+          model: 'system',
+          action: 'group-launch',
+          details: `Task launched as part of group "${group.title}" (group #${groupId})`
+        })
+
+        const prompt = constructGroupedPrompt(task, group.sharedContext, tasks, this.projectPath, this.dbPath)
+        await this.runGroupedStage(task.id, 'implement', prompt)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        this.emit('stage:error', { taskId: task.id, stage: 'implement', error: errorMessage })
+        await this.pauseGroup(groupId, `Task #${task.id} failed: ${errorMessage}`)
+      }
+    })
+
+    await Promise.allSettled(launchPromises)
+
+    // Check if all tasks completed
+    const updatedTasks = getTasksByGroup(this.dbPath, groupId)
+    const allDone = updatedTasks.every(t => t.status === 'done')
+    if (allDone) {
+      updateTaskGroup(this.dbPath, groupId, { status: 'completed' })
+      this.emit('group:completed', { groupId })
+    }
+  }
+
+  /**
+   * Pause all active tasks in a group.
+   */
+  async pauseGroup(groupId: number, reason?: string): Promise<number> {
+    const group = getTaskGroup(this.dbPath, groupId)
+    if (!group) throw new Error(`Group ${groupId} not found`)
+
+    const tasks = getTasksByGroup(this.dbPath, groupId)
+    const activeStatuses = ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying']
+    let pausedCount = 0
+
+    for (const task of tasks) {
+      if (activeStatuses.includes(task.status)) {
+        try {
+          await this.pauseTask(task.id, 'manual')
+          pausedCount++
+        } catch (err) {
+          console.warn(`Could not pause task ${task.id}: ${(err as Error).message}`)
+        }
+      }
+    }
+
+    updateTaskGroup(this.dbPath, groupId, { status: 'paused' })
+    this.emit('group:paused', { groupId, pausedCount, reason })
+    return pausedCount
+  }
+
+  /**
+   * Resume all paused tasks in a group.
+   */
+  async resumeGroup(groupId: number): Promise<number> {
+    const group = getTaskGroup(this.dbPath, groupId)
+    if (!group) throw new Error(`Group ${groupId} not found`)
+    if (group.status !== 'paused') throw new Error(`Group ${groupId} is not paused (status: ${group.status})`)
+
+    const tasks = getTasksByGroup(this.dbPath, groupId)
+    let resumedCount = 0
+
+    updateTaskGroup(this.dbPath, groupId, { status: 'running' })
+
+    for (const task of tasks) {
+      if (task.status === 'paused') {
+        try {
+          await this.resumeTask(task.id)
+          resumedCount++
+        } catch (err) {
+          console.warn(`Could not resume task ${task.id}: ${(err as Error).message}`)
+        }
+      }
+    }
+
+    this.emit('group:resumed', { groupId, resumedCount })
+    return resumedCount
+  }
+
+  /**
+   * Get the status of a group and all its tasks.
+   */
+  getGroupStatus(groupId: number): { group: TaskGroup; tasks: Array<{ id: number; title: string; status: TaskStatus; stage: string | null }> } {
+    const group = getTaskGroup(this.dbPath, groupId)
+    if (!group) throw new Error(`Group ${groupId} not found`)
+
+    const tasks = getTasksByGroup(this.dbPath, groupId)
+    return {
+      group,
+      tasks: tasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        stage: t.currentAgent
+      }))
+    }
+  }
+
+  // --- Private Group Methods ---
+
+  /**
+   * Run a stage for a grouped task. Simplified version of runStage that:
+   * - Uses pre-built prompts for the initial implement stage
+   * - Always runs in autoMode (no pause gates)
+   * - Auto-advances through GROUPED_STAGES sequence
+   * - For post-implement stages, builds standard prompts via constructPrompt
+   */
+  private async runGroupedStage(taskId: number, stage: PipelineStage, prompt: string): Promise<void> {
+    if (!this.sdkRunner) {
+      throw new Error('SDK runner not set. Call setSdkRunner() before running stages.')
+    }
+
+    const task = this.getTaskOrThrow(taskId)
+    const stageConfig = getEffectiveStageConfig(stage, this.dbPath)
+
+    this.emit('stage:start', { taskId, stage })
+
+    appendAgentLog(this.dbPath, taskId, {
+      timestamp: new Date().toISOString(),
+      agent: stage,
+      model: stageConfig.model,
+      action: 'start',
+      details: `Starting grouped stage: ${stage}`
+    })
+
+    try {
+      const sessionKey = `${taskId}-${stage}`
+
+      const sdkPromise = this.sdkRunner({
+        prompt,
+        model: stageConfig.model,
+        maxTurns: stageConfig.maxTurns,
+        cwd: this.taskWorktrees.get(taskId) ?? this.projectPath,
+        taskId,
+        autoMode: true,
+        sessionKey,
+        stage,
+        dbPath: this.dbPath,
+        onStream: (content: string, type: string) => {
+          if (type === 'context') {
+            const parsed = JSON.parse(content)
+            this.contextUsage.set(taskId, { tokens: parsed.contextTokens, max: parsed.contextMax })
+            this.emit('context-update', { taskId, stage, ...parsed })
+          } else {
+            this.emit('stream', { taskId, stage, content, type })
+          }
+        },
+        onApprovalRequest: (requestId: string, toolName: string, toolInput: Record<string, unknown>) => {
+          this.emit('approval-request', { taskId, stage, requestId, toolName, toolInput })
+        }
+      })
+
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timeoutHandle = setTimeout(() => {
+          abortSession(sessionKey)
+          reject(new Error(`Stage '${stage}' timed out after ${stageConfig.timeoutMs}ms`))
+        }, stageConfig.timeoutMs)
+      })
+
+      let result: SdkResult
+      try {
+        result = await Promise.race([sdkPromise, timeoutPromise])
+      } finally {
+        clearTimeout(timeoutHandle)
+      }
+
+      if (result.sessionId) {
+        this.sessionIds.set(taskId, result.sessionId)
+        updateTask(this.dbPath, taskId, { activeSessionId: result.sessionId })
+      }
+
+      if (result.contextTokens !== undefined) {
+        this.contextUsage.set(taskId, {
+          tokens: result.contextTokens,
+          max: result.contextMax || 200_000,
+        })
+      }
+
+      const handoff = parseHandoff(result.output)
+      const handoffRecord: Handoff = {
+        stage,
+        agent: stage,
+        model: stageConfig.model,
+        timestamp: new Date().toISOString(),
+        status: handoff?.status ?? 'completed',
+        summary: handoff?.summary ?? '',
+        keyDecisions: handoff?.keyDecisions ?? '',
+        openQuestions: handoff?.openQuestions ?? '',
+        filesModified: handoff?.filesModified ?? '',
+        nextStageNeeds: handoff?.nextStageNeeds ?? '',
+        warnings: handoff?.warnings ?? ''
+      }
+
+      appendHandoff(this.dbPath, taskId, handoffRecord)
+      await this.storeStageOutput(taskId, stage, result)
+
+      this.emit('stage:complete', { taskId, stage })
+      this.emit('group:task-stage-complete', {
+        taskId,
+        stage,
+        groupId: task.groupId,
+        summary: handoffRecord.summary
+      })
+
+      // Auto-advance through grouped stages
+      const stageIndex = GROUPED_STAGES.indexOf(stage)
+      if (stageIndex < GROUPED_STAGES.length - 1) {
+        const nextStage = GROUPED_STAGES[stageIndex + 1]
+        const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
+
+        if (nextStage === 'done') {
+          await this.extractArtifacts(taskId)
+          updateTask(this.dbPath, taskId, {
+            status: 'done' as TaskStatus,
+            currentAgent: 'done',
+            completedAt: new Date().toISOString()
+          })
+          return
+        }
+
+        updateTask(this.dbPath, taskId, {
+          status: nextStatus,
+          currentAgent: nextStage
+        })
+
+        const nextPrompt = constructPrompt(nextStage, this.getTaskOrThrow(taskId), this.projectPath, undefined, this.dbPath)
+        await this.runGroupedStage(taskId, nextStage, nextPrompt)
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      appendAgentLog(this.dbPath, taskId, {
+        timestamp: new Date().toISOString(),
+        agent: stage,
+        model: stageConfig.model,
+        action: 'error',
+        details: errorMessage
+      })
+
+      const currentTask = getTask(this.dbPath, taskId)
+      if (currentTask && currentTask.status !== 'paused') {
+        updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
+      }
+
+      throw error
+    }
   }
 
   /**
