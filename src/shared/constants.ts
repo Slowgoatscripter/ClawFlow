@@ -100,3 +100,52 @@ export const STAGE_TO_STATUS: Record<PipelineStage, string> = {
   verify: 'verifying',
   done: 'done'
 }
+
+/** DB fields to clear when restarting from each stage */
+export const STAGE_CLEAR_FIELDS: Record<string, string[]> = {
+  brainstorm: ['brainstormOutput'],
+  design_review: ['designReview'],
+  plan: ['plan', 'planReviewCount'],
+  implement: ['implementationNotes', 'commitHash'],
+  code_review: ['reviewComments', 'reviewScore', 'implReviewCount'],
+  verify: ['testResults', 'verifyResult'],
+  done: ['completedAt']
+}
+
+/**
+ * Returns the DB update payload to clear all stage fields at and after targetStage
+ * for the given tier's stage sequence.
+ */
+export function getClearFieldsPayload(
+  tier: 'L1' | 'L2' | 'L3',
+  targetStage: string
+): Record<string, null | number | never[]> {
+  const stages = TIER_STAGES[tier]
+  const targetIndex = stages.indexOf(targetStage as PipelineStage)
+  if (targetIndex === -1) return {}
+
+  const payload: Record<string, null | number | never[]> = {}
+
+  for (let i = targetIndex; i < stages.length; i++) {
+    const stage = stages[i]
+    const fields = STAGE_CLEAR_FIELDS[stage]
+    if (!fields) continue
+    for (const field of fields) {
+      // Reset counters to 0, everything else to null
+      if (field.endsWith('Count')) {
+        payload[field] = 0
+      } else {
+        payload[field] = null
+      }
+    }
+  }
+
+  // Always clear these on any restart
+  payload['activeSessionId'] = null
+  payload['richHandoff'] = null
+  payload['currentAgent'] = null
+  payload['todos'] = null
+  payload['handoffs'] = []
+
+  return payload
+}
