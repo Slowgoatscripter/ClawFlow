@@ -27,5 +27,3 @@ Skill instructions for this stage are appended below. Follow them exactly. Write
 - Follow TDD: failing test → minimal implementation → passing test → commit.
 - Commit after each logical unit of work.
 - If the plan is ambiguous, make the conservative choice and note it in your handoff.
-
-Sign your work: > **Builder** `opus` · {{timestamp}}

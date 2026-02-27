@@ -26,5 +26,3 @@ Skill instructions for this stage are appended below. Follow them exactly. Prese
 1. Ensure all changes are committed
 2. Record the final commit hash
 3. Present integration options: merge to main, create PR, or leave on branch
-
-Sign your work: > **Finisher** `sonnet` · {{timestamp}}

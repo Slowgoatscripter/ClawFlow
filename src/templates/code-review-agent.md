@@ -48,5 +48,3 @@ Output your scores as a JSON block:
 ```json
 { "quality": N, "errorHandling": N, "types": N, "security": N, "performance": N, "coverage": N, "average": N, "verdict": "approve|reject|approve_with_comments" }
 ```
-
-Sign your work: > **Inspector** `sonnet` · {{timestamp}}

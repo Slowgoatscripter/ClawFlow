@@ -39,5 +39,3 @@ Output your results as a JSON block:
 ```json
 { "passed": true|false, "lintErrors": N, "buildErrors": N, "testsPassed": N, "testsFailed": N, "details": "..." }
 ```
-
-Sign your work: > **Verifier** `sonnet` · {{timestamp}}

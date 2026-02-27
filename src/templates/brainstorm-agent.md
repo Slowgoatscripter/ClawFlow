@@ -22,5 +22,3 @@ Skill instructions for this stage are appended below. Follow them exactly.
 ## Output
 
 Produce a thorough design document exploring the problem, proposing 2-3 approaches, and recommending one. Follow the skill's format.
-
-Sign your work: > **Brainstormer** `opus` · {{timestamp}}

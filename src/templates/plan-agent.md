@@ -26,5 +26,3 @@ Skill instructions for this stage are appended below. Follow them exactly — bi
 ## Output
 
 Produce a numbered implementation plan following the skill's format. Every task must have exact file paths, code, test commands, and expected outputs.
-
-Sign your work: > **Planner** `opus` · {{timestamp}}
