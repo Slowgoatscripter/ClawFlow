@@ -683,7 +683,7 @@ export class PipelineEngine extends EventEmitter {
         }
       }
 
-      prompt = constructPrompt(stage, task, this.projectPath, dependencyContext)
+      prompt = constructPrompt(stage, task, this.projectPath, dependencyContext, this.dbPath)
 
       // Auto mode: inject autonomous decision-making instructions
       if (task.autoMode) {
