@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff, WorkshopSession, WorkshopMessage, WorkshopArtifact, WorkshopTaskLink, WorkshopMessageRole, WorkshopMessageType, WorkshopArtifactType, WorkshopSessionType, PanelPersona } from '../shared/types'
+import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff, WorkshopSession, WorkshopMessage, WorkshopArtifact, WorkshopTaskLink, WorkshopMessageRole, WorkshopMessageType, WorkshopArtifactType, WorkshopSessionType, PanelPersona, TaskArtifacts } from '../shared/types'
 import crypto from 'crypto'
 
 const CLAWFLOW_DIR = path.join(os.homedir(), '.clawflow')
@@ -198,6 +198,15 @@ function initProjectDb(dbPath: string): Database.Database {
       value TEXT NOT NULL
     )
   `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      task_id INTEGER NOT NULL,
+      depends_on_task_id INTEGER NOT NULL,
+      PRIMARY KEY (task_id, depends_on_task_id),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
   return db
 }
 
@@ -224,11 +233,21 @@ export function getTask(dbPath: string, taskId: number): Task | null {
 export function createTask(dbPath: string, input: CreateTaskInput): Task {
   const db = getProjectDb(dbPath)
   const result = db.prepare(`
-    INSERT INTO tasks (title, description, tier, priority, auto_mode)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(input.title, input.description, input.tier, input.priority, input.autoMode ? 1 : 0)
+    INSERT INTO tasks (title, description, tier, priority, auto_mode, dependency_ids)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(input.title, input.description, input.tier, input.priority, input.autoMode ? 1 : 0, JSON.stringify(input.dependencyIds ?? []))
 
-  return getTask(dbPath, result.lastInsertRowid as number)!
+  const taskId = result.lastInsertRowid as number
+  if (input.dependencyIds?.length) {
+    const insert = db.prepare(
+      'INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)'
+    )
+    for (const depId of input.dependencyIds) {
+      insert.run(taskId, depId)
+    }
+  }
+
+  return getTask(dbPath, taskId)!
 }
 
 export function updateTask(dbPath: string, taskId: number, updates: Partial<Record<string, any>>): Task | null {
@@ -475,6 +494,55 @@ export function getAllTasks(dbPath: string): Task[] {
   return rows.map(rowToTask)
 }
 
+// --- Task Dependencies & Artifacts ---
+
+export function getTaskDependencies(dbPath: string, taskId: number): number[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare(
+    'SELECT depends_on_task_id FROM task_dependencies WHERE task_id = ?'
+  ).all(taskId) as { depends_on_task_id: number }[]
+  return rows.map(r => r.depends_on_task_id)
+}
+
+export function getTaskDependents(dbPath: string, taskId: number): number[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare(
+    'SELECT task_id FROM task_dependencies WHERE depends_on_task_id = ?'
+  ).all(taskId) as { task_id: number }[]
+  return rows.map(r => r.task_id)
+}
+
+export function setTaskArtifacts(dbPath: string, taskId: number, artifacts: TaskArtifacts): void {
+  const db = getProjectDb(dbPath)
+  db.prepare('UPDATE tasks SET artifacts = ? WHERE id = ?').run(JSON.stringify(artifacts), taskId)
+}
+
+export function areDependenciesMet(dbPath: string, taskId: number): boolean {
+  const deps = getTaskDependencies(dbPath, taskId)
+  if (deps.length === 0) return true
+  const db = getProjectDb(dbPath)
+  const placeholders = deps.map(() => '?').join(',')
+  const result = db.prepare(
+    `SELECT COUNT(*) as cnt FROM tasks WHERE id IN (${placeholders}) AND status = 'done'`
+  ).get(...deps) as { cnt: number }
+  return result.cnt === deps.length
+}
+
+export function addTaskDependencies(dbPath: string, taskId: number, depIds: number[]): void {
+  const db = getProjectDb(dbPath)
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)'
+  )
+  const currentDeps = JSON.parse(
+    (db.prepare('SELECT dependency_ids FROM tasks WHERE id = ?').get(taskId) as any)?.dependency_ids || '[]'
+  )
+  const allDeps = [...new Set([...currentDeps, ...depIds])]
+  db.prepare('UPDATE tasks SET dependency_ids = ? WHERE id = ?').run(JSON.stringify(allDeps), taskId)
+  for (const depId of depIds) {
+    insert.run(taskId, depId)
+  }
+}
+
 // --- Settings (Global) ---
 
 export function getGlobalSetting(key: string): string | null {
@@ -541,6 +609,10 @@ function migrateTasksTable(db: Database.Database): void {
   if (!colNames.has('pause_reason')) db.prepare('ALTER TABLE tasks ADD COLUMN pause_reason TEXT DEFAULT NULL').run()
   if (!colNames.has('active_session_id')) db.prepare('ALTER TABLE tasks ADD COLUMN active_session_id TEXT').run()
   if (!colNames.has('rich_handoff')) db.prepare('ALTER TABLE tasks ADD COLUMN rich_handoff TEXT').run()
+  if (!colNames.has('dependency_ids'))
+    db.prepare("ALTER TABLE tasks ADD COLUMN dependency_ids TEXT NOT NULL DEFAULT '[]'").run()
+  if (!colNames.has('artifacts'))
+    db.prepare('ALTER TABLE tasks ADD COLUMN artifacts TEXT').run()
 }
 
 function migrateProjectsTable(db: Database.Database): void {
@@ -612,7 +684,9 @@ function rowToTask(row: any): Task {
     pausedFromStatus: row.paused_from_status ?? null,
     pauseReason: row.pause_reason ?? null,
     activeSessionId: row.active_session_id ?? null,
-    richHandoff: row.rich_handoff ?? null
+    richHandoff: row.rich_handoff ?? null,
+    dependencyIds: JSON.parse(row.dependency_ids || '[]'),
+    artifacts: row.artifacts ? JSON.parse(row.artifacts) : null
   }
 }
 
