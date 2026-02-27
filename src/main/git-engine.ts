@@ -175,6 +175,73 @@ export class GitEngine extends EventEmitter {
   }
 
   /**
+   * Stash uncommitted changes and reset the worktree to the merge-base
+   * (where the task branch diverged from the base branch).
+   */
+  async stashAndReset(taskId: number): Promise<{ stashed: boolean }> {
+    const worktreePath = this.activeWorktrees.get(taskId)
+    if (!worktreePath) throw new Error(`No active worktree for task ${taskId}`)
+
+    let stashed = false
+
+    // Check if there are uncommitted changes to stash
+    const status = await this.git(['status', '--porcelain'], worktreePath)
+    if (status) {
+      try {
+        await this.git(['stash', 'push', '-m', `task/${taskId}: restart stash`], worktreePath)
+        stashed = true
+      } catch {
+        // Nothing to stash or stash failed — proceed anyway
+      }
+    }
+
+    // Find merge-base (where this branch diverged from base)
+    const baseCommit = await this.git(['merge-base', this.baseBranch, 'HEAD'], worktreePath)
+
+    await this.git(['reset', '--hard', baseCommit], worktreePath)
+
+    return { stashed }
+  }
+
+  /**
+   * Reset the worktree to the commit created at the end of a specific pipeline stage.
+   * Falls back to stashAndReset if the stage commit is not found.
+   */
+  async resetToStageCommit(taskId: number, stage: string): Promise<void> {
+    const worktreePath = this.activeWorktrees.get(taskId)
+    if (!worktreePath) throw new Error(`No active worktree for task ${taskId}`)
+
+    // Find the commit for the given stage using the commit message convention
+    const commitMsg = `task/${taskId}: complete ${stage} stage`
+    const commitHash = await this.git(
+      ['log', '--oneline', '--grep', commitMsg, '--format=%H', '-1'],
+      worktreePath
+    )
+
+    if (!commitHash) {
+      // Commit not found — fall back to stashAndReset
+      console.warn(`Stage commit not found for task ${taskId} stage ${stage}, falling back to stashAndReset`)
+      await this.stashAndReset(taskId)
+      return
+    }
+
+    // Stash any uncommitted changes first
+    const status = await this.git(['status', '--porcelain'], worktreePath)
+    if (status) {
+      try {
+        await this.git(
+          ['stash', 'push', '-m', `task/${taskId}: restart stash before reset to ${stage}`],
+          worktreePath
+        )
+      } catch {
+        // Proceed even if stash fails
+      }
+    }
+
+    await this.git(['reset', '--hard', commitHash], worktreePath)
+  }
+
+  /**
    * Push the task's branch to origin.
    */
   async push(taskId: number): Promise<void> {
