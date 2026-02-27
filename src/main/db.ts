@@ -355,7 +355,8 @@ export function getProjectStats(dbPath: string): ProjectStats {
   const blocked = tasks.filter(t => t.status === 'blocked').length
   const inProgress = tasks.filter(t => !['backlog', 'done', 'blocked'].includes(t.status)).length
   const total = tasks.length
-  const completionRate = total > 0 ? done / total : 0
+  const started = total - backlog
+  const completionRate = started > 0 ? done / started : 0
 
   const scores = tasks.filter(t => t.reviewScore !== null).map(t => t.reviewScore!)
   const avgReviewScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null
