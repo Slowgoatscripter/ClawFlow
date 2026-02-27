@@ -6,6 +6,7 @@ import { PlanReviewGate } from './PlanReviewGate'
 import { CodeReviewGate } from './CodeReviewGate'
 import { CircuitBreakerPanel } from './CircuitBreakerPanel'
 import { OpenQuestionsPanel } from './OpenQuestionsPanel'
+import { FDRLSection } from './FDRLSection'
 
 interface Props {
   task: Task
@@ -25,6 +26,7 @@ export function InterventionPanel({ task }: Props) {
     return (
       <div className="bg-surface/80 backdrop-blur-md border border-accent-amber/40 rounded-lg p-6 my-4">
         <CircuitBreakerPanel task={task} />
+        <FDRLSection taskId={task.id} />
       </div>
     )
   }
