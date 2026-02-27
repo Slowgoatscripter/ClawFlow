@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff, WorkshopSession, WorkshopMessage, WorkshopArtifact, WorkshopTaskLink, WorkshopMessageRole, WorkshopMessageType, WorkshopArtifactType, WorkshopSessionType, PanelPersona, TaskArtifacts } from '../shared/types'
+import type { Task, CreateTaskInput, Project, ProjectStats, AgentLogEntry, Handoff, WorkshopSession, WorkshopMessage, WorkshopArtifact, WorkshopTaskLink, WorkshopMessageRole, WorkshopMessageType, WorkshopArtifactType, WorkshopSessionType, PanelPersona, TaskArtifacts, TaskGroup, CreateTaskGroupInput } from '../shared/types'
 import crypto from 'crypto'
 import { buildGraph, validateNoCycles } from './task-graph'
 
@@ -225,6 +225,19 @@ function initProjectDb(dbPath: string): Database.Database {
     )
   `)
   db.exec(`
+    CREATE TABLE IF NOT EXISTS task_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      session_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'planning',
+      design_artifact_id INTEGER,
+      shared_context TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (session_id) REFERENCES workshop_sessions(id) ON DELETE CASCADE
+    )
+  `)
+  db.exec(`
     CREATE TABLE IF NOT EXISTS domain_knowledge (
       id TEXT PRIMARY KEY,
       key TEXT NOT NULL,
@@ -266,9 +279,20 @@ export function getTask(dbPath: string, taskId: number): Task | null {
 export function createTask(dbPath: string, input: CreateTaskInput): Task {
   const db = getProjectDb(dbPath)
   const result = db.prepare(`
-    INSERT INTO tasks (title, description, tier, priority, auto_mode, auto_merge, dependency_ids)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(input.title, input.description, input.tier, input.priority, input.autoMode ? 1 : 0, input.autoMerge !== false ? 1 : 0, JSON.stringify(input.dependencyIds ?? []))
+    INSERT INTO tasks (title, description, tier, priority, auto_mode, auto_merge, dependency_ids, group_id, work_order, assigned_skill)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    input.title,
+    input.description,
+    input.tier,
+    input.priority,
+    input.autoMode ? 1 : 0,
+    input.autoMerge !== false ? 1 : 0,
+    JSON.stringify(input.dependencyIds ?? []),
+    input.groupId ?? null,
+    input.workOrder ? JSON.stringify(input.workOrder) : null,
+    input.assignedSkill ?? null
+  )
 
   const taskId = result.lastInsertRowid as number
   if (input.dependencyIds?.length) {
@@ -427,6 +451,61 @@ export function deleteWorkshopSession(dbPath: string, sessionId: string): void {
   db.prepare('DELETE FROM workshop_task_links WHERE session_id = ?').run(sessionId)
   db.prepare('DELETE FROM workshop_messages WHERE session_id = ?').run(sessionId)
   db.prepare('DELETE FROM workshop_sessions WHERE id = ?').run(sessionId)
+}
+
+// --- Task Groups ---
+
+export function createTaskGroup(dbPath: string, input: CreateTaskGroupInput): TaskGroup {
+  const db = getProjectDb(dbPath)
+  const result = db.prepare(`
+    INSERT INTO task_groups (title, session_id, design_artifact_id, shared_context)
+    VALUES (?, ?, ?, ?)
+  `).run(input.title, input.sessionId, input.designArtifactId ?? null, input.sharedContext)
+  return getTaskGroup(dbPath, result.lastInsertRowid as number)!
+}
+
+export function getTaskGroup(dbPath: string, groupId: number): TaskGroup | null {
+  const db = getProjectDb(dbPath)
+  const row = db.prepare('SELECT * FROM task_groups WHERE id = ?').get(groupId) as any
+  return row ? rowToTaskGroup(row) : null
+}
+
+export function updateTaskGroup(dbPath: string, groupId: number, updates: Partial<Record<string, any>>): TaskGroup | null {
+  const db = getProjectDb(dbPath)
+  const setClauses: string[] = []
+  const values: any[] = []
+
+  for (const [key, value] of Object.entries(updates)) {
+    const dbKey = camelToSnake(key)
+    setClauses.push(`${dbKey} = ?`)
+    values.push(typeof value === 'object' && value !== null ? JSON.stringify(value) : value)
+  }
+
+  setClauses.push('updated_at = datetime(\'now\')')
+
+  if (setClauses.length === 1) return getTaskGroup(dbPath, groupId)
+
+  values.push(groupId)
+  db.prepare(`UPDATE task_groups SET ${setClauses.join(', ')} WHERE id = ?`).run(...values)
+  return getTaskGroup(dbPath, groupId)
+}
+
+export function listTaskGroups(dbPath: string): TaskGroup[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare('SELECT * FROM task_groups ORDER BY id ASC').all() as any[]
+  return rows.map(rowToTaskGroup)
+}
+
+export function getTasksByGroup(dbPath: string, groupId: number): Task[] {
+  const db = getProjectDb(dbPath)
+  const rows = db.prepare('SELECT * FROM tasks WHERE group_id = ? ORDER BY id ASC').all(groupId) as any[]
+  return rows.map(rowToTask)
+}
+
+export function deleteTaskGroup(dbPath: string, groupId: number): void {
+  const db = getProjectDb(dbPath)
+  db.prepare('UPDATE tasks SET group_id = NULL WHERE group_id = ?').run(groupId)
+  db.prepare('DELETE FROM task_groups WHERE id = ?').run(groupId)
 }
 
 // --- Workshop Messages ---
@@ -662,6 +741,12 @@ function migrateTasksTable(db: Database.Database): void {
     db.prepare('ALTER TABLE tasks ADD COLUMN artifacts TEXT').run()
   if (!colNames.has('auto_merge'))
     db.prepare('ALTER TABLE tasks ADD COLUMN auto_merge INTEGER DEFAULT 1').run()
+  if (!colNames.has('group_id'))
+    db.prepare('ALTER TABLE tasks ADD COLUMN group_id INTEGER REFERENCES task_groups(id)').run()
+  if (!colNames.has('work_order'))
+    db.prepare('ALTER TABLE tasks ADD COLUMN work_order TEXT').run()
+  if (!colNames.has('assigned_skill'))
+    db.prepare('ALTER TABLE tasks ADD COLUMN assigned_skill TEXT').run()
 }
 
 function migrateProjectsTable(db: Database.Database): void {
@@ -736,7 +821,23 @@ function rowToTask(row: any): Task {
     richHandoff: row.rich_handoff ?? null,
     dependencyIds: JSON.parse(row.dependency_ids || '[]'),
     artifacts: row.artifacts ? JSON.parse(row.artifacts) : null,
-    autoMerge: row.auto_merge !== 0
+    autoMerge: row.auto_merge !== 0,
+    groupId: row.group_id ?? null,
+    workOrder: row.work_order ? JSON.parse(row.work_order) : null,
+    assignedSkill: row.assigned_skill ?? null
+  }
+}
+
+function rowToTaskGroup(row: any): TaskGroup {
+  return {
+    id: row.id,
+    title: row.title,
+    sessionId: row.session_id,
+    status: row.status,
+    designArtifactId: row.design_artifact_id ?? null,
+    sharedContext: row.shared_context,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   }
 }
 
