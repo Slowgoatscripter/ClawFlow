@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview"
+    "preview": "electron-vite preview",
+    "test": "ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron node_modules/.pnpm/vitest@4.0.18_@types+node@2_404b5145e668fa17604c5ad2881b456b/node_modules/vitest/vitest.mjs run",
+    "test:watch": "ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron node_modules/.pnpm/vitest@4.0.18_@types+node@2_404b5145e668fa17604c5ad2881b456b/node_modules/vitest/vitest.mjs"
   },
   "keywords": [],
   "author": "",
