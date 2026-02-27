@@ -32,6 +32,7 @@ interface WorkshopState {
   autoMode: boolean
   sessionTokens: { input: number; output: number }
   discussRound: number
+  error: string | null
 
   loadSessions: (dbPath: string, projectPath: string, projectId: string, projectName: string) => Promise<void>
   startSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title?: string) => Promise<void>
@@ -53,6 +54,7 @@ interface WorkshopState {
   sendPanelMessage: (sessionId: string, content: string) => Promise<void>
   triggerDiscuss: (sessionId: string) => Promise<void>
   setupListeners: () => () => void
+  clearError: () => void
 }
 
 function groupConsecutiveTools(segments: MessageSegment[]): MessageSegment[] {
@@ -83,6 +85,24 @@ function groupConsecutiveTools(segments: MessageSegment[]): MessageSegment[] {
   return result
 }
 
+// Wraps an IPC call: catches errors, surfaces them to the store's error state,
+// and returns a safe fallback so callers don't need individual try/catch.
+async function safeIpc<T>(
+  fn: () => Promise<T>,
+  fallback: T,
+  errorMsg?: string
+): Promise<T> {
+  try {
+    return await fn()
+  } catch (err: any) {
+    console.error('[Workshop IPC]', err)
+    useWorkshopStore.setState({
+      error: errorMsg ?? err?.message ?? 'Something went wrong'
+    })
+    return fallback
+  }
+}
+
 export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   sessions: [],
   currentSessionId: null,
@@ -105,14 +125,26 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   autoMode: false,
   sessionTokens: { input: 0, output: 0 },
   discussRound: 0,
+  error: null,
+
+  clearError: () => set({ error: null }),
 
   loadSessions: async (dbPath, projectPath, projectId, projectName) => {
-    const sessions = await window.api.workshop.listSessions(dbPath, projectPath, projectId, projectName)
+    const sessions = await safeIpc(
+      () => window.api.workshop.listSessions(dbPath, projectPath, projectId, projectName),
+      [] as any[],
+      'Failed to load sessions'
+    )
     set({ sessions })
   },
 
   startSession: async (dbPath, projectPath, projectId, projectName, title?) => {
-    const session = await window.api.workshop.startSession(dbPath, projectPath, projectId, projectName, title)
+    const session = await safeIpc(
+      () => window.api.workshop.startSession(dbPath, projectPath, projectId, projectName, title),
+      null as any,
+      'Failed to start session'
+    )
+    if (!session) return
     set((state) => ({
       sessions: [session, ...state.sessions],
       currentSessionId: session.id,
@@ -122,7 +154,12 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   },
 
   startPanelSession: async (dbPath, projectPath, projectId, projectName, title, panelPersonas) => {
-    const session = await window.api.workshop.startPanelSession(dbPath, projectPath, projectId, projectName, title, panelPersonas)
+    const session = await safeIpc(
+      () => window.api.workshop.startPanelSession(dbPath, projectPath, projectId, projectName, title, panelPersonas),
+      null as any,
+      'Failed to start panel session'
+    )
+    if (!session) return
     set((state) => ({
       sessions: [session, ...state.sessions],
       currentSessionId: session.id,
@@ -135,7 +172,11 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   },
 
   endSession: async (sessionId) => {
-    await window.api.workshop.endSession(sessionId)
+    await safeIpc(
+      () => window.api.workshop.endSession(sessionId),
+      undefined,
+      'Failed to end session'
+    )
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === sessionId ? { ...s, status: 'ended' as const } : s
@@ -148,10 +189,15 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   },
 
   selectSession: async (dbPath, sessionId) => {
-    const [session, messages] = await Promise.all([
-      window.api.workshop.getSession(sessionId),
-      window.api.workshop.listMessages(dbPath, sessionId)
-    ])
+    const [session, messages] = await safeIpc(
+      () => Promise.all([
+        window.api.workshop.getSession(sessionId),
+        window.api.workshop.listMessages(dbPath, sessionId)
+      ]),
+      [null, []] as [any, any[]],
+      'Failed to load session'
+    )
+    if (!session) return
 
     // Recover pending content from interrupted streaming
     let recoveredMessages = messages
@@ -207,7 +253,19 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       toolActivityLog: [],
       isStalled: false
     }))
-    await window.api.workshop.sendMessage(sessionId, content)
+    try {
+      await window.api.workshop.sendMessage(sessionId, content)
+    } catch (err: any) {
+      console.error('[Workshop] sendMessage failed:', err)
+      set({
+        isStreaming: false,
+        streamingContent: '',
+        currentToolActivity: null,
+        toolActivityLog: [],
+        isStalled: false,
+        error: err?.message ?? 'Failed to send message'
+      })
+    }
   },
 
   sendPanelMessage: async (sessionId, content) => {
@@ -231,12 +289,31 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
       streamingToolCalls: [],
       discussRound: 0
     }))
-    await window.api.workshop.sendPanelMessage(sessionId, content)
+    try {
+      await window.api.workshop.sendPanelMessage(sessionId, content)
+    } catch (err: any) {
+      console.error('[Workshop] sendPanelMessage failed:', err)
+      set({
+        isStreaming: false,
+        streamingContent: '',
+        currentToolActivity: null,
+        error: err?.message ?? 'Failed to send panel message'
+      })
+    }
   },
 
   triggerDiscuss: async (sessionId) => {
     set({ isStreaming: true, streamingContent: '' })
-    await window.api.workshop.triggerDiscuss(sessionId)
+    try {
+      await window.api.workshop.triggerDiscuss(sessionId)
+    } catch (err: any) {
+      console.error('[Workshop] triggerDiscuss failed:', err)
+      set({
+        isStreaming: false,
+        streamingContent: '',
+        error: err?.message ?? 'Failed to trigger discussion'
+      })
+    }
   },
 
   stopSession: (sessionId) => {
@@ -270,32 +347,41 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
           ? { ...state.currentSession, title }
           : state.currentSession
     }))
-    await window.api.workshop.renameSession(sessionId, title)
+    await safeIpc(
+      () => window.api.workshop.renameSession(sessionId, title),
+      null,
+      'Failed to rename session'
+    )
   },
 
   loadArtifacts: async () => {
-    const prev = get().artifacts
-    const artifacts = await window.api.workshop.listArtifacts()
-    if (artifacts.length === 0 && prev.length > 0) {
-      return
-    }
+    const artifacts = await safeIpc(
+      () => window.api.workshop.listArtifacts(),
+      [] as any[],
+      'Failed to load artifacts'
+    )
+    // Always update — don't preserve stale data when backend returns empty
     set({ artifacts })
   },
 
   selectArtifact: async (artifactId) => {
     set({ selectedArtifactId: artifactId, artifactLoading: true, artifactContent: null })
-    try {
-      const result = await window.api.workshop.getArtifact(artifactId)
-      set({ artifactContent: result.content ?? null, artifactLoading: false })
-    } catch {
-      set({ artifactLoading: false })
-    }
+    const result = await safeIpc(
+      () => window.api.workshop.getArtifact(artifactId),
+      { artifact: null, content: null } as { artifact: any; content: string | null },
+      'Failed to load artifact'
+    )
+    set({ artifactContent: result.content ?? null, artifactLoading: false })
   },
 
   clearArtifactSelection: () => set({ selectedArtifactId: null, artifactContent: null, artifactLoading: false }),
 
   approveSuggestions: async (sessionId, tasks, autoMode) => {
-    await window.api.workshop.createTasks(sessionId, tasks.map((t) => ({ ...t, autoMode })))
+    await safeIpc(
+      () => window.api.workshop.createTasks(sessionId, tasks.map((t) => ({ ...t, autoMode }))),
+      undefined,
+      'Failed to create tasks'
+    )
     set({ pendingSuggestions: null, suggestionsSessionId: null })
   },
 
@@ -466,7 +552,14 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
         }))
       } else if (event.type === 'error') {
         clearStallTimer()
-        set({ isStreaming: false, streamingContent: '', currentToolActivity: null, toolActivityLog: [], isStalled: false })
+        set({
+          isStreaming: false,
+          streamingContent: '',
+          currentToolActivity: null,
+          toolActivityLog: [],
+          isStalled: false,
+          error: event.error ?? 'An error occurred during streaming'
+        })
       }
     })
 
