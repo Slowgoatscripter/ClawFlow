@@ -2,7 +2,7 @@ import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
 import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig, TaskArtifacts } from '../shared/types'
-import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS } from '../shared/constants'
+import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS, getClearFieldsPayload } from '../shared/constants'
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
 import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting, areDependenciesMet, getTaskDependencies, getTaskDependents, setTaskArtifacts, listTasks } from './db'
 import { SETTING_KEYS } from '../shared/settings'
@@ -531,6 +531,91 @@ export class PipelineEngine extends EventEmitter {
       })
       await this.runStage(taskId, nextStage)
     }
+  }
+
+  /**
+   * Restart a task to a specific pipeline stage, rolling back git state
+   * and clearing DB fields for the target stage and everything after it.
+   */
+  async restartToStage(taskId: number, targetStage: PipelineStage): Promise<void> {
+    const task = this.getTaskOrThrow(taskId)
+
+    const stages = TIER_STAGES[task.tier]
+    const targetIndex = stages.indexOf(targetStage)
+    if (targetIndex === -1) {
+      throw new Error(`Stage ${targetStage} is not valid for tier ${task.tier}`)
+    }
+
+    // 1. Abort any active session
+    if (task.currentAgent) {
+      const sessionKey = `${taskId}-${task.currentAgent}`
+      abortSession(sessionKey)
+    }
+    this.sessionIds.delete(taskId)
+    this.contextUsage.delete(taskId)
+
+    // 2. Git rollback
+    const isFirstStage = targetIndex === 0
+    if (this.gitEngine && this.taskWorktrees.has(taskId)) {
+      if (isFirstStage) {
+        // Full restart — stash and reset to base branch
+        try {
+          const result = await this.gitEngine.stashAndReset(taskId)
+          if (result.stashed) {
+            appendAgentLog(this.dbPath, taskId, {
+              timestamp: new Date().toISOString(),
+              agent: 'pipeline-engine',
+              model: 'system',
+              action: 'restart',
+              details: 'Stashed uncommitted changes before full restart'
+            })
+          }
+        } catch (err) {
+          console.error(`Git stash+reset failed for task ${taskId}:`, err)
+        }
+      } else {
+        // Stage-aware reset — roll back to the commit of the stage before target
+        const previousStage = stages[targetIndex - 1]
+        try {
+          await this.gitEngine.resetToStageCommit(taskId, previousStage)
+        } catch (err) {
+          console.error(`Git reset to stage ${previousStage} failed for task ${taskId}:`, err)
+          // Fall back to stash+reset
+          try {
+            await this.gitEngine.stashAndReset(taskId)
+          } catch {
+            // Continue even if git ops fail — DB cleanup still matters
+          }
+        }
+      }
+    }
+
+    // 3. Clear DB fields for target stage and everything after
+    const clearPayload = getClearFieldsPayload(task.tier, targetStage)
+    const targetStatus = STAGE_TO_STATUS[targetStage] as TaskStatus
+
+    updateTask(this.dbPath, taskId, {
+      ...clearPayload,
+      status: targetStatus,
+      currentAgent: targetStage
+    })
+
+    // 4. Log the restart
+    appendAgentLog(this.dbPath, taskId, {
+      timestamp: new Date().toISOString(),
+      agent: 'pipeline-engine',
+      model: 'system',
+      action: 'restart',
+      details: `Restarted to stage: ${targetStage} (tier: ${task.tier})`
+    })
+
+    // 5. Emit event so renderer can update
+    this.emit('pipeline:stageChange', {
+      taskId,
+      stage: targetStage,
+      status: targetStatus,
+      action: 'restart'
+    })
   }
 
   // --- Private Methods ---
