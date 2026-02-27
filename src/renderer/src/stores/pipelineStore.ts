@@ -12,6 +12,7 @@ interface PipelineState {
   contextHandoff: { taskId: number; currentStage: string; nextStage: string; usagePercent: number; remainingTokens: number; estimatedNeed: number } | null
   usageSnapshot: { connected: boolean; error: string | null; fiveHour: { utilization: number; countdown: string } | null; sevenDay: { utilization: number; countdown: string } | null; sevenDayOpus: { utilization: number; countdown: string } | null; sevenDaySonnet: { utilization: number; countdown: string } | null } | null
   usagePausedToast: { pausedCount: number; utilization: number; countdown: string } | null
+  lastUnblockedTaskId: number | null
   startPipeline: (taskId: number) => Promise<void>
   stepPipeline: (taskId: number) => Promise<void>
   approveStage: (taskId: number) => Promise<void>
@@ -28,6 +29,7 @@ interface PipelineState {
   approveContextHandoff: (taskId: number) => Promise<void>
   dismissContextHandoff: () => void
   dismissUsagePausedToast: () => void
+  clearUnblockedTask: () => void
 }
 
 export const usePipelineStore = create<PipelineState>((set) => ({
@@ -41,6 +43,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   contextHandoff: null,
   usageSnapshot: null,
   usagePausedToast: null,
+  lastUnblockedTaskId: null,
 
   startPipeline: async (taskId) => {
     set(state => ({
@@ -63,6 +66,8 @@ export const usePipelineStore = create<PipelineState>((set) => ({
 
   approveStage: async (taskId) => {
     set(state => ({
+      activeTaskId: taskId,
+      streaming: true,
       awaitingReview: { ...state.awaitingReview, [taskId]: false }
     }))
     await window.api.pipeline.approve(taskId)
@@ -70,6 +75,8 @@ export const usePipelineStore = create<PipelineState>((set) => ({
 
   rejectStage: async (taskId, feedback) => {
     set(state => ({
+      activeTaskId: taskId,
+      streaming: true,
       awaitingReview: { ...state.awaitingReview, [taskId]: false }
     }))
     await window.api.pipeline.reject(taskId, feedback)
@@ -109,6 +116,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   },
   dismissContextHandoff: () => set({ contextHandoff: null }),
   dismissUsagePausedToast: () => set({ usagePausedToast: null }),
+  clearUnblockedTask: () => set({ lastUnblockedTaskId: null }),
 
   setupListeners: () => {
     const cleanupStream = window.api.pipeline.onStream((event) => {
@@ -120,6 +128,9 @@ export const usePipelineStore = create<PipelineState>((set) => ({
       set({ approvalRequest: request })
     })
     const cleanupStatus = window.api.pipeline.onStatusChange((event) => {
+      if (event.type === 'start') {
+        set({ streaming: true, activeTaskId: event.taskId ?? null })
+      }
       if (event.type === 'complete' || event.type === 'error' || event.type === 'pause' || event.type === 'circuit-breaker') {
         set({ streaming: false })
       }
@@ -167,6 +178,9 @@ export const usePipelineStore = create<PipelineState>((set) => ({
     const cleanupUsage = window.api.usage.onSnapshot((snapshot) => {
       set({ usageSnapshot: snapshot })
     })
+    const cleanupTaskUnblocked = window.api.pipeline.onTaskUnblocked((data) => {
+      set({ lastUnblockedTaskId: data.taskId })
+    })
     window.api.usage.getSnapshot().then((snapshot) => {
       if (snapshot) set({ usageSnapshot: snapshot })
     })
@@ -178,6 +192,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
       cleanupContext()
       cleanupContextHandoff()
       cleanupUsage()
+      cleanupTaskUnblocked()
     }
   }
 }))

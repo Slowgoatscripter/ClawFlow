@@ -16,7 +16,9 @@ contextBridge.exposeInMainWorld('api', {
     stats: (dbPath: string) => ipcRenderer.invoke('tasks:stats', dbPath),
     archiveTask: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:archive', dbPath, taskId),
     unarchiveTask: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:unarchive', dbPath, taskId),
-    archiveAllDone: (dbPath: string) => ipcRenderer.invoke('tasks:archive-all-done', dbPath)
+    archiveAllDone: (dbPath: string) => ipcRenderer.invoke('tasks:archive-all-done', dbPath),
+    getDependencies: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:get-dependencies', dbPath, taskId),
+    createBatch: (dbPath: string, tasks: any[]) => ipcRenderer.invoke('tasks:create-batch', dbPath, tasks)
   },
   pipeline: {
     init: (dbPath: string, projectPath: string) => ipcRenderer.invoke('pipeline:init', dbPath, projectPath),
@@ -60,6 +62,11 @@ contextBridge.exposeInMainWorld('api', {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('pipeline:contextHandoff', handler)
       return () => ipcRenderer.removeListener('pipeline:contextHandoff', handler)
+    },
+    onTaskUnblocked: (callback: (data: { taskId: number }) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:task-unblocked', handler)
+      return () => ipcRenderer.removeListener('pipeline:task-unblocked', handler)
     },
   },
   usage: {

@@ -191,6 +191,7 @@ function registerPipelineIpc() {
     const sdkRunner = createSdkRunner(mainWindow!)
     currentEngine.setSdkRunner(sdkRunner)
 
+    currentEngine.on('stage:start', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'start', ...data }))
     currentEngine.on('stage:pause', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'pause', ...data }))
     currentEngine.on('stage:complete', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'complete', ...data }))
     currentEngine.on('stage:error', (data) => mainWindow?.webContents.send('pipeline:status', { type: 'error', ...data }))
@@ -202,6 +203,9 @@ function registerPipelineIpc() {
       mainWindow?.webContents.send('pipeline:context-update', data))
     currentEngine.on('stage:context_handoff', (data) =>
       mainWindow?.webContents.send('pipeline:contextHandoff', data))
+    currentEngine.on('task:unblocked', ({ taskId }: { taskId: number }) => {
+      mainWindow?.webContents.send('pipeline:task-unblocked', { taskId })
+    })
 
     const gitEngine = ensureGitEngine(dbPath, projectPath)
     currentEngine.setGitEngine(gitEngine)

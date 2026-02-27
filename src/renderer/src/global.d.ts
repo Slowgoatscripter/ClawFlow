@@ -12,6 +12,8 @@ interface WindowApi {
     update: (dbPath: string, taskId: number, updates: Record<string, any>) => Promise<import('../../../shared/types').Task | null>
     delete: (dbPath: string, taskId: number) => Promise<boolean>
     stats: (dbPath: string) => Promise<import('../../../shared/types').ProjectStats>
+    getDependencies: (dbPath: string, taskId: number) => Promise<number[]>
+    createBatch: (dbPath: string, tasks: any[]) => Promise<import('../../../shared/types').Task[]>
   }
   pipeline: {
     init: (dbPath: string, projectPath: string) => Promise<boolean>
@@ -30,6 +32,7 @@ interface WindowApi {
     onContextUpdate: (cb: (data: { taskId: number; contextTokens: number; contextMax: number }) => void) => () => void
     approveContextHandoff: (taskId: number) => Promise<void>
     onContextHandoff: (callback: (data: { taskId: number; currentStage: string; nextStage: string; usagePercent: number; remainingTokens: number; estimatedNeed: number }) => void) => () => void
+    onTaskUnblocked: (callback: (data: { taskId: number }) => void) => () => void
   }
   usage: {
     getSnapshot: () => Promise<any>
