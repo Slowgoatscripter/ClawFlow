@@ -7,6 +7,15 @@ import { STAGE_CONFIGS } from '../shared/constants'
 
 const TEMPLATES_DIR = path.join(__dirname, '../../src/templates')
 
+function extractOutput(field: unknown): string {
+  if (!field) return 'N/A'
+  if (typeof field === 'string') return field
+  if (typeof field === 'object' && field !== null && 'output' in field) {
+    return (field as { output: string }).output
+  }
+  return JSON.stringify(field)
+}
+
 export function loadTemplate(stage: PipelineStage): string {
   const config = STAGE_CONFIGS[stage]
   const templatePath = path.join(TEMPLATES_DIR, config.template)
@@ -35,12 +44,12 @@ export function fillTemplate(template: string, task: Task, projectPath?: string)
     '{{project_path}}': projectPath ?? process.cwd(),
     '{{platform}}': process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux',
     '{{brainstorm_output}}': task.brainstormOutput ?? 'N/A',
-    '{{design_review}}': task.designReview ? JSON.stringify(task.designReview, null, 2) : 'N/A',
-    '{{plan}}': task.plan ? JSON.stringify(task.plan, null, 2) : 'N/A',
-    '{{implementation_notes}}': task.implementationNotes ? JSON.stringify(task.implementationNotes, null, 2) : 'N/A',
-    '{{review_comments}}': task.reviewComments ? JSON.stringify(task.reviewComments, null, 2) : 'N/A',
+    '{{design_review}}': extractOutput(task.designReview),
+    '{{plan}}': extractOutput(task.plan),
+    '{{implementation_notes}}': extractOutput(task.implementationNotes),
+    '{{review_comments}}': extractOutput(task.reviewComments),
     '{{review_score}}': task.reviewScore?.toString() ?? 'N/A',
-    '{{test_results}}': task.testResults ? JSON.stringify(task.testResults, null, 2) : 'N/A',
+    '{{test_results}}': extractOutput(task.testResults),
     '{{verify_result}}': task.verifyResult ?? 'N/A',
     '{{previous_handoff}}': formatPreviousHandoff(task.handoffs),
     '{{handoff_chain}}': formatHandoffChain(task.handoffs)
