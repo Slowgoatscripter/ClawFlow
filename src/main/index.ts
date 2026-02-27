@@ -22,7 +22,7 @@ import {
   listGlobalKnowledge,
   createGlobalKnowledgeEntry
 } from './knowledge-engine'
-import { listSkills, viewSkill, editSkill, loadSkillExtended } from './skill-loader'
+import { listSkills, viewSkill, editSkill, loadSkillExtended, ensureSkillsSeeded } from './skill-loader'
 
 let mainWindow: BrowserWindow | null = null
 let currentEngine: PipelineEngine | null = null
@@ -462,6 +462,7 @@ function registerSkillIpc() {
 }
 
 app.whenReady().then(() => {
+  ensureSkillsSeeded()
   registerIpcHandlers()
   registerPipelineIpc()
   registerWorkshopIpc()
