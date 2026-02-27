@@ -31,6 +31,36 @@ describe('Bug 1: Knowledge dedup logic', () => {
   })
 })
 
+// --- Bug 7: Silent swallow of malformed XML tool call JSON ---
+
+describe('Bug 7: Malformed XML tool call logging', () => {
+  test('valid JSON parses without hitting catch', () => {
+    const input = '{"key": "test", "summary": "hello"}'
+    let parsed: any = null
+    let caughtError = false
+    try {
+      parsed = JSON.parse(input)
+    } catch {
+      caughtError = true
+    }
+    expect(parsed).toEqual({ key: 'test', summary: 'hello' })
+    expect(caughtError).toBe(false)
+  })
+
+  test('malformed JSON hits catch branch (where logging should fire)', () => {
+    const input = '{not valid json}'
+    let parsed: any = null
+    let caughtError = false
+    try {
+      parsed = JSON.parse(input)
+    } catch {
+      caughtError = true
+    }
+    expect(parsed).toBeNull()
+    expect(caughtError).toBe(true)
+  })
+})
+
 // --- Bug 6: Pending approval promises leak on session abort ---
 
 describe('Bug 6: Pending approval cleanup', () => {

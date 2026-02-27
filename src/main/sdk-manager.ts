@@ -342,7 +342,12 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
       while ((xmlMatch = xmlToolRegex.exec(output)) !== null) {
         const toolName = xmlMatch[1]
         let toolInput: any
-        try { toolInput = JSON.parse(xmlMatch[2].trim()) } catch { continue }
+        try {
+          toolInput = JSON.parse(xmlMatch[2].trim())
+        } catch (parseErr) {
+          console.warn(`[sdk-manager] Malformed JSON in <tool_call name="${toolName}">:`, parseErr)
+          continue
+        }
 
         if (toolName === 'save_knowledge') {
           try {
