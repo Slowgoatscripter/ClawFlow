@@ -18,8 +18,15 @@ import {
   createTask,
   addTaskDependencies,
   getGlobalSetting,
+  createTaskGroup,
+  getTaskGroup,
+  updateTaskGroup,
+  getTasksByGroup,
+  getTask,
+  updateTask,
 } from './db'
 import { abortSession } from './sdk-manager'
+import type { PipelineEngine } from './pipeline-engine'
 import { SETTING_KEYS } from '../shared/settings'
 import { constructWorkshopPrompt, loadSkillContent } from './template-engine'
 import {
@@ -36,6 +43,7 @@ import type {
   WorkshopStreamEvent,
   WorkshopSuggestedTask,
   WorkshopArtifactType,
+  CreateTaskGroupInput,
 } from '../shared/types'
 
 function getWorkshopModel(): string {
@@ -53,6 +61,8 @@ export class WorkshopEngine extends EventEmitter {
   private sessionIds = new Map<string, string>() // workshopSessionId -> sdkSessionId
   private autoMode = false
   private tokenUsage = new Map<string, { input: number; output: number }>()
+  private activeGroupId: number | null = null
+  private pipelineEngine: PipelineEngine | null = null
 
   constructor(dbPath: string, projectPath: string, projectId: string, projectName: string) {
     super()
@@ -68,6 +78,54 @@ export class WorkshopEngine extends EventEmitter {
 
   setAutoMode(auto: boolean): void {
     this.autoMode = auto
+  }
+
+  setPipelineEngine(engine: PipelineEngine): void {
+    this.pipelineEngine = engine
+
+    engine.on('group:task-stage-complete', (data) => {
+      if (data.groupId === this.activeGroupId) {
+        const sessionId = this.getSessionForGroup(data.groupId)
+        if (sessionId) {
+          this.emit('stream', {
+            sessionId,
+            content: `\n\n**[Task #${data.taskId}]** completed stage \`${data.stage}\`: ${data.summary}\n\n`,
+            type: 'text'
+          })
+        }
+      }
+    })
+
+    engine.on('group:paused', (data) => {
+      if (data.groupId === this.activeGroupId) {
+        const sessionId = this.getSessionForGroup(data.groupId)
+        if (sessionId) {
+          this.emit('stream', {
+            sessionId,
+            content: `\n\n**[Group Paused]** ${data.reason ?? 'A task encountered an issue.'} (${data.pausedCount} tasks paused)\n\n`,
+            type: 'text'
+          })
+        }
+      }
+    })
+
+    engine.on('group:completed', (data) => {
+      if (data.groupId === this.activeGroupId) {
+        const sessionId = this.getSessionForGroup(data.groupId)
+        if (sessionId) {
+          this.emit('stream', {
+            sessionId,
+            content: `\n\n**[Group Complete]** All tasks in the group have finished successfully.\n\n`,
+            type: 'text'
+          })
+        }
+      }
+    })
+  }
+
+  private getSessionForGroup(groupId: number): string | null {
+    const group = getTaskGroup(this.dbPath, groupId)
+    return group ? String(group.sessionId) : null
   }
 
   private trackTokens(
@@ -632,7 +690,7 @@ export class WorkshopEngine extends EventEmitter {
           )
           break
         case 'suggest_tasks':
-          await this.suggestTasks(sessionId, toolInput.tasks)
+          await this.suggestTasks(sessionId, toolInput.tasks, toolInput.groupTitle)
           break
         case 'render_diagram':
           this.createArtifact(toolInput.title, 'diagram', toolInput.mermaid, sessionId)
@@ -792,8 +850,101 @@ export class WorkshopEngine extends EventEmitter {
           )
           break
         }
+        case 'create_task_group':
+          await this.handleCreateTaskGroup(sessionId, toolInput)
+          break
+        case 'launch_group':
+          await this.handleLaunchGroup(sessionId, toolInput)
+          break
+        case 'get_group_status':
+          await this.handleGetGroupStatus(sessionId, toolInput)
+          break
+        case 'pause_group':
+          await this.handlePauseGroup(sessionId)
+          break
+        case 'resume_group':
+          await this.handleResumeGroup(sessionId)
+          break
+        case 'message_agent':
+          await this.handleMessageAgent(sessionId, toolInput)
+          break
+        case 'update_work_order':
+          await this.handleUpdateWorkOrder(sessionId, toolInput)
+          break
+        case 'peek_agent':
+          this.emit('stream', { sessionId, content: `[Peeking at task ${toolInput.taskId}...]`, type: 'tool_call' })
+          break
       }
     }
+  }
+
+  // Group Orchestration Handlers
+
+  private async handleCreateTaskGroup(sessionId: string, input: any): Promise<void> {
+    const group = createTaskGroup(this.dbPath, {
+      title: input.title,
+      sessionId: parseInt(sessionId),
+      designArtifactId: input.designArtifactId,
+      sharedContext: input.sharedContext ?? ''
+    })
+    this.activeGroupId = group.id
+    this.emit('stream', { sessionId, content: `[Created task group #${group.id}: "${group.title}"]`, type: 'tool_call' })
+    this.emit('group:created', { sessionId, group })
+  }
+
+  private async handleLaunchGroup(sessionId: string, input: any): Promise<void> {
+    if (!this.pipelineEngine) {
+      this.emit('stream', { sessionId, content: '[Error: Pipeline engine not connected]', type: 'tool_call' })
+      return
+    }
+    const groupId = input.groupId ?? this.activeGroupId
+    if (!groupId) {
+      this.emit('stream', { sessionId, content: '[Error: No active group to launch]', type: 'tool_call' })
+      return
+    }
+    updateTaskGroup(this.dbPath, groupId, { status: 'queued' })
+    this.emit('stream', { sessionId, content: `[Launching group #${groupId}...]`, type: 'tool_call' })
+    this.pipelineEngine.launchGroup(groupId).catch((err) => {
+      this.emit('stream', { sessionId, content: `[Group launch error: ${err.message}]`, type: 'tool_call' })
+    })
+  }
+
+  private async handleGetGroupStatus(sessionId: string, input: any): Promise<void> {
+    if (!this.pipelineEngine) return
+    const groupId = input.groupId ?? this.activeGroupId
+    if (!groupId) return
+    const status = this.pipelineEngine.getGroupStatus(groupId)
+    const summary = status.tasks.map(t => `- Task #${t.id} "${t.title}": ${t.status} (stage: ${t.stage ?? 'none'})`).join('\n')
+    this.emit('stream', { sessionId, content: `[Group #${groupId} Status: ${status.group.status}]\n${summary}`, type: 'tool_call' })
+  }
+
+  private async handlePauseGroup(sessionId: string): Promise<void> {
+    if (!this.pipelineEngine || !this.activeGroupId) return
+    const count = await this.pipelineEngine.pauseGroup(this.activeGroupId)
+    this.emit('stream', { sessionId, content: `[Paused group: ${count} tasks paused]`, type: 'tool_call' })
+  }
+
+  private async handleResumeGroup(sessionId: string): Promise<void> {
+    if (!this.pipelineEngine || !this.activeGroupId) return
+    const count = await this.pipelineEngine.resumeGroup(this.activeGroupId)
+    this.emit('stream', { sessionId, content: `[Resumed group: ${count} tasks resumed]`, type: 'tool_call' })
+  }
+
+  private async handleMessageAgent(sessionId: string, input: any): Promise<void> {
+    this.emit('group:message-agent', { groupId: this.activeGroupId, taskId: input.taskId, content: input.content })
+    this.emit('stream', { sessionId, content: `[Message sent to task #${input.taskId}]`, type: 'tool_call' })
+  }
+
+  private async handleUpdateWorkOrder(sessionId: string, input: any): Promise<void> {
+    const task = getTask(this.dbPath, input.taskId)
+    if (!task) {
+      this.emit('stream', { sessionId, content: `[Error: Task #${input.taskId} not found]`, type: 'tool_call' })
+      return
+    }
+    const currentWorkOrder = task.workOrder ?? { objective: '', files: [], patterns: [], integration: [], constraints: [], tests: [] }
+    const updatedWorkOrder = { ...currentWorkOrder, ...input.changes }
+    updateTask(this.dbPath, input.taskId, { workOrder: updatedWorkOrder })
+    this.emit('stream', { sessionId, content: `[Updated work order for task #${input.taskId}]`, type: 'tool_call' })
   }
 
   // Artifact Operations
@@ -858,12 +1009,24 @@ export class WorkshopEngine extends EventEmitter {
 
   // Task Creation
 
-  async suggestTasks(sessionId: string, tasks: WorkshopSuggestedTask[]): Promise<void> {
+  async suggestTasks(sessionId: string, tasks: WorkshopSuggestedTask[], groupTitle?: string): Promise<void> {
     if (this.autoMode) {
+      let groupId: number | undefined
+      if (groupTitle && tasks.length > 1) {
+        const group = createTaskGroup(this.dbPath, {
+          title: groupTitle,
+          sessionId: parseInt(sessionId),
+          sharedContext: ''
+        })
+        groupId = group.id
+        this.activeGroupId = group.id
+        this.emit('group:created', { sessionId, group })
+      }
+
       // Create all tasks first to get real IDs
       const createdTasks: { id: number; index: number }[] = []
       for (let i = 0; i < tasks.length; i++) {
-        const created = await this.createPipelineTask(sessionId, tasks[i])
+        const created = await this.createPipelineTask(sessionId, tasks[i], groupId)
         createdTasks.push({ id: created.id, index: i })
       }
 
@@ -880,17 +1043,20 @@ export class WorkshopEngine extends EventEmitter {
         }
       }
     } else {
-      this.emit('tasks:suggested', { sessionId, tasks })
+      this.emit('tasks:suggested', { sessionId, tasks, groupTitle })
     }
   }
 
-  async createPipelineTask(sessionId: string, task: WorkshopSuggestedTask & { autoMode?: boolean }): Promise<Task> {
+  async createPipelineTask(sessionId: string, task: WorkshopSuggestedTask & { autoMode?: boolean }, groupId?: number): Promise<Task> {
     const created = createTask(this.dbPath, {
       title: task.title,
       description: task.description,
       tier: task.tier,
       priority: task.priority ?? 'medium',
       autoMode: task.autoMode,
+      groupId: groupId ?? undefined,
+      workOrder: task.workOrder ?? undefined,
+      assignedSkill: task.assignedSkill ?? undefined,
     })
 
     createWorkshopTaskLink(this.dbPath, created.id, sessionId)
