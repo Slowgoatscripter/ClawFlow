@@ -16,6 +16,8 @@ function extractOutput(field: unknown): string {
   return JSON.stringify(field)
 }
 
+const SKIP_HANDOFF_STAGES: PipelineStage[] = ['design_review']
+
 export function loadTemplate(stage: PipelineStage): string {
   const config = STAGE_CONFIGS[stage]
   const templatePath = path.join(TEMPLATES_DIR, config.template)
@@ -26,9 +28,11 @@ export function loadTemplate(stage: PipelineStage): string {
 
   let template = fs.readFileSync(templatePath, 'utf-8')
 
-  const handoffPath = path.join(TEMPLATES_DIR, '_handoff.md')
-  if (fs.existsSync(handoffPath)) {
-    template += '\n\n' + fs.readFileSync(handoffPath, 'utf-8')
+  if (!SKIP_HANDOFF_STAGES.includes(stage)) {
+    const handoffPath = path.join(TEMPLATES_DIR, '_handoff.md')
+    if (fs.existsSync(handoffPath)) {
+      template += '\n\n' + fs.readFileSync(handoffPath, 'utf-8')
+    }
   }
 
   return template
