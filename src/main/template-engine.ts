@@ -148,7 +148,63 @@ export function constructPrompt(stage: PipelineStage, task: Task, projectPath?: 
     prompt += `\n\n---\n\n## Skill Instructions: ${config.skill}\n\nFollow these instructions for this stage:\n\n${skillContent}`
   }
 
+  // Inject rich handoff context from a previous session that hit context limits
+  if (task.richHandoff) {
+    const handoffContext = `\n\n---\n## Context from Previous Session\n\nA prior agent worked on this task but reached context limits. Here is their knowledge transfer:\n\n${task.richHandoff}\n\n---\n\n`
+    prompt = handoffContext + prompt
+  }
+
   return prompt
+}
+
+export function constructContinuationPrompt(
+  stage: PipelineStage,
+  task: Task,
+  projectPath: string
+): string {
+  const config = STAGE_CONFIGS[stage]
+  const template = loadTemplate(stage)
+
+  // For continuation, prior outputs are already in context — use placeholder text
+  const minimalReplacements: Record<string, string> = {
+    '{{title}}': task.title,
+    '{{description}}': task.description,
+    '{{tier}}': task.tier,
+    '{{priority}}': task.priority,
+    '{{timestamp}}': new Date().toISOString(),
+    '{{project_path}}': projectPath,
+    '{{platform}}': process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux',
+    '{{brainstorm_output}}': '[Already in context from prior stage]',
+    '{{brainstorm_context}}': '[Already in context from prior stage]',
+    '{{design_review}}': '[Already in context from prior stage]',
+    '{{plan}}': '[Already in context from prior stage]',
+    '{{implementation_notes}}': '[Already in context from prior stage]',
+    '{{implementation_summary}}': '[Already in context from prior stage]',
+    '{{plan_summary}}': '[Already in context from prior stage]',
+    '{{review_comments}}': '[Already in context from prior stage]',
+    '{{review_score}}': '[Already in context from prior stage]',
+    '{{test_results}}': '[Already in context from prior stage]',
+    '{{verify_result}}': '[Already in context from prior stage]',
+    '{{previous_handoff}}': '[Already in context — you just produced this handoff]',
+    '{{handoff_chain}}': '[Already in context from prior stages]',
+  }
+
+  let prompt = template
+  for (const [key, value] of Object.entries(minimalReplacements)) {
+    prompt = prompt.replaceAll(key, value)
+  }
+
+  // Append skill content
+  if (config.skill) {
+    const skillContent = loadSkillContent(config.skill)
+    if (skillContent) {
+      prompt += `\n\n---\n\n## Skill Instructions: ${config.skill}\n\n${skillContent}`
+    }
+  }
+
+  const header = `\n\n---\n# STAGE TRANSITION: You are now entering the \`${stage}\` stage.\nYour prior work is already in this conversation. Continue building on it.\n---\n\n`
+
+  return header + prompt
 }
 
 export function parseHandoff(output: string): Partial<Handoff> | null {

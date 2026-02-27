@@ -1,10 +1,13 @@
 import { EventEmitter } from 'events'
+import fs from 'fs'
+import path from 'path'
 import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig } from '../shared/types'
 import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS } from '../shared/constants'
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
 import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting } from './db'
 import { SETTING_KEYS } from '../shared/settings'
-import { constructPrompt, parseHandoff } from './template-engine'
+import { constructPrompt, constructContinuationPrompt, parseHandoff } from './template-engine'
+import { checkContextBudget } from './context-budget'
 import { GitEngine } from './git-engine'
 import { abortSession } from './sdk-manager'
 
@@ -77,6 +80,8 @@ export class PipelineEngine extends EventEmitter {
   private taskWorktrees = new Map<number, string>() // taskId -> worktree cwd
   // Track active session IDs per task for resume support
   private sessionIds = new Map<number, string>()
+  // Track context window usage per task for budget decisions
+  private contextUsage = new Map<number, { tokens: number; max: number }>()
 
   constructor(dbPath: string, projectPath: string) {
     super()
@@ -431,6 +436,82 @@ export class PipelineEngine extends EventEmitter {
     return pausedCount
   }
 
+  /**
+   * Approve a context handoff: generate a rich handoff document from the current session,
+   * clear the session, and restart the next stage fresh with the handoff context.
+   */
+  async approveContextHandoff(taskId: number): Promise<void> {
+    if (!this.sdkRunner) {
+      throw new Error('SDK runner not set. Call setSdkRunner() before running stages.')
+    }
+
+    const task = this.getTaskOrThrow(taskId)
+    const currentStage = task.currentAgent as PipelineStage
+    const nextStage = getNextStage(task.tier, currentStage)
+
+    // Load the rich handoff template
+    const richHandoffTemplatePath = path.join(__dirname, '../../src/templates/_rich-handoff.md')
+    let richHandoffPrompt: string
+    try {
+      richHandoffPrompt = fs.readFileSync(richHandoffTemplatePath, 'utf-8')
+    } catch {
+      richHandoffPrompt = 'Produce a detailed handoff document covering: completed stages, codebase knowledge, and working state.'
+    }
+
+    // Fill in the next_stage placeholder
+    richHandoffPrompt = richHandoffPrompt.replace('{{next_stage}}', nextStage || 'unknown')
+
+    const sessionId = task.activeSessionId || this.sessionIds.get(taskId)
+    const sessionKey = `${taskId}-handoff`
+
+    // Send rich handoff request into the existing session
+    const result = await this.sdkRunner({
+      prompt: richHandoffPrompt,
+      model: 'claude-sonnet-4-6',
+      maxTurns: 5,
+      cwd: this.taskWorktrees.get(taskId) ?? this.projectPath,
+      taskId,
+      autoMode: true,
+      resumeSessionId: sessionId || undefined,
+      sessionKey,
+      stage: 'handoff',
+      dbPath: this.dbPath,
+      onStream: (content: string, type: string) => {
+        this.emit('stream', { taskId, stage: 'handoff', content, type })
+      },
+      onApprovalRequest: () => {
+        // No approvals during handoff generation
+      }
+    })
+
+    appendAgentLog(this.dbPath, taskId, {
+      timestamp: new Date().toISOString(),
+      agent: 'pipeline-engine',
+      model: 'claude-sonnet-4-6',
+      action: 'context_handoff',
+      details: `Rich handoff generated. Cost: ${result.cost}. Next stage: ${nextStage}`
+    })
+
+    // Store the rich handoff and clear the session for a fresh start
+    updateTask(this.dbPath, taskId, {
+      richHandoff: result.output,
+      activeSessionId: null,
+    })
+    this.sessionIds.delete(taskId)
+    this.contextUsage.delete(taskId)
+
+    // Continue pipeline with next stage (fresh session with rich handoff context injected)
+    if (nextStage) {
+      const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
+      updateTask(this.dbPath, taskId, {
+        status: nextStatus,
+        currentAgent: nextStage,
+        ...(nextStage === 'done' ? { completedAt: new Date().toISOString() } : {})
+      })
+      await this.runStage(taskId, nextStage)
+    }
+  }
+
   // --- Private Methods ---
 
   /**
@@ -456,11 +537,23 @@ export class PipelineEngine extends EventEmitter {
         : feedback ? `Running with feedback: ${feedback}` : `Running stage: ${stage}`
     })
 
+    // Determine if this is a continuation of an existing session across stages
+    const existingSessionId = task.activeSessionId || this.sessionIds.get(taskId)
+    const isFirstStage = stage === getFirstStage(task.tier)
+    const isContinuation = !!(existingSessionId && !isFirstStage && !resumeSessionId && !feedback)
+
     let prompt: string
 
     if (resumeSessionId && userResponse) {
       // Resuming an existing session — just send the user's answer
       prompt = userResponse
+    } else if (isContinuation) {
+      // Continuing the same SDK session into the next stage
+      prompt = constructContinuationPrompt(stage, task, this.projectPath)
+
+      if (task.autoMode) {
+        prompt += `\n\n---\n\n## Autonomous Mode\n\nYou are running autonomously without a human in the loop. When a skill or workflow asks for user input, make reasonable decisions based on the task description and context. Document all decisions you make in the handoff block. Do NOT pause or ask questions — keep moving forward.`
+      }
     } else {
       prompt = constructPrompt(stage, task, this.projectPath)
 
@@ -485,7 +578,7 @@ export class PipelineEngine extends EventEmitter {
         cwd: this.taskWorktrees.get(taskId) ?? this.projectPath,
         taskId,
         autoMode: task.autoMode,
-        resumeSessionId,
+        resumeSessionId: isContinuation ? existingSessionId! : resumeSessionId,
         sessionKey,
         stage,
         dbPath: this.dbPath,
@@ -518,9 +611,18 @@ export class PipelineEngine extends EventEmitter {
       const result = await Promise.race([sdkPromise, timeoutPromise])
       clearTimeout(timeoutHandle)
 
-      // Store session ID for potential resume
+      // Store session ID for potential resume and continuation
       if (result.sessionId) {
         this.sessionIds.set(taskId, result.sessionId)
+        updateTask(this.dbPath, taskId, { activeSessionId: result.sessionId })
+      }
+
+      // Track context usage for budget decisions on stage transitions
+      if (result.contextTokens !== undefined) {
+        this.contextUsage.set(taskId, {
+          tokens: result.contextTokens,
+          max: result.contextMax || 200_000,
+        })
       }
 
       // Parse handoff from output
@@ -578,6 +680,30 @@ export class PipelineEngine extends EventEmitter {
       if (!stageConfig.pauses || task.autoMode) {
         const nextStage = getNextStage(task.tier, stage)
         if (nextStage) {
+          // Check context budget before continuing in the same session
+          const contextState = this.contextUsage.get(taskId)
+          if (contextState) {
+            const budgetCheck = checkContextBudget(
+              contextState.tokens,
+              contextState.max,
+              nextStage
+            )
+
+            if (!budgetCheck.canContinue) {
+              // Emit event for renderer to show handoff approval UI
+              this.emit('stage:context_handoff', {
+                taskId,
+                currentStage: stage,
+                nextStage,
+                usagePercent: budgetCheck.usagePercent,
+                remainingTokens: budgetCheck.remainingContext,
+                estimatedNeed: budgetCheck.estimatedNeed,
+              })
+              // Don't advance — wait for approveContextHandoff()
+              return
+            }
+          }
+
           const transition = canTransition(this.getTaskOrThrow(taskId), nextStage)
           if (transition.allowed) {
             const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
