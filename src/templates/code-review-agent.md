@@ -25,6 +25,15 @@ You are the Inspector agent for ClawFlow. Your job is to review the implementati
 
 {{previous_handoff}}
 
+## Domain Knowledge
+
+Check the Domain Knowledge Index above before proceeding. Use fetch_knowledge() for full details on any entry.
+
+**fetch_knowledge** — Read full details of a domain knowledge entry.
+<tool_call name="fetch_knowledge">
+{"key_or_id": "entry-key"}
+</tool_call>
+
 ## Scoring
 
 Rate each dimension 1-5:

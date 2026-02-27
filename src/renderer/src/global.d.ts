@@ -33,6 +33,8 @@ interface WindowApi {
     approveContextHandoff: (taskId: number) => Promise<void>
     onContextHandoff: (callback: (data: { taskId: number; currentStage: string; nextStage: string; usagePercent: number; remainingTokens: number; estimatedNeed: number }) => void) => () => void
     onTaskUnblocked: (callback: (data: { taskId: number }) => void) => () => void
+    onReviewCandidates: (callback: (data: any) => void) => () => void
+    onTaskMerged: (callback: (data: any) => void) => () => void
   }
   usage: {
     getSnapshot: () => Promise<any>
@@ -50,6 +52,25 @@ interface WindowApi {
     createTasks: (sessionId: string, tasks: any[]) => Promise<void>
     onStream: (callback: (event: any) => void) => () => void
     onToolEvent: (callback: (event: any) => void) => () => void
+  }
+  knowledge: {
+    list: (dbPath: string, options?: { category?: string; status?: string; includeArchived?: boolean }) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry[]>
+    get: (dbPath: string, id: string) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry | null>
+    getByKey: (dbPath: string, key: string) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry | null>
+    create: (dbPath: string, entry: any) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry>
+    update: (dbPath: string, id: string, updates: any) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry | null>
+    delete: (dbPath: string, id: string) => Promise<void>
+    listCandidates: (dbPath: string, taskId?: string) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry[]>
+    promote: (dbPath: string, id: string, global: boolean) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry | null>
+    discard: (dbPath: string, id: string) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry | null>
+    listGlobal: () => Promise<import('../../../shared/knowledge-types').KnowledgeEntry[]>
+    createGlobal: (entry: any) => Promise<import('../../../shared/knowledge-types').KnowledgeEntry>
+  }
+  skills: {
+    list: () => Promise<import('../../../shared/skill-types').SkillInfo[]>
+    view: (name: string, tier?: 'core' | 'extended') => Promise<{ core?: string; extended?: string }>
+    edit: (name: string, tier: 'core' | 'extended', content: string) => Promise<void>
+    fetchExtended: (name: string) => Promise<string>
   }
   settings: {
     getAllGlobal: () => Promise<Record<string, string>>

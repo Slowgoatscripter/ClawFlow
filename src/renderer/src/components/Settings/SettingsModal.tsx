@@ -1,15 +1,18 @@
 import { useState, type MouseEvent } from 'react'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useProjectStore } from '../../stores/projectStore'
 import { MODEL_OPTIONS, type ModelOption } from '../../../../shared/settings'
 import { STAGE_CONFIGS } from '../../../../shared/constants'
+import { HOOK_PRESETS, type ValidationHook } from '../../../../shared/hook-types'
 import type { PipelineStage } from '../../../../shared/types'
 
-type Tab = 'models' | 'pipeline' | 'preferences'
+type Tab = 'models' | 'pipeline' | 'preferences' | 'hooks'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'models', label: 'AI Models' },
   { key: 'pipeline', label: 'Pipeline' },
   { key: 'preferences', label: 'Preferences' },
+  { key: 'hooks', label: 'Validation Hooks' },
 ]
 
 /** Pipeline stages excluding 'done' */
@@ -359,6 +362,305 @@ function PreferencesTab() {
   )
 }
 
+// ─── Tab: Validation Hooks ───────────────────────────────────────
+
+const HOOK_STAGES = [
+  'pre.brainstorm', 'post.brainstorm',
+  'pre.plan', 'post.plan',
+  'pre.implement', 'post.implement',
+  'pre.code_review', 'post.code_review',
+  'pre.verify', 'post.verify',
+] as const
+
+type HookStage = typeof HOOK_STAGES[number]
+
+const PRESET_OPTIONS = [
+  { value: '', label: 'None' },
+  { value: 'typescript', label: 'TypeScript' },
+  { value: 'full-js', label: 'Full JS' },
+  { value: 'python', label: 'Python' },
+]
+
+interface HookRow {
+  stageKey: HookStage
+  hook: ValidationHook
+  index: number
+}
+
+function HooksTab() {
+  const hookPreset = useSettingsStore((s) => s.hookPreset)
+  const hooks = useSettingsStore((s) => s.hooks)
+  const setHookPreset = useSettingsStore((s) => s.setHookPreset)
+  const setHooks = useSettingsStore((s) => s.setHooks)
+  const currentProject = useProjectStore((s) => s.currentProject)
+
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addCommand, setAddCommand] = useState('')
+  const [addArgs, setAddArgs] = useState('')
+  const [addStage, setAddStage] = useState<HookStage>('post.implement')
+  const [addRequired, setAddRequired] = useState(false)
+  const [addTimeout, setAddTimeout] = useState('30000')
+
+  const dbPath = currentProject?.dbPath ?? ''
+
+  /** Flatten hooks record into rows for display */
+  const allRows: HookRow[] = []
+  for (const stageKey of HOOK_STAGES) {
+    const list = hooks[stageKey] ?? []
+    list.forEach((hook, index) => {
+      allRows.push({ stageKey, hook, index })
+    })
+  }
+
+  const handlePresetChange = async (presetName: string) => {
+    if (!dbPath) return
+    if (presetName === '') {
+      await setHookPreset(null, dbPath)
+      await setHooks({}, dbPath)
+      return
+    }
+    const preset = HOOK_PRESETS.find((p) => p.name === presetName)
+    if (!preset) return
+    await setHookPreset(presetName, dbPath)
+    await setHooks(preset.hooks as Record<string, ValidationHook[]>, dbPath)
+  }
+
+  const handleDelete = async (stageKey: HookStage, index: number) => {
+    if (!dbPath) return
+    const updated = { ...hooks }
+    const list = [...(updated[stageKey] ?? [])]
+    list.splice(index, 1)
+    if (list.length === 0) {
+      delete updated[stageKey]
+    } else {
+      updated[stageKey] = list
+    }
+    await setHooks(updated, dbPath)
+  }
+
+  const handleAdd = async () => {
+    if (!dbPath || !addName.trim() || !addCommand.trim()) return
+    const newHook: ValidationHook = {
+      name: addName.trim(),
+      command: addCommand.trim(),
+      args: addArgs.trim() ? addArgs.trim().split(/\s+/) : [],
+      timeout: Number(addTimeout) || 30000,
+      required: addRequired,
+    }
+    const updated = { ...hooks }
+    updated[addStage] = [...(updated[addStage] ?? []), newHook]
+    await setHooks(updated, dbPath)
+    // Reset form
+    setAddName('')
+    setAddCommand('')
+    setAddArgs('')
+    setAddStage('post.implement')
+    setAddRequired(false)
+    setAddTimeout('30000')
+    setShowAddForm(false)
+  }
+
+  const inputCls = 'bg-elevated text-text-primary border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-accent-cyan placeholder:text-text-muted w-full'
+  const selectCls = 'bg-elevated text-text-primary border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-accent-cyan'
+
+  return (
+    <div className="space-y-6">
+      {/* Notice if no project open */}
+      {!dbPath && (
+        <div className="rounded-md border border-border bg-elevated/50 px-4 py-3 text-sm text-text-secondary">
+          Open a project to configure validation hooks. Hooks are stored per-project.
+        </div>
+      )}
+
+      {/* Preset Selector */}
+      <section>
+        <h3 className="text-sm font-semibold text-text-primary mb-1">Preset</h3>
+        <p className="text-xs text-text-secondary mb-2">
+          Quickly load a standard hook configuration. Selecting a preset replaces current hooks.
+        </p>
+        <select
+          value={hookPreset ?? ''}
+          onChange={(e) => handlePresetChange(e.target.value)}
+          disabled={!dbPath}
+          className={selectCls}
+        >
+          {PRESET_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </section>
+
+      <div className="h-px bg-gradient-to-r from-border via-border-bright to-transparent" />
+
+      {/* Hook List */}
+      <section>
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Configured Hooks</h3>
+        {allRows.length === 0 ? (
+          <p className="text-sm text-text-muted italic">No hooks configured. Select a preset or add a custom hook below.</p>
+        ) : (
+          <div className="rounded-md border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-elevated/60 text-text-secondary text-left border-b border-border">
+                  <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Command</th>
+                  <th className="px-3 py-2 font-medium">Stage</th>
+                  <th className="px-3 py-2 font-medium">Required</th>
+                  <th className="px-3 py-2 font-medium w-8" />
+                </tr>
+              </thead>
+              <tbody>
+                {allRows.map(({ stageKey, hook, index }) => (
+                  <tr key={`${stageKey}-${index}`} className="border-b border-border/50 hover:bg-elevated/30 transition-colors">
+                    <td className="px-3 py-2 text-text-primary font-medium">{hook.name}</td>
+                    <td className="px-3 py-2 text-text-secondary font-mono text-xs">
+                      {[hook.command, ...(hook.args ?? [])].join(' ')}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs border border-border text-text-secondary bg-elevated/50">
+                        {stageKey}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {hook.required ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs border border-accent-cyan/40 text-accent-cyan bg-accent-cyan/10">
+                          required
+                        </span>
+                      ) : (
+                        <span className="text-text-muted text-xs">optional</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        onClick={() => handleDelete(stageKey, index)}
+                        disabled={!dbPath}
+                        className="text-text-muted hover:text-red-400 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        aria-label="Delete hook"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <div className="h-px bg-gradient-to-r from-border via-border-bright to-transparent" />
+
+      {/* Add Hook */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-text-primary">Add Custom Hook</h3>
+          <button
+            onClick={() => setShowAddForm((v) => !v)}
+            disabled={!dbPath}
+            className="px-3 py-1.5 rounded-md text-sm border border-border text-text-secondary hover:text-text-primary hover:border-accent-cyan transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {showAddForm ? 'Cancel' : '+ Add Hook'}
+          </button>
+        </div>
+
+        {showAddForm && (
+          <div className="rounded-md border border-border bg-elevated/30 p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. TypeScript Check"
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Command</label>
+                <input
+                  type="text"
+                  placeholder="e.g. npx"
+                  value={addCommand}
+                  onChange={(e) => setAddCommand(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Args (space-separated)</label>
+              <input
+                type="text"
+                placeholder="e.g. tsc --noEmit"
+                value={addArgs}
+                onChange={(e) => setAddArgs(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Stage Trigger</label>
+                <select
+                  value={addStage}
+                  onChange={(e) => setAddStage(e.target.value as HookStage)}
+                  className={selectCls + ' w-full'}
+                >
+                  {HOOK_STAGES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Timeout (ms)</label>
+                <input
+                  type="number"
+                  min={1000}
+                  step={1000}
+                  value={addTimeout}
+                  onChange={(e) => setAddTimeout(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-text-secondary">Required</span>
+                <button
+                  role="switch"
+                  aria-checked={addRequired}
+                  onClick={() => setAddRequired((v) => !v)}
+                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                    addRequired ? 'bg-accent-cyan shadow-[0_0_8px_rgba(0,229,255,0.2)]' : 'bg-elevated border border-border'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-text-primary transition-transform ${
+                      addRequired ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <button
+                onClick={handleAdd}
+                disabled={!addName.trim() || !addCommand.trim()}
+                className="px-4 py-2 rounded-md bg-accent-cyan/10 border border-accent-cyan/40 text-accent-cyan text-sm hover:bg-accent-cyan/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Add Hook
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
 // ─── Main Modal ──────────────────────────────────────────────────
 
 export function SettingsModal() {
@@ -431,6 +733,7 @@ export function SettingsModal() {
           {activeTab === 'models' && <ModelsTab />}
           {activeTab === 'pipeline' && <PipelineTab />}
           {activeTab === 'preferences' && <PreferencesTab />}
+          {activeTab === 'hooks' && <HooksTab />}
         </div>
       </div>
     </div>

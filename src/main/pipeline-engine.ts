@@ -5,9 +5,11 @@ import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig, TaskArtifac
 import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS, getClearFieldsPayload } from '../shared/constants'
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
 import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting, areDependenciesMet, getTaskDependencies, getTaskDependents, setTaskArtifacts, listTasks } from './db'
+import { createKnowledgeEntry, listCandidates } from './knowledge-engine'
 import { SETTING_KEYS } from '../shared/settings'
 import { constructPrompt, constructContinuationPrompt, parseHandoff } from './template-engine'
 import { checkContextBudget } from './context-budget'
+import { getHooksForStage, runHooks } from './hook-runner'
 import { GitEngine } from './git-engine'
 import { abortSession } from './sdk-manager'
 
@@ -82,6 +84,8 @@ export class PipelineEngine extends EventEmitter {
   private sessionIds = new Map<number, string>()
   // Track context window usage per task for budget decisions
   private contextUsage = new Map<number, { tokens: number; max: number }>()
+  // Track rejection feedback history per task+stage for two-strike detection
+  private rejectionHistory: Map<string, string[]> = new Map()
 
   constructor(dbPath: string, projectPath: string) {
     super()
@@ -218,7 +222,8 @@ export class PipelineEngine extends EventEmitter {
       const transition = canTransition(task, nextStage)
       if (!transition.allowed) {
         updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
-        this.emit('circuit-breaker', { taskId, reason: transition.reason })
+        const candidates = listCandidates(this.dbPath, String(taskId))
+        this.emit('circuit-breaker', { taskId, reason: transition.reason, candidates })
         break
       }
 
@@ -259,6 +264,10 @@ export class PipelineEngine extends EventEmitter {
     if (!nextStage) {
       // Pipeline complete — extract artifacts before marking done
       await this.extractArtifacts(taskId)
+      const remainingCandidates = listCandidates(this.dbPath, String(taskId))
+      if (remainingCandidates.length > 0) {
+        this.emit('task:review-candidates', { taskId, candidates: remainingCandidates })
+      }
       updateTask(this.dbPath, taskId, {
         status: 'done' as TaskStatus,
         currentAgent: 'done',
@@ -270,7 +279,8 @@ export class PipelineEngine extends EventEmitter {
     const transition = canTransition(task, nextStage)
     if (!transition.allowed) {
       updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
-      this.emit('circuit-breaker', { taskId, reason: transition.reason })
+      const candidates = listCandidates(this.dbPath, String(taskId))
+      this.emit('circuit-breaker', { taskId, reason: transition.reason, candidates })
       return this.getTaskOrThrow(taskId)
     }
 
@@ -313,14 +323,33 @@ export class PipelineEngine extends EventEmitter {
       details: `Stage ${currentStage} rejected. Feedback: ${feedback}`
     })
 
+    // FDRL: Auto-capture rejection as candidate lesson
+    try {
+      const rejCount = updates.planReviewCount ?? updates.implReviewCount ?? 1
+      const autoKey = `${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 40)}-${currentStage}-rej-${rejCount}`
+      createKnowledgeEntry(this.dbPath, {
+        key: autoKey,
+        summary: feedback.split(/[.!?\n]/)[0].trim().substring(0, 100),
+        content: `## Stage Rejection: ${currentStage}\n\n**Task:** ${task.title}\n**Feedback:**\n\n${feedback}`,
+        category: 'lesson_learned',
+        tags: [currentStage, 'rejection'],
+        source: 'fdrl',
+        status: 'candidate'
+      })
+    } catch (err) {
+      console.warn('FDRL capture failed:', err)
+    }
+
     // Re-fetch task to check circuit breaker with updated counts
     const updatedTask = this.getTaskOrThrow(taskId)
 
     if (isCircuitBreakerTripped(updatedTask)) {
       updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
+      const candidates = listCandidates(this.dbPath, String(taskId))
       this.emit('circuit-breaker', {
         taskId,
-        reason: `Circuit breaker tripped after repeated rejections at stage ${currentStage}`
+        reason: `Circuit breaker tripped after repeated rejections at stage ${currentStage}`,
+        candidates
       })
       return this.getTaskOrThrow(taskId)
     }
@@ -330,8 +359,30 @@ export class PipelineEngine extends EventEmitter {
     this.sessionIds.delete(taskId)
     this.contextUsage.delete(taskId)
 
+    // Two-Strike Intelligence: detect similar consecutive rejections
+    const detection = this.detectSimilarRejection(taskId, currentStage, feedback)
+    let enhancedFeedback = feedback
+
+    if (detection.similar && detection.previous) {
+      enhancedFeedback = `## Two-Strike Protocol
+
+Your previous two attempts at this stage were rejected for similar reasons:
+- Previous: ${detection.previous.split('\n')[0].substring(0, 200)}
+- Current: ${feedback.split('\n')[0].substring(0, 200)}
+
+Before proceeding, you MUST:
+1. Explain why your previous approach failed
+2. List 3 fundamentally different strategies to solve this
+3. Choose the best strategy and explain why
+4. Only then proceed with implementation
+
+## Original Feedback
+
+${feedback}`
+    }
+
     // Re-run the stage with feedback
-    await this.runStage(taskId, currentStage, feedback)
+    await this.runStage(taskId, currentStage, enhancedFeedback)
     return this.getTaskOrThrow(taskId)
   }
 
@@ -643,6 +694,26 @@ export class PipelineEngine extends EventEmitter {
         : feedback ? `Running with feedback: ${feedback}` : `Running stage: ${stage}`
     })
 
+    // Pre-stage validation hooks
+    const preHooks = getHooksForStage(this.dbPath, 'pre', stage)
+    if (preHooks.length > 0) {
+      const worktreePath = this.taskWorktrees.get(taskId)
+      const hookResults = await runHooks(preHooks, this.projectPath, worktreePath)
+      if (!hookResults.allPassed) {
+        const failMessages = hookResults.failedRequired.map(r => `**${r.name}:** ${r.output}`).join('\n\n')
+        appendAgentLog(this.dbPath, taskId, {
+          timestamp: new Date().toISOString(),
+          agent: 'pipeline-engine',
+          model: 'system',
+          action: 'hook:pre-stage-failed',
+          details: `Pre-hooks failed for ${stage}:\n${failMessages}`
+        })
+        this.emit('stage:error', { taskId, stage, error: `Pre-stage hooks failed:\n${failMessages}` })
+        updateTask(this.dbPath, taskId, { status: 'blocked' })
+        return
+      }
+    }
+
     // Determine if this is a continuation of an existing session across stages
     const existingSessionId = task.activeSessionId || this.sessionIds.get(taskId)
     const isFirstStage = stage === getFirstStage(task.tier)
@@ -683,7 +754,7 @@ export class PipelineEngine extends EventEmitter {
         }
       }
 
-      prompt = constructPrompt(stage, task, this.projectPath, dependencyContext)
+      prompt = constructPrompt(stage, task, this.projectPath, dependencyContext, this.dbPath)
 
       // Auto mode: inject autonomous decision-making instructions
       if (task.autoMode) {
@@ -753,6 +824,26 @@ export class PipelineEngine extends EventEmitter {
         })
       }
 
+      // Post-stage validation hooks
+      const postHooks = getHooksForStage(this.dbPath, 'post', stage)
+      if (postHooks.length > 0) {
+        const worktreePath = this.taskWorktrees.get(taskId)
+        const hookResults = await runHooks(postHooks, this.projectPath, worktreePath)
+        if (!hookResults.allPassed) {
+          const failMessages = hookResults.failedRequired.map(r => `**${r.name}:** ${r.output}`).join('\n\n')
+          appendAgentLog(this.dbPath, taskId, {
+            timestamp: new Date().toISOString(),
+            agent: 'pipeline-engine',
+            model: 'system',
+            action: 'hook:post-stage-failed',
+            details: `Post-hooks failed for ${stage}:\n${failMessages}`
+          })
+          // Treat as rejection — feeds into FDRL
+          await this.rejectStage(taskId, `Validation hook failed:\n\n${failMessages}`)
+          return
+        }
+      }
+
       // Parse handoff from output
       const handoff = parseHandoff(result.output)
 
@@ -798,6 +889,7 @@ export class PipelineEngine extends EventEmitter {
 
       // Stage completed successfully
       this.emit('stage:complete', { taskId, stage })
+      this.rejectionHistory.delete(`${taskId}-${stage}`)
 
       // If this stage pauses for review, notify the renderer
       if (stageConfig.pauses && !task.autoMode) {
@@ -851,6 +943,10 @@ export class PipelineEngine extends EventEmitter {
         } else {
           // No next stage — pipeline complete — extract artifacts before marking done
           await this.extractArtifacts(taskId)
+          const remainingCandidates = listCandidates(this.dbPath, String(taskId))
+          if (remainingCandidates.length > 0) {
+            this.emit('task:review-candidates', { taskId, candidates: remainingCandidates })
+          }
           updateTask(this.dbPath, taskId, {
             status: 'done' as TaskStatus,
             currentAgent: 'done',
@@ -955,29 +1051,42 @@ export class PipelineEngine extends EventEmitter {
 
     // Auto-merge and cleanup worktree on task completion
     if (stage === 'done' && this.gitEngine) {
-      try {
-        // Auto-merge completed task branch to base
-        const mergeResult = await this.gitEngine.merge(taskId)
-        if (!mergeResult.success) {
+      const task = getTask(this.dbPath, taskId)
+      if (task?.autoMerge !== false) {
+        try {
+          // Auto-merge completed task branch to base
+          const mergeResult = await this.gitEngine.merge(taskId)
+          if (!mergeResult.success) {
+            if (mergeResult.conflicts) {
+              // Block the task so the user can resolve the conflict
+              updateTask(this.dbPath, taskId, {
+                status: 'blocked',
+                pausedFromStatus: 'done',
+                pauseReason: 'merge_conflict'
+              })
+              this.emit('task:blocked', { taskId, reason: 'merge_conflict' })
+            }
+            this.emit('stream', {
+              taskId,
+              agent: 'pipeline',
+              type: 'error' as const,
+              content: `Auto-merge failed: ${mergeResult.message ?? 'merge conflict'}. Resolve manually before dependent tasks can start.`,
+              timestamp: new Date().toISOString()
+            })
+            // Don't cleanup worktree on merge failure
+            return
+          }
+          this.emit('task:merged', { taskId })
+        } catch (err) {
           this.emit('stream', {
             taskId,
             agent: 'pipeline',
             type: 'error' as const,
-            content: `Auto-merge failed: ${mergeResult.message ?? 'merge conflict'}. Resolve manually before dependent tasks can start.`,
+            content: `Auto-merge error: ${err instanceof Error ? err.message : String(err)}`,
             timestamp: new Date().toISOString()
           })
-          // Don't cleanup worktree on merge failure
           return
         }
-      } catch (err) {
-        this.emit('stream', {
-          taskId,
-          agent: 'pipeline',
-          type: 'error' as const,
-          content: `Auto-merge error: ${err instanceof Error ? err.message : String(err)}`,
-          timestamp: new Date().toISOString()
-        })
-        return
       }
 
       // Check if any dependent tasks are now unblocked
@@ -1038,6 +1147,40 @@ export class PipelineEngine extends EventEmitter {
     }
 
     setTaskArtifacts(this.dbPath, taskId, artifacts)
+  }
+
+  /**
+   * Detect whether the current rejection feedback is similar to the previous one
+   * for the same task+stage. Stores feedback history for comparison.
+   */
+  private detectSimilarRejection(taskId: number, stage: string, feedback: string): { similar: boolean; previous?: string } {
+    const key = `${taskId}-${stage}`
+    const history = this.rejectionHistory.get(key) ?? []
+
+    if (history.length === 0) {
+      this.rejectionHistory.set(key, [feedback])
+      return { similar: false }
+    }
+
+    const lastFeedback = history[history.length - 1]
+
+    // Extract significant terms (words 4+ chars, lowercased)
+    const extractTerms = (text: string): Set<string> =>
+      new Set(text.toLowerCase().match(/\b[a-z]{4,}\b/g) ?? [])
+
+    const currentTerms = extractTerms(feedback)
+    const previousTerms = extractTerms(lastFeedback)
+
+    let overlap = 0
+    for (const term of currentTerms) {
+      if (previousTerms.has(term)) overlap++
+    }
+
+    const similarity = currentTerms.size > 0 ? overlap / currentTerms.size : 0
+    history.push(feedback)
+    this.rejectionHistory.set(key, history)
+
+    return { similar: similarity > 0.5, previous: lastFeedback }
   }
 
   /**

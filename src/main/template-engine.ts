@@ -4,6 +4,8 @@ import { homedir } from 'os'
 import type { Task, Handoff } from '../shared/types'
 import type { PipelineStage } from '../shared/types'
 import { STAGE_CONFIGS } from '../shared/constants'
+import { buildKnowledgeIndex } from './knowledge-engine'
+import { loadSkillCore } from './skill-loader'
 
 const TEMPLATES_DIR = path.join(__dirname, '../../src/templates')
 
@@ -141,16 +143,28 @@ export function constructPrompt(
   stage: PipelineStage,
   task: Task,
   projectPath?: string,
-  dependencyContext?: string
+  dependencyContext?: string,
+  dbPath?: string
 ): string {
   const template = loadTemplate(stage)
   const config = STAGE_CONFIGS[stage]
-  const skillContent = loadSkillContent(config.skill)
+
+  // Load ClawFlow-native skill core (tiered), fallback to ~/.claude/skills/
+  const skillCore = dbPath ? loadSkillCore(stage, dbPath) : ''
+  const skillContent = skillCore || loadSkillContent(config.skill)
 
   let prompt = fillTemplate(template, task, projectPath)
 
   if (skillContent) {
     prompt += `\n\n---\n\n## Skill Instructions: ${config.skill}\n\nFollow these instructions for this stage:\n\n${skillContent}`
+  }
+
+  // Inject domain knowledge index
+  if (dbPath) {
+    const knowledgeIndex = buildKnowledgeIndex(dbPath)
+    if (knowledgeIndex) {
+      prompt = `\n\n---\n${knowledgeIndex}\n---\n\n` + prompt
+    }
   }
 
   // Inject rich handoff context from a previous session that hit context limits

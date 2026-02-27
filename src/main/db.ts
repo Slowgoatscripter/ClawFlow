@@ -18,7 +18,7 @@ function ensureDirs() {
 
 let globalDb: Database.Database | null = null
 
-function getGlobalDb(): Database.Database {
+export function getGlobalDb(): Database.Database {
   if (globalDb) return globalDb
   ensureDirs()
   globalDb = new Database(GLOBAL_DB_PATH)
@@ -39,6 +39,22 @@ function getGlobalDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    )
+  `)
+  globalDb.exec(`
+    CREATE TABLE IF NOT EXISTS global_knowledge (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'convention',
+      tags TEXT DEFAULT '[]',
+      source TEXT NOT NULL DEFAULT 'manual',
+      source_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      token_estimate INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `)
   return globalDb
@@ -208,10 +224,26 @@ function initProjectDb(dbPath: string): Database.Database {
       FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
     )
   `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS domain_knowledge (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'convention',
+      tags TEXT DEFAULT '[]',
+      source TEXT NOT NULL DEFAULT 'manual',
+      source_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      token_estimate INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
   return db
 }
 
-function getProjectDb(dbPath: string): Database.Database {
+export function getProjectDb(dbPath: string): Database.Database {
   let db = projectDbs.get(dbPath)
   if (db) return db
   db = initProjectDb(dbPath)
@@ -234,9 +266,9 @@ export function getTask(dbPath: string, taskId: number): Task | null {
 export function createTask(dbPath: string, input: CreateTaskInput): Task {
   const db = getProjectDb(dbPath)
   const result = db.prepare(`
-    INSERT INTO tasks (title, description, tier, priority, auto_mode, dependency_ids)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(input.title, input.description, input.tier, input.priority, input.autoMode ? 1 : 0, JSON.stringify(input.dependencyIds ?? []))
+    INSERT INTO tasks (title, description, tier, priority, auto_mode, auto_merge, dependency_ids)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(input.title, input.description, input.tier, input.priority, input.autoMode ? 1 : 0, input.autoMerge !== false ? 1 : 0, JSON.stringify(input.dependencyIds ?? []))
 
   const taskId = result.lastInsertRowid as number
   if (input.dependencyIds?.length) {
@@ -628,6 +660,8 @@ function migrateTasksTable(db: Database.Database): void {
     db.prepare("ALTER TABLE tasks ADD COLUMN dependency_ids TEXT NOT NULL DEFAULT '[]'").run()
   if (!colNames.has('artifacts'))
     db.prepare('ALTER TABLE tasks ADD COLUMN artifacts TEXT').run()
+  if (!colNames.has('auto_merge'))
+    db.prepare('ALTER TABLE tasks ADD COLUMN auto_merge INTEGER DEFAULT 1').run()
 }
 
 function migrateProjectsTable(db: Database.Database): void {
@@ -701,7 +735,8 @@ function rowToTask(row: any): Task {
     activeSessionId: row.active_session_id ?? null,
     richHandoff: row.rich_handoff ?? null,
     dependencyIds: JSON.parse(row.dependency_ids || '[]'),
-    artifacts: row.artifacts ? JSON.parse(row.artifacts) : null
+    artifacts: row.artifacts ? JSON.parse(row.artifacts) : null,
+    autoMerge: row.auto_merge !== 0
   }
 }
 

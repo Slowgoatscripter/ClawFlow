@@ -22,6 +22,11 @@ import {
 import { abortSession } from './sdk-manager'
 import { SETTING_KEYS } from '../shared/settings'
 import { constructWorkshopPrompt, loadSkillContent } from './template-engine'
+import {
+  createKnowledgeEntry, getKnowledgeEntry, getKnowledgeByKey,
+  updateKnowledgeEntry, listKnowledge
+} from './knowledge-engine'
+import { loadSkillExtended, editSkill, viewSkill } from './skill-loader'
 import type {
   Task,
   WorkshopSession,
@@ -642,6 +647,137 @@ export class WorkshopEngine extends EventEmitter {
             message,
             'system_event',
             { skillName }
+          )
+          break
+        }
+        case 'save_knowledge': {
+          const entry = createKnowledgeEntry(this.dbPath, {
+            key: toolInput.key,
+            summary: toolInput.summary,
+            content: toolInput.content,
+            category: toolInput.category,
+            tags: toolInput.tags ?? [],
+            source: 'workshop',
+            status: 'active',
+          })
+          createWorkshopMessage(
+            this.dbPath,
+            sessionId,
+            'system',
+            `Knowledge saved: [${entry.key}] ${entry.summary}`,
+            'system_event',
+            { knowledgeId: entry.id }
+          )
+          this.emit('stream', {
+            type: 'tool_call',
+            toolName: 'save_knowledge',
+            toolInput: { id: entry.id, key: entry.key },
+            sessionId,
+          } as WorkshopStreamEvent)
+          break
+        }
+        case 'update_knowledge': {
+          const updated = updateKnowledgeEntry(this.dbPath, toolInput.id, {
+            content: toolInput.content,
+            summary: toolInput.summary,
+            tags: toolInput.tags,
+          })
+          const label = updated ? `[${updated.key}] ${updated.summary}` : toolInput.id
+          createWorkshopMessage(
+            this.dbPath,
+            sessionId,
+            'system',
+            `Knowledge updated: ${label}`,
+            'system_event',
+            { knowledgeId: toolInput.id }
+          )
+          break
+        }
+        case 'list_knowledge': {
+          const entries = listKnowledge(this.dbPath, {
+            category: toolInput.category,
+          })
+          const lines = entries.length > 0
+            ? entries.map((e) => `- **[${e.key}]** (${e.category}) ${e.summary}`)
+            : ['No knowledge entries found.']
+          const header = toolInput.category
+            ? `## Knowledge: ${toolInput.category}`
+            : '## Knowledge Entries'
+          createWorkshopMessage(
+            this.dbPath,
+            sessionId,
+            'system',
+            `${header}\n\n${lines.join('\n')}`,
+            'system_event',
+            {}
+          )
+          break
+        }
+        case 'fetch_knowledge': {
+          const keyOrId = toolInput.key_or_id
+          const entry = getKnowledgeByKey(this.dbPath, keyOrId) ?? getKnowledgeEntry(this.dbPath, keyOrId)
+          const message = entry
+            ? `## Knowledge: ${entry.key}\n\n**Summary:** ${entry.summary}\n**Category:** ${entry.category}\n**Tags:** ${entry.tags.join(', ') || 'none'}\n\n${entry.content}`
+            : `Knowledge not found: ${keyOrId}`
+          createWorkshopMessage(
+            this.dbPath,
+            sessionId,
+            'system',
+            message,
+            'system_event',
+            entry ? { knowledgeId: entry.id } : {}
+          )
+          break
+        }
+        case 'fetch_skill_detail': {
+          const skillName = toolInput.skill_name
+          const content = loadSkillExtended(skillName)
+          const message = content
+            ? `## Skill Extended: ${skillName}\n\n${content}`
+            : `Extended content not found for skill: ${skillName}`
+          createWorkshopMessage(
+            this.dbPath,
+            sessionId,
+            'system',
+            message,
+            'system_event',
+            { skillName }
+          )
+          break
+        }
+        case 'edit_skill': {
+          const { skill_name: editSkillName, tier, content: skillContent } = toolInput
+          editSkill(editSkillName, tier, skillContent)
+          createWorkshopMessage(
+            this.dbPath,
+            sessionId,
+            'system',
+            `Skill updated: ${editSkillName} (${tier})`,
+            'system_event',
+            { skillName: editSkillName, tier }
+          )
+          break
+        }
+        case 'view_skill': {
+          const { skill_name: viewSkillName, tier: viewTier } = toolInput
+          const skillData = viewSkill(viewSkillName, viewTier)
+          const sections: string[] = [`## Skill: ${viewSkillName}`]
+          if (skillData.core !== undefined) {
+            sections.push(`### Core\n\n${skillData.core ?? '(empty)'}`)
+          }
+          if (skillData.extended !== undefined) {
+            sections.push(`### Extended\n\n${skillData.extended ?? '(empty)'}`)
+          }
+          if (sections.length === 1) {
+            sections.push('No content found.')
+          }
+          createWorkshopMessage(
+            this.dbPath,
+            sessionId,
+            'system',
+            sections.join('\n\n'),
+            'system_event',
+            { skillName: viewSkillName }
           )
           break
         }

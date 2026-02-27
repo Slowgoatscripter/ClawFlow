@@ -69,6 +69,16 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('pipeline:task-unblocked', handler)
       return () => ipcRenderer.removeListener('pipeline:task-unblocked', handler)
     },
+    onReviewCandidates: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:review-candidates', handler)
+      return () => { ipcRenderer.removeListener('pipeline:review-candidates', handler) }
+    },
+    onTaskMerged: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:task-merged', handler)
+      return () => { ipcRenderer.removeListener('pipeline:task-merged', handler) }
+    },
   },
   usage: {
     getSnapshot: () => ipcRenderer.invoke('usage:get-snapshot'),
@@ -189,6 +199,25 @@ contextBridge.exposeInMainWorld('api', {
     getProject: (dbPath: string, key: string) => ipcRenderer.invoke('settings:get-project', dbPath, key),
     setProject: (dbPath: string, key: string, value: string) => ipcRenderer.invoke('settings:set-project', dbPath, key, value),
     deleteProject: (dbPath: string, key: string) => ipcRenderer.invoke('settings:delete-project', dbPath, key),
+  },
+  knowledge: {
+    list: (dbPath: string, options?: any) => ipcRenderer.invoke('knowledge:list', dbPath, options),
+    get: (dbPath: string, id: string) => ipcRenderer.invoke('knowledge:get', dbPath, id),
+    getByKey: (dbPath: string, key: string) => ipcRenderer.invoke('knowledge:getByKey', dbPath, key),
+    create: (dbPath: string, entry: any) => ipcRenderer.invoke('knowledge:create', dbPath, entry),
+    update: (dbPath: string, id: string, updates: any) => ipcRenderer.invoke('knowledge:update', dbPath, id, updates),
+    delete: (dbPath: string, id: string) => ipcRenderer.invoke('knowledge:delete', dbPath, id),
+    listCandidates: (dbPath: string, taskId?: string) => ipcRenderer.invoke('knowledge:listCandidates', dbPath, taskId),
+    promote: (dbPath: string, id: string, global: boolean) => ipcRenderer.invoke('knowledge:promote', dbPath, id, global),
+    discard: (dbPath: string, id: string) => ipcRenderer.invoke('knowledge:discard', dbPath, id),
+    listGlobal: () => ipcRenderer.invoke('knowledge:listGlobal'),
+    createGlobal: (entry: any) => ipcRenderer.invoke('knowledge:createGlobal', entry),
+  },
+  skills: {
+    list: () => ipcRenderer.invoke('skills:list'),
+    view: (name: string, tier?: 'core' | 'extended') => ipcRenderer.invoke('skills:view', name, tier),
+    edit: (name: string, tier: 'core' | 'extended', content: string) => ipcRenderer.invoke('skills:edit', name, tier, content),
+    fetchExtended: (name: string) => ipcRenderer.invoke('skills:fetchExtended', name),
   },
   fs: {
     pickDirectory: () => ipcRenderer.invoke('fs:pick-directory')

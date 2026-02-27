@@ -13,6 +13,7 @@ interface PipelineState {
   usageSnapshot: { connected: boolean; error: string | null; fiveHour: { utilization: number; countdown: string } | null; sevenDay: { utilization: number; countdown: string } | null; sevenDayOpus: { utilization: number; countdown: string } | null; sevenDaySonnet: { utilization: number; countdown: string } | null } | null
   usagePausedToast: { pausedCount: number; utilization: number; countdown: string } | null
   lastUnblockedTaskId: number | null
+  pendingCandidateReview: any | null
   startPipeline: (taskId: number) => Promise<void>
   stepPipeline: (taskId: number) => Promise<void>
   approveStage: (taskId: number) => Promise<void>
@@ -44,6 +45,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   usageSnapshot: null,
   usagePausedToast: null,
   lastUnblockedTaskId: null,
+  pendingCandidateReview: null,
 
   startPipeline: async (taskId) => {
     set(state => ({
@@ -181,6 +183,12 @@ export const usePipelineStore = create<PipelineState>((set) => ({
     const cleanupTaskUnblocked = window.api.pipeline.onTaskUnblocked((data) => {
       set({ lastUnblockedTaskId: data.taskId })
     })
+    const cleanupCandidates = window.api.pipeline.onReviewCandidates((data: any) => {
+      set({ pendingCandidateReview: data })
+    })
+    const cleanupMerged = window.api.pipeline.onTaskMerged((_data: any) => {
+      // Could update task status or show notification
+    })
     window.api.usage.getSnapshot().then((snapshot) => {
       if (snapshot) set({ usageSnapshot: snapshot })
     })
@@ -193,6 +201,8 @@ export const usePipelineStore = create<PipelineState>((set) => ({
       cleanupContextHandoff()
       cleanupUsage()
       cleanupTaskUnblocked()
+      cleanupCandidates()
+      cleanupMerged()
     }
   }
 }))

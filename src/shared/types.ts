@@ -119,8 +119,9 @@ export interface Task {
   todos: Record<string, TodoItem[]> | null
   archivedAt: string | null
   pausedFromStatus: TaskStatus | null
-  pauseReason: 'manual' | 'usage_limit' | null
+  pauseReason: 'manual' | 'usage_limit' | 'merge_conflict' | null
   activeSessionId: string | null
+  autoMerge: boolean
   richHandoff: string | null
   dependencyIds: number[]
   artifacts: TaskArtifacts | null
@@ -132,6 +133,7 @@ export interface CreateTaskInput {
   tier: Tier
   priority: Priority
   autoMode?: boolean
+  autoMerge?: boolean
   dependencyIds?: number[]
 }
 

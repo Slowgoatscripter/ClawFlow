@@ -1,5 +1,6 @@
 import { STAGE_CONFIGS } from './constants'
 import type { PipelineStage } from './types'
+import type { ValidationHook } from './hook-types'
 
 export const SETTING_KEYS = {
   GLOBAL_MODEL: 'ai.globalModel',
@@ -14,6 +15,9 @@ export const SETTING_KEYS = {
   'usage.autoPauseThreshold': 'usage.autoPauseThreshold',
   'usage.autoResume': 'usage.autoResume',
   'usage.monitorEnabled': 'usage.monitorEnabled',
+  HOOK_PRE_PREFIX: 'pipeline.hooks.pre.',
+  HOOK_POST_PREFIX: 'pipeline.hooks.post.',
+  HOOK_PRESET: 'pipeline.hooks.preset',
 } as const
 
 export type ModelOption = 'claude-opus-4-6' | 'claude-sonnet-4-6' | 'claude-haiku-4-5-20251001'
@@ -40,6 +44,8 @@ export interface SettingsState {
   autoPauseThreshold: number
   autoResume: boolean
   usageMonitorEnabled: boolean
+  hookPreset: string | null
+  hooks: Record<string, ValidationHook[]>
 }
 
 export const DEFAULT_SETTINGS: SettingsState = {
@@ -55,6 +61,8 @@ export const DEFAULT_SETTINGS: SettingsState = {
   autoPauseThreshold: 95,
   autoResume: false,
   usageMonitorEnabled: true,
+  hookPreset: null,
+  hooks: {},
 }
 
 export function getEffectiveModel(stage: PipelineStage, settings: SettingsState): string {
