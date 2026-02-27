@@ -283,7 +283,7 @@ export function TaskDetail() {
           {isActive && (
             <button
               onClick={() => usePipelineStore.getState().pauseTask(task.id)}
-              style={{ background: colors.accent.gold, color: colors.bg }}
+              style={{ background: colors.accent.amber, color: colors.bg }}
               className="px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
             >
               Pause

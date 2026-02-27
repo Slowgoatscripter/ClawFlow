@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { useLayoutStore } from '../../stores/layoutStore'
+import { useSettingsStore } from '../../stores/settingsStore'
+import { usePipelineStore } from '../../stores/pipelineStore'
+import { useTaskStore } from '../../stores/taskStore'
+import { colors } from '../../theme'
 import { CreateTaskModal } from './CreateTaskModal'
+import { SettingsModal } from '../Settings/SettingsModal'
 
 export function TopBar() {
   const currentProject = useProjectStore((s) => s.currentProject)
@@ -10,6 +15,12 @@ export function TopBar() {
   const activityFeedOpen = useLayoutStore((s) => s.activityFeedOpen)
   const toggleActivityFeed = useLayoutStore((s) => s.toggleActivityFeed)
   const toggleArchiveDrawer = useLayoutStore((s) => s.toggleArchiveDrawer)
+  const openSettingsModal = useSettingsStore((s) => s.openSettingsModal)
+  const usageSnapshot = usePipelineStore((s) => s.usageSnapshot)
+  const tasks = useTaskStore((s) => s.tasks)
+  const hasRunningTasks = tasks.some(t =>
+    ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying'].includes(t.status)
+  )
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const handleBack = () => {
@@ -123,7 +134,38 @@ export function TopBar() {
               <path d="M5 12h14" />
             </svg>
           </button>
+          {/* Usage indicator */}
+          {usageSnapshot?.connected && usageSnapshot.fiveHour && (
+            <div
+              className="flex items-center gap-2 px-3 py-1 rounded-lg text-xs"
+              style={{
+                background: colors.elevated,
+                color: usageSnapshot.fiveHour.utilization > 80 ? colors.accent.magenta
+                  : usageSnapshot.fiveHour.utilization > 50 ? colors.accent.amber
+                  : colors.text.secondary
+              }}
+              title={`5hr: ${Math.round(usageSnapshot.fiveHour.utilization)}% — resets ${usageSnapshot.fiveHour.countdown}`}
+            >
+              <span style={{ fontSize: '10px' }}>⚡</span>
+              <span>{Math.round(usageSnapshot.fiveHour.utilization)}%</span>
+              <span style={{ color: colors.text.muted }}>{usageSnapshot.fiveHour.countdown}</span>
+            </div>
+          )}
+
+          {/* Pause All button */}
+          {hasRunningTasks && (
+            <button
+              onClick={() => usePipelineStore.getState().pauseAll()}
+              style={{ background: colors.elevated, color: colors.accent.amber }}
+              className="px-3 py-1 rounded-lg text-xs hover:opacity-80 transition-opacity"
+              title="Pause all running tasks"
+            >
+              ⏸ Pause All
+            </button>
+          )}
+
           <button
+            onClick={openSettingsModal}
             className="text-text-secondary hover:text-text-primary transition-colors cursor-pointer p-1"
             aria-label="Settings"
           >
@@ -145,6 +187,7 @@ export function TopBar() {
         </div>
       </div>
       <CreateTaskModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} />
+      <SettingsModal />
     </>
   )
 }

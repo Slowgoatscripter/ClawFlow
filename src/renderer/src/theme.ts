@@ -1,31 +1,34 @@
 export const colors = {
-  bg: '#1a1b26',
-  surface: '#24273a',
-  elevated: '#2a2d3d',
-  border: '#363a4f',
+  bg: '#0a0b10',
+  surface: '#12131a',
+  elevated: '#1a1b26',
+  overlay: '#1e1f2e',
+  border: '#2a2b3d',
+  borderBright: '#3a3b5d',
   text: {
-    primary: '#cdd6f4',
-    secondary: '#a6adc8',
-    muted: '#6c7086'
+    primary: '#e4e6f0',
+    secondary: '#8b8fa3',
+    muted: '#4a4d63',
   },
   accent: {
-    teal: '#89b4fa',
-    gold: '#f9e2af',
-    green: '#a6e3a1',
-    red: '#f38ba8',
-    peach: '#fab387',
-    mauve: '#cba6f7'
+    cyan: '#00e5ff',
+    magenta: '#ff2d78',
+    amber: '#ffb836',
+    green: '#3ddc84',
+    violet: '#a78bfa',
+    peach: '#ff8a65',
   },
-  tier: { L1: '#a6e3a1', L2: '#89b4fa', L3: '#cba6f7' },
-  priority: { low: '#6c7086', medium: '#89b4fa', high: '#fab387', critical: '#f38ba8' },
+  tier: { L1: '#3ddc84', L2: '#00e5ff', L3: '#a78bfa' },
+  priority: { low: '#8b8fa3', medium: '#ffb836', high: '#ff8a65', critical: '#ff2d78' },
   status: {
-    backlog: '#6c7086', brainstorming: '#cba6f7', design_review: '#f9e2af',
-    planning: '#89b4fa', implementing: '#fab387', code_review: '#f9e2af',
-    verifying: '#a6e3a1', done: '#a6e3a1', blocked: '#f38ba8'
+    backlog: '#4a4d63', brainstorming: '#a78bfa', design_review: '#ffb836',
+    planning: '#00e5ff', implementing: '#ff8a65', code_review: '#ffb836',
+    verifying: '#3ddc84', done: '#3ddc84', blocked: '#ff2d78',
+    paused: '#4a4d63'
   }
 } as const
 
 export const fonts = {
-  ui: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-  mono: "'JetBrains Mono', 'Fira Code', monospace"
+  ui: "'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
+  mono: "'Geist Mono', 'JetBrains Mono', 'Fira Code', monospace"
 } as const

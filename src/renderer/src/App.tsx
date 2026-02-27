@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { useLayoutStore } from './stores/layoutStore'
 import { usePipelineStore } from './stores/pipelineStore'
+import { useSettingsStore } from './stores/settingsStore'
+import { colors } from './theme'
 import { ProjectSelector } from './components/ProjectSelector/ProjectSelector'
 import { Dashboard } from './components/Dashboard/Dashboard'
 import { TaskDetail } from './components/TaskDetail/TaskDetail'
@@ -15,6 +17,11 @@ import { ArchiveDrawer } from './components/ArchiveDrawer/ArchiveDrawer'
 export default function App() {
   const view = useLayoutStore((s) => s.view)
   const approvalRequest = usePipelineStore((s) => s.approvalRequest)
+  const usagePausedToast = usePipelineStore((s) => s.usagePausedToast)
+  const dismissToast = usePipelineStore((s) => s.dismissUsagePausedToast)
+  const loadGlobalSettings = useSettingsStore((s) => s.loadGlobalSettings)
+  const density = useSettingsStore((s) => s.density)
+  const fontSize = useSettingsStore((s) => s.fontSize)
 
   // Global pipeline IPC listeners — persist across all views
   useEffect(() => {
@@ -22,8 +29,13 @@ export default function App() {
     return cleanup
   }, [])
 
+  // Load persisted settings on startup
+  useEffect(() => {
+    loadGlobalSettings()
+  }, [])
+
   return (
-    <div className="h-screen bg-bg flex flex-col">
+    <div className={`h-screen bg-bg flex flex-col density-${density} font-size-${fontSize}`}>
       <TitleBar />
       <ErrorBoundary>
         <div className="flex-1 min-h-0">
@@ -37,6 +49,32 @@ export default function App() {
       {approvalRequest && <ApprovalDialog />}
       <ArchiveDrawer />
       <ToastContainer />
+      {usagePausedToast && (
+        <div
+          className="fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm"
+          style={{ background: colors.elevated, border: `1px solid ${colors.accent.amber}` }}
+        >
+          <div className="flex items-start gap-3">
+            <span style={{ color: colors.accent.amber, fontSize: '18px' }}>⚡</span>
+            <div className="flex-1">
+              <p className="text-sm font-medium" style={{ color: colors.text.primary }}>
+                Usage at {Math.round(usagePausedToast.utilization)}%
+              </p>
+              <p className="text-xs mt-1" style={{ color: colors.text.secondary }}>
+                Paused {usagePausedToast.pausedCount} running task{usagePausedToast.pausedCount !== 1 ? 's' : ''}.
+                Resets in {usagePausedToast.countdown}.
+              </p>
+            </div>
+            <button
+              onClick={dismissToast}
+              className="text-sm hover:opacity-70 transition-opacity"
+              style={{ color: colors.text.muted }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

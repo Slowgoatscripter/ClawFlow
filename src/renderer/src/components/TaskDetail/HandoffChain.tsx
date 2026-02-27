@@ -14,8 +14,8 @@ const STAGE_LABELS: Record<string, string> = {
 
 const STATUS_INDICATOR: Record<HandoffStatus, { color: string; label: string }> = {
   completed: { color: colors.accent.green, label: 'Completed' },
-  blocked: { color: colors.accent.red, label: 'Blocked' },
-  needs_intervention: { color: colors.accent.gold, label: 'Needs Intervention' }
+  blocked: { color: colors.accent.magenta, label: 'Blocked' },
+  needs_intervention: { color: colors.accent.amber, label: 'Needs Intervention' }
 }
 
 export function HandoffChain({ handoffs }: { handoffs: Handoff[] }) {
