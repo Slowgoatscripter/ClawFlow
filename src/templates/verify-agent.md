@@ -13,9 +13,11 @@ Skill instructions for this stage are appended below. Follow them exactly. Run a
 **Title:** {{title}}
 **Description:** {{description}}
 
-## Implementation Notes
+## Implementation Summary
 
-{{implementation_notes}}
+{{implementation_summary}}
+
+> Run the tests and read the actual code to verify correctness.
 
 ## Test Results (if any)
 
