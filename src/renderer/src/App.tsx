@@ -13,6 +13,7 @@ import { ToastContainer } from './components/common/Toast'
 import { ApprovalDialog } from './components/common/ApprovalDialog'
 import { ArchiveDrawer } from './components/ArchiveDrawer/ArchiveDrawer'
 import { AppShell } from './components/AppShell'
+import { WorkshopPanel } from './components/WorkshopPanel/WorkshopPanel'
 
 export default function App() {
   const view = useLayoutStore((s) => s.view)
@@ -35,16 +36,12 @@ export default function App() {
     loadGlobalSettings()
   }, [])
 
-  const workshopPlaceholder = (
-    <div className="p-3 text-xs text-[var(--color-text-muted)]">Workshop panel placeholder</div>
-  )
-
   return (
     <div className={`h-screen bg-bg flex flex-col density-${density} font-size-${fontSize} scanlines`}>
       <TitleBar />
       <ErrorBoundary>
         <div className="flex-1 min-h-0">
-          <AppShell workshopPanel={view !== 'projects' ? workshopPlaceholder : undefined}>
+          <AppShell workshopPanel={view !== 'projects' ? <WorkshopPanel /> : undefined}>
             <div className="h-full" key={view}>
               <div className="h-full animate-[fade-scale-in_0.3s_cubic-bezier(0.4,0,0.2,1)]">
                 {view === 'projects' && <ProjectSelector />}
