@@ -532,55 +532,68 @@ ${feedback}`
     const sessionId = task.activeSessionId || this.sessionIds.get(taskId)
     const sessionKey = `${taskId}-handoff`
 
-    // Send rich handoff request into the existing session
-    const result = await this.sdkRunner({
-      prompt: richHandoffPrompt,
-      model: 'claude-sonnet-4-6',
-      maxTurns: 5,
-      cwd: this.taskWorktrees.get(taskId) ?? this.projectPath,
-      taskId,
-      autoMode: true,
-      resumeSessionId: sessionId || undefined,
-      sessionKey,
-      stage: 'handoff',
-      dbPath: this.dbPath,
-      onStream: (content: string, type: string) => {
-        this.emit('stream', { taskId, stage: 'handoff', content, type })
-      },
-      onApprovalRequest: () => {
-        // No approvals during handoff generation
-      }
-    })
-
-    appendAgentLog(this.dbPath, taskId, {
-      timestamp: new Date().toISOString(),
-      agent: 'pipeline-engine',
-      model: 'claude-sonnet-4-6',
-      action: 'context_handoff',
-      details: `Rich handoff generated. Cost: ${result.cost}. Next stage: ${nextStage}`
-    })
-
-    // Store the rich handoff and clear the session for a fresh start
-    updateTask(this.dbPath, taskId, {
-      richHandoff: result.output,
-      activeSessionId: null,
-    })
-    this.sessionIds.delete(taskId)
-    this.contextUsage.delete(taskId)
-
-    // Continue pipeline with next stage (fresh session with rich handoff context injected)
-    if (nextStage) {
-      const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
-      // Extract artifacts before marking done
-      if (nextStage === 'done') {
-        await this.extractArtifacts(taskId)
-      }
-      updateTask(this.dbPath, taskId, {
-        status: nextStatus,
-        currentAgent: nextStage,
-        ...(nextStage === 'done' ? { completedAt: new Date().toISOString() } : {})
+    try {
+      // Send rich handoff request into the existing session
+      const result = await this.sdkRunner({
+        prompt: richHandoffPrompt,
+        model: 'claude-sonnet-4-6',
+        maxTurns: 5,
+        cwd: this.taskWorktrees.get(taskId) ?? this.projectPath,
+        taskId,
+        autoMode: true,
+        resumeSessionId: sessionId || undefined,
+        sessionKey,
+        stage: 'handoff',
+        dbPath: this.dbPath,
+        onStream: (content: string, type: string) => {
+          this.emit('stream', { taskId, stage: 'handoff', content, type })
+        },
+        onApprovalRequest: () => {
+          // No approvals during handoff generation
+        }
       })
-      await this.runStage(taskId, nextStage)
+
+      appendAgentLog(this.dbPath, taskId, {
+        timestamp: new Date().toISOString(),
+        agent: 'pipeline-engine',
+        model: 'claude-sonnet-4-6',
+        action: 'context_handoff',
+        details: `Rich handoff generated. Cost: ${result.cost}. Next stage: ${nextStage}`
+      })
+
+      // Store the rich handoff and clear the session for a fresh start
+      updateTask(this.dbPath, taskId, {
+        richHandoff: result.output,
+        activeSessionId: null,
+      })
+      this.sessionIds.delete(taskId)
+      this.contextUsage.delete(taskId)
+
+      // Continue pipeline with next stage (fresh session with rich handoff context injected)
+      if (nextStage) {
+        const nextStatus = STAGE_TO_STATUS[nextStage] as TaskStatus
+        // Extract artifacts before marking done
+        if (nextStage === 'done') {
+          await this.extractArtifacts(taskId)
+        }
+        updateTask(this.dbPath, taskId, {
+          status: nextStatus,
+          currentAgent: nextStage,
+          ...(nextStage === 'done' ? { completedAt: new Date().toISOString() } : {})
+        })
+        await this.runStage(taskId, nextStage)
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      appendAgentLog(this.dbPath, taskId, {
+        timestamp: new Date().toISOString(),
+        agent: 'pipeline-engine',
+        model: 'system',
+        action: 'context_handoff_error',
+        details: `Context handoff failed: ${errorMessage}`
+      })
+      updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
+      this.emit('stage:error', { taskId, stage: currentStage, error: `Context handoff failed: ${errorMessage}` })
     }
   }
 
