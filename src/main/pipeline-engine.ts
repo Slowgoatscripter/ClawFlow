@@ -5,6 +5,7 @@ import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig, TaskArtifac
 import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS, getClearFieldsPayload } from '../shared/constants'
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
 import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting, areDependenciesMet, getTaskDependencies, getTaskDependents, setTaskArtifacts, listTasks } from './db'
+import { createKnowledgeEntry, listCandidates } from './knowledge-engine'
 import { SETTING_KEYS } from '../shared/settings'
 import { constructPrompt, constructContinuationPrompt, parseHandoff } from './template-engine'
 import { checkContextBudget } from './context-budget'
@@ -218,7 +219,8 @@ export class PipelineEngine extends EventEmitter {
       const transition = canTransition(task, nextStage)
       if (!transition.allowed) {
         updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
-        this.emit('circuit-breaker', { taskId, reason: transition.reason })
+        const candidates = listCandidates(this.dbPath, String(taskId))
+        this.emit('circuit-breaker', { taskId, reason: transition.reason, candidates })
         break
       }
 
@@ -259,6 +261,10 @@ export class PipelineEngine extends EventEmitter {
     if (!nextStage) {
       // Pipeline complete — extract artifacts before marking done
       await this.extractArtifacts(taskId)
+      const remainingCandidates = listCandidates(this.dbPath, String(taskId))
+      if (remainingCandidates.length > 0) {
+        this.emit('task:review-candidates', { taskId, candidates: remainingCandidates })
+      }
       updateTask(this.dbPath, taskId, {
         status: 'done' as TaskStatus,
         currentAgent: 'done',
@@ -270,7 +276,8 @@ export class PipelineEngine extends EventEmitter {
     const transition = canTransition(task, nextStage)
     if (!transition.allowed) {
       updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
-      this.emit('circuit-breaker', { taskId, reason: transition.reason })
+      const candidates = listCandidates(this.dbPath, String(taskId))
+      this.emit('circuit-breaker', { taskId, reason: transition.reason, candidates })
       return this.getTaskOrThrow(taskId)
     }
 
@@ -313,14 +320,33 @@ export class PipelineEngine extends EventEmitter {
       details: `Stage ${currentStage} rejected. Feedback: ${feedback}`
     })
 
+    // FDRL: Auto-capture rejection as candidate lesson
+    try {
+      const rejCount = updates.planReviewCount ?? updates.implReviewCount ?? 1
+      const autoKey = `${task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 40)}-${currentStage}-rej-${rejCount}`
+      createKnowledgeEntry(this.dbPath, {
+        key: autoKey,
+        summary: feedback.split(/[.!?\n]/)[0].trim().substring(0, 100),
+        content: `## Stage Rejection: ${currentStage}\n\n**Task:** ${task.title}\n**Feedback:**\n\n${feedback}`,
+        category: 'lesson_learned',
+        tags: [currentStage, 'rejection'],
+        source: 'fdrl',
+        status: 'candidate'
+      })
+    } catch (err) {
+      console.warn('FDRL capture failed:', err)
+    }
+
     // Re-fetch task to check circuit breaker with updated counts
     const updatedTask = this.getTaskOrThrow(taskId)
 
     if (isCircuitBreakerTripped(updatedTask)) {
       updateTask(this.dbPath, taskId, { status: 'blocked' as TaskStatus })
+      const candidates = listCandidates(this.dbPath, String(taskId))
       this.emit('circuit-breaker', {
         taskId,
-        reason: `Circuit breaker tripped after repeated rejections at stage ${currentStage}`
+        reason: `Circuit breaker tripped after repeated rejections at stage ${currentStage}`,
+        candidates
       })
       return this.getTaskOrThrow(taskId)
     }
@@ -851,6 +877,10 @@ export class PipelineEngine extends EventEmitter {
         } else {
           // No next stage — pipeline complete — extract artifacts before marking done
           await this.extractArtifacts(taskId)
+          const remainingCandidates = listCandidates(this.dbPath, String(taskId))
+          if (remainingCandidates.length > 0) {
+            this.emit('task:review-candidates', { taskId, candidates: remainingCandidates })
+          }
           updateTask(this.dbPath, taskId, {
             status: 'done' as TaskStatus,
             currentAgent: 'done',
