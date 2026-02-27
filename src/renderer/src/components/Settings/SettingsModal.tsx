@@ -78,6 +78,8 @@ function ModelsTab() {
         />
       </section>
 
+      <div className="h-px bg-gradient-to-r from-border via-border-bright to-transparent" />
+
       {/* Per-Stage Overrides */}
       <section>
         <h3 className="text-sm font-semibold text-text-primary mb-2">
@@ -98,6 +100,8 @@ function ModelsTab() {
           ))}
         </div>
       </section>
+
+      <div className="h-px bg-gradient-to-r from-border via-border-bright to-transparent" />
 
       {/* Workshop Model */}
       <section>
@@ -253,7 +257,7 @@ function ToggleSwitch({
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
-        checked ? 'bg-accent-cyan' : 'bg-elevated border border-border'
+        checked ? 'bg-accent-cyan shadow-[0_0_8px_rgba(0,229,255,0.2)]' : 'bg-elevated border border-border'
       }`}
     >
       <span
@@ -375,7 +379,7 @@ export function SettingsModal() {
     >
       <div className="bg-surface rounded-lg max-w-3xl w-full mx-4 flex overflow-hidden max-h-[80vh]">
         {/* Left sidebar */}
-        <div className="w-48 shrink-0 bg-surface border-r border-border p-4 flex flex-col gap-1">
+        <div className="w-48 shrink-0 bg-surface/60 backdrop-blur-lg border-r border-border p-4 flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-text-primary mb-4">
             Settings
           </h2>

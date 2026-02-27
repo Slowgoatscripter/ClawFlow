@@ -23,7 +23,7 @@ export function InterventionPanel({ task }: Props) {
   // 1. Circuit breaker takes highest priority
   if (isCircuitBreakerTripped(task)) {
     return (
-      <div className="bg-surface border border-accent-amber rounded-lg p-6 my-4">
+      <div className="bg-surface/80 backdrop-blur-md border border-accent-amber/40 rounded-lg p-6 my-4">
         <CircuitBreakerPanel task={task} />
       </div>
     )
@@ -35,7 +35,7 @@ export function InterventionPanel({ task }: Props) {
     const questions = lastHandoff.openQuestions
     if (questions && questions !== 'none' && questions.trim() !== '' && !isStreamingThisTask) {
       return (
-        <div className="bg-surface border border-accent-amber rounded-lg p-6 my-4">
+        <div className="bg-surface/80 backdrop-blur-md border border-accent-amber/40 rounded-lg p-6 my-4">
           <OpenQuestionsPanel task={task} />
         </div>
       )
@@ -45,7 +45,7 @@ export function InterventionPanel({ task }: Props) {
   // 3. Plan/brainstorm review gate — show when agent is done AND awaiting review
   if ((task.status === 'brainstorming' || task.status === 'planning' || task.status === 'design_review') && awaitingReview && !isStreamingThisTask) {
     return (
-      <div className="bg-surface border border-accent-amber rounded-lg p-6 my-4">
+      <div className="bg-surface/80 backdrop-blur-md border border-accent-amber/40 rounded-lg p-6 my-4">
         <PlanReviewGate task={task} />
       </div>
     )
@@ -54,7 +54,7 @@ export function InterventionPanel({ task }: Props) {
   // 4. Code review gate — same pattern
   if (task.status === 'code_review' && awaitingReview && !isStreamingThisTask) {
     return (
-      <div className="bg-surface border border-accent-amber rounded-lg p-6 my-4">
+      <div className="bg-surface/80 backdrop-blur-md border border-accent-amber/40 rounded-lg p-6 my-4">
         <CodeReviewGate task={task} />
       </div>
     )

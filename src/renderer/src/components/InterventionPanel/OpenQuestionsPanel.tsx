@@ -35,7 +35,7 @@ export function OpenQuestionsPanel({ task }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 border-l-4 border-l-accent-cyan pl-4">
       <h3 className="text-xl font-semibold text-accent-cyan">Agent Has Questions</h3>
 
       <pre className="bg-elevated rounded p-4 font-mono text-sm max-h-[400px] overflow-y-auto text-text-secondary whitespace-pre-wrap">

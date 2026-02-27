@@ -65,7 +65,7 @@ export function PanelSessionModal({ onConfirm, onCancel }: PanelSessionModalProp
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
       onClick={handleOverlay}
     >
-      <div className="bg-bg-secondary border border-border rounded-lg shadow-xl w-full max-w-[520px] max-h-[80vh] flex flex-col">
+      <div className="bg-surface border border-border rounded-lg shadow-xl w-full max-w-[520px] max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border">
           <h2 className="text-lg font-semibold text-text">New Panel Discussion</h2>

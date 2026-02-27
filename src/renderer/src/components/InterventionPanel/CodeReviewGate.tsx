@@ -56,7 +56,7 @@ export function CodeReviewGate({ task }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 border-l-4 border-l-accent-amber pl-4">
       <h3 className="text-xl font-semibold text-accent-amber">Code Review</h3>
 
       {task.reviewScore !== null && task.reviewScore !== undefined && (

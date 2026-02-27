@@ -54,13 +54,14 @@ export function StageTabs({ task }: { task: Task }) {
           <button
             key={s.stage}
             onClick={() => setActiveTab(s.stage)}
-            className={`px-4 py-2.5 text-sm whitespace-nowrap transition-colors ${
+            className={`relative px-4 py-2.5 text-sm whitespace-nowrap transition-colors ${
               activeTab === s.stage
-                ? 'text-accent-cyan border-b-2 border-accent-cyan'
+                ? 'text-accent-cyan'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             {s.label}
+            {activeTab === s.stage && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-accent-cyan to-accent-violet" />}
           </button>
         ))}
       </div>

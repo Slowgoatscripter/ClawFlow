@@ -30,7 +30,7 @@ const PRIORITIES: { value: Priority; label: string }[] = [
 
 const priorityActiveColors: Record<Priority, string> = {
   low: 'bg-text-muted/20 text-text-muted border-text-muted',
-  medium: 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan',
+  medium: 'bg-accent-amber/20 text-accent-amber border-accent-amber',
   high: 'bg-accent-peach/20 text-accent-peach border-accent-peach',
   critical: 'bg-accent-magenta/20 text-accent-magenta border-accent-magenta'
 }

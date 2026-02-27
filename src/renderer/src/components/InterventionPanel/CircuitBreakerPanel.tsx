@@ -85,7 +85,7 @@ export function CircuitBreakerPanel({ task }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 border-l-4 border-l-accent-magenta pl-4">
       <h3 className="text-xl font-semibold text-accent-magenta flex items-center gap-2">
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
           <path

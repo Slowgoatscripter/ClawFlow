@@ -56,7 +56,7 @@ export function TaskTimeline({ task }: { task: Task }) {
                     isCompleted
                       ? 'bg-accent-green border-accent-green'
                       : isCurrent
-                        ? 'bg-accent-cyan border-accent-cyan animate-pulse'
+                        ? 'bg-accent-cyan border-accent-cyan animate-pulse shadow-[0_0_12px_rgba(0,229,255,0.3)]'
                         : 'bg-transparent border-border'
                   }`}
                 >
@@ -83,10 +83,10 @@ export function TaskTimeline({ task }: { task: Task }) {
                 <div
                   className={`flex-1 h-0.5 mx-1 mt-[-1.5rem] ${
                     isCompleted
-                      ? 'bg-accent-green'
+                      ? 'bg-gradient-to-r from-accent-cyan to-accent-green'
                       : isCurrent
                         ? 'border-t-2 border-dashed border-accent-cyan bg-transparent'
-                        : 'bg-border'
+                        : 'border-t border-dashed border-text-muted bg-transparent'
                   }`}
                 />
               )}

@@ -13,7 +13,7 @@ export function Skeleton({
 }: SkeletonProps) {
   return (
     <div
-      className={`bg-elevated animate-pulse ${rounded ? 'rounded-full' : 'rounded'} ${className}`}
+      className={`bg-elevated/50 animate-pulse ${rounded ? 'rounded-full' : 'rounded'} ${className}`}
       style={{ width, height }}
     />
   )
