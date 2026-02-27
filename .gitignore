@@ -6,3 +6,6 @@ data/
 *.db
 *.db-journal
 .claude/
+
+# Worktrees
+.worktrees/
