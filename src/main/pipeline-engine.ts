@@ -9,6 +9,7 @@ import { createKnowledgeEntry, listCandidates } from './knowledge-engine'
 import { SETTING_KEYS } from '../shared/settings'
 import { constructPrompt, constructContinuationPrompt, parseHandoff } from './template-engine'
 import { checkContextBudget } from './context-budget'
+import { getHooksForStage, runHooks } from './hook-runner'
 import { GitEngine } from './git-engine'
 import { abortSession } from './sdk-manager'
 
@@ -693,6 +694,26 @@ ${feedback}`
         : feedback ? `Running with feedback: ${feedback}` : `Running stage: ${stage}`
     })
 
+    // Pre-stage validation hooks
+    const preHooks = getHooksForStage(this.dbPath, 'pre', stage)
+    if (preHooks.length > 0) {
+      const worktreePath = this.taskWorktrees.get(taskId)
+      const hookResults = await runHooks(preHooks, this.projectPath, worktreePath)
+      if (!hookResults.allPassed) {
+        const failMessages = hookResults.failedRequired.map(r => `**${r.name}:** ${r.output}`).join('\n\n')
+        appendAgentLog(this.dbPath, taskId, {
+          timestamp: new Date().toISOString(),
+          agent: 'pipeline-engine',
+          model: 'system',
+          action: 'hook:pre-stage-failed',
+          details: `Pre-hooks failed for ${stage}:\n${failMessages}`
+        })
+        this.emit('stage:error', { taskId, stage, error: `Pre-stage hooks failed:\n${failMessages}` })
+        updateTask(this.dbPath, taskId, { status: 'blocked' })
+        return
+      }
+    }
+
     // Determine if this is a continuation of an existing session across stages
     const existingSessionId = task.activeSessionId || this.sessionIds.get(taskId)
     const isFirstStage = stage === getFirstStage(task.tier)
@@ -801,6 +822,26 @@ ${feedback}`
           tokens: result.contextTokens,
           max: result.contextMax || 200_000,
         })
+      }
+
+      // Post-stage validation hooks
+      const postHooks = getHooksForStage(this.dbPath, 'post', stage)
+      if (postHooks.length > 0) {
+        const worktreePath = this.taskWorktrees.get(taskId)
+        const hookResults = await runHooks(postHooks, this.projectPath, worktreePath)
+        if (!hookResults.allPassed) {
+          const failMessages = hookResults.failedRequired.map(r => `**${r.name}:** ${r.output}`).join('\n\n')
+          appendAgentLog(this.dbPath, taskId, {
+            timestamp: new Date().toISOString(),
+            agent: 'pipeline-engine',
+            model: 'system',
+            action: 'hook:post-stage-failed',
+            details: `Post-hooks failed for ${stage}:\n${failMessages}`
+          })
+          // Treat as rejection — feeds into FDRL
+          await this.rejectStage(taskId, `Validation hook failed:\n\n${failMessages}`)
+          return
+        }
       }
 
       // Parse handoff from output
