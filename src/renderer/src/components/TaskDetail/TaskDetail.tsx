@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTaskStore } from '../../stores/taskStore'
 import { useLayoutStore } from '../../stores/layoutStore'
 import { useProjectStore } from '../../stores/projectStore'
@@ -10,6 +10,8 @@ import { HandoffChain } from './HandoffChain'
 import { AgentLog } from './AgentLog'
 import { TodoAccordion } from './TodoAccordion'
 import { InterventionPanel } from '../InterventionPanel/InterventionPanel'
+import { TIER_STAGES, STAGE_TO_STATUS } from '../../../../shared/constants'
+import type { PipelineStage } from '../../../../shared/types'
 
 const tierClasses: Record<string, string> = {
   L1: 'bg-accent-green/20 text-accent-green',
@@ -82,32 +84,54 @@ export function TaskDetail() {
     }
   }
 
-  const handleRestart = async () => {
+  const [restartMenuOpen, setRestartMenuOpen] = useState(false)
+
+  const getCompletedStages = (): PipelineStage[] => {
+    if (!task) return []
+    const stages = TIER_STAGES[task.tier]
+    return stages.filter((stage) => {
+      if (stage === 'done') return false
+      switch (stage) {
+        case 'brainstorm': return !!task.brainstormOutput
+        case 'design_review': return !!task.designReview
+        case 'plan': return !!task.plan
+        case 'implement': return !!task.implementationNotes
+        case 'code_review': return !!task.reviewComments
+        case 'verify': return !!task.verifyResult
+        default: return false
+      }
+    }) as PipelineStage[]
+  }
+
+  const handleRestartToStage = async (targetStage: PipelineStage) => {
+    setRestartMenuOpen(false)
+    try {
+      await window.api.pipeline.restartToStage(task.id, targetStage)
+      const project = useProjectStore.getState().currentProject
+      if (project) {
+        await useTaskStore.getState().loadTasks(project.dbPath)
+      }
+      usePipelineStore.getState().clearStream()
+    } catch (err) {
+      console.error('Failed to restart to stage:', err)
+    }
+  }
+
+  const handleFullRestart = async () => {
+    setRestartMenuOpen(false)
     if (!task) return
-    const project = useProjectStore.getState().currentProject
-    if (!project) return
-    await window.api.tasks.update(project.dbPath, task.id, {
-      status: 'backlog',
-      currentAgent: null,
-      startedAt: null,
-      completedAt: null,
-      brainstormOutput: null,
-      designReview: null,
-      plan: null,
-      planReviewCount: 0,
-      implementationNotes: null,
-      reviewComments: null,
-      reviewScore: null,
-      implReviewCount: 0,
-      testResults: null,
-      verifyResult: null,
-      commitHash: null,
-      todos: null,
-      handoffs: [],
-      agentLog: []
-    })
-    await useTaskStore.getState().loadTasks(project.dbPath)
-    usePipelineStore.getState().clearStream()
+    const stages = TIER_STAGES[task.tier]
+    const firstStage = stages[0] as PipelineStage
+    try {
+      await window.api.pipeline.restartToStage(task.id, firstStage)
+      const project = useProjectStore.getState().currentProject
+      if (project) {
+        await useTaskStore.getState().loadTasks(project.dbPath)
+      }
+      usePipelineStore.getState().clearStream()
+    } catch (err) {
+      console.error('Failed to restart task:', err)
+    }
   }
 
   const handleDelete = async () => {
@@ -275,12 +299,42 @@ export function TaskDetail() {
             </button>
           )}
           {!isBacklog && !isDone && (
-            <button
-              onClick={handleRestart}
-              className="px-4 py-2 border border-accent-gold text-accent-gold rounded-lg text-sm font-medium hover:bg-accent-gold/10 transition-colors"
-            >
-              Restart
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setRestartMenuOpen(!restartMenuOpen)}
+                className="px-4 py-2 border border-accent-gold text-accent-gold rounded-lg text-sm font-medium hover:bg-accent-gold/10 transition-colors flex items-center gap-1.5"
+              >
+                Restart
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {restartMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setRestartMenuOpen(false)} />
+                  <div className="absolute top-full left-0 mt-1 z-20 bg-elevated border border-border rounded-lg shadow-lg py-1 min-w-[220px]">
+                    <button
+                      onClick={handleFullRestart}
+                      className="w-full text-left px-4 py-2 text-sm text-accent-gold hover:bg-accent-gold/10 transition-colors"
+                    >
+                      Full Restart
+                    </button>
+                    {getCompletedStages().length > 0 && (
+                      <div className="border-t border-border my-1" />
+                    )}
+                    {getCompletedStages().map((stage) => (
+                      <button
+                        key={stage}
+                        onClick={() => handleRestartToStage(stage)}
+                        className="w-full text-left px-4 py-2 text-sm text-text-secondary hover:bg-accent-teal/10 hover:text-text-primary transition-colors"
+                      >
+                        Restart from {STAGE_TO_STATUS[stage].replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
           <button
             onClick={handleDelete}
