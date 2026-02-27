@@ -5,6 +5,7 @@ import fs from 'fs'
 import type { SdkRunnerParams, SdkResult } from './pipeline-engine'
 import type { BrowserWindow } from 'electron'
 import { updateTask } from './db'
+import { createKnowledgeEntry } from './knowledge-engine'
 
 // --- Todo Parsing ---
 
@@ -311,6 +312,33 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams): P
         turns = result.num_turns ?? 0
         if (result.subtype === 'success') {
           output = result.result || output
+        }
+      }
+    }
+
+    // Parse XML tool calls from agent output (knowledge tools)
+    if (params.dbPath) {
+      const xmlToolRegex = /<tool_call name="(\w+)">([\s\S]*?)<\/tool_call>/g
+      let xmlMatch
+      while ((xmlMatch = xmlToolRegex.exec(output)) !== null) {
+        const toolName = xmlMatch[1]
+        let toolInput: any
+        try { toolInput = JSON.parse(xmlMatch[2].trim()) } catch { continue }
+
+        if (toolName === 'save_knowledge') {
+          try {
+            createKnowledgeEntry(params.dbPath, {
+              key: toolInput.key,
+              summary: toolInput.summary,
+              content: toolInput.content,
+              category: toolInput.category ?? 'lesson_learned',
+              tags: toolInput.tags ?? [],
+              source: 'pipeline',
+              status: 'candidate'
+            })
+          } catch (err) {
+            console.warn('[sdk-manager] Failed to save pipeline knowledge:', err)
+          }
         }
       }
     }

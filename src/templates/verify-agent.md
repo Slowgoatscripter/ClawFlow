@@ -23,6 +23,20 @@ You are the Verifier agent for ClawFlow. Your job is to run verification and con
 
 {{previous_handoff}}
 
+## Available Tools
+
+### Knowledge
+
+**fetch_knowledge** — Read full details of a domain knowledge entry.
+<tool_call name="fetch_knowledge">
+{"key_or_id": "api-date-format"}
+</tool_call>
+
+**fetch_skill_detail** — Load extended guidance for the current skill.
+<tool_call name="fetch_skill_detail">
+{"skill_name": "test-driven-development"}
+</tool_call>
+
 ## Verification Checklist
 
 1. Run the test suite — report pass/fail counts
