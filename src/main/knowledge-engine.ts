@@ -269,6 +269,14 @@ export function listGlobalKnowledge(): KnowledgeEntry[] {
   return rows.map(rowToEntry)
 }
 
+export function getGlobalKnowledgeByKey(key: string): KnowledgeEntry | null {
+  const db = getGlobalDb()
+  const row = db
+    .prepare("SELECT * FROM global_knowledge WHERE key = ? AND status = 'active' LIMIT 1")
+    .get(key) as any
+  return row ? rowToEntry(row) : null
+}
+
 // ---------------------------------------------------------------------------
 // Candidate Management (FDRL)
 // ---------------------------------------------------------------------------
@@ -300,16 +308,19 @@ export function promoteCandidate(
   if (!entry) return null
 
   if (global) {
-    createGlobalKnowledgeEntry({
-      key: entry.key,
-      summary: entry.summary,
-      content: entry.content,
-      category: entry.category,
-      tags: entry.tags,
-      source: entry.source,
-      sourceId: entry.sourceId,
-      status: 'active'
-    })
+    const existingGlobal = getGlobalKnowledgeByKey(entry.key)
+    if (!existingGlobal) {
+      createGlobalKnowledgeEntry({
+        key: entry.key,
+        summary: entry.summary,
+        content: entry.content,
+        category: entry.category,
+        tags: entry.tags,
+        source: entry.source,
+        sourceId: entry.sourceId,
+        status: 'active'
+      })
+    }
   }
 
   return entry

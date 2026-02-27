@@ -31,6 +31,24 @@ describe('Bug 1: Knowledge dedup logic', () => {
   })
 })
 
+// --- Bug 3: promoteCandidate duplicates global entries ---
+
+describe('Bug 3: Global knowledge dedup on promotion', () => {
+  function shouldCreateGlobal(
+    existingGlobalByKey: { id: string; key: string } | null
+  ): boolean {
+    return existingGlobalByKey === null
+  }
+
+  test('creates global entry when none exists', () => {
+    expect(shouldCreateGlobal(null)).toBe(true)
+  })
+
+  test('skips creation when global entry already exists', () => {
+    expect(shouldCreateGlobal({ id: 'g1', key: 'my-rule' })).toBe(false)
+  })
+})
+
 // --- Bug 2: Retry sleep not abort-aware + unbounded delay ---
 
 describe('Bug 2: Abort-aware sleep + delay cap', () => {
