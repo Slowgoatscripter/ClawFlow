@@ -20,6 +20,10 @@ interface CanvasState {
   standaloneTasks: Task[]
   timelineEvents: Record<number, TimelineEvent[]>
 
+  executionOrder: number[]
+  groupExecutionOrder: Record<number, number[]>
+  nextTaskId: number | null
+
   selectedGroupId: number | null
   selectedTaskId: number | null
 
@@ -47,6 +51,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   groupTasks: {},
   standaloneTasks: [],
   timelineEvents: {},
+
+  executionOrder: [],
+  groupExecutionOrder: {},
+  nextTaskId: null,
 
   selectedGroupId: null,
   selectedTaskId: null,
@@ -91,6 +99,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
 
     set({ standaloneTasks: standalone, groupTasks: groupMap, groups })
+
+    // Refresh execution order
+    const orderResult = await window.api.tasks.executionOrder(dbPath)
+    const taskMap = new Map(tasks.map((t: any) => [t.id, t]))
+    const nextId = orderResult.global.find((id: number) => {
+      const t = taskMap.get(id)
+      return t && t.status === 'backlog'
+    }) ?? null
+
+    set((s) => ({
+      ...s,
+      executionOrder: orderResult.global,
+      groupExecutionOrder: orderResult.byGroup,
+      nextTaskId: nextId
+    }))
   },
 
   deleteGroup: async (groupId: number) => {
