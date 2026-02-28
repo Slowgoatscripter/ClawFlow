@@ -28,6 +28,7 @@ interface WorkshopState {
   isStalled: boolean
   pendingSuggestions: WorkshopSuggestedTask[] | null
   suggestionsSessionId: string | null
+  suggestionsGroupTitle: string | null
   pendingChoices: { question: string; options: { label: string; description: string }[]; sessionId: string } | null
   autoMode: boolean
   sessionTokens: { input: number; output: number }
@@ -40,6 +41,7 @@ interface WorkshopState {
   selectSession: (dbPath: string, sessionId: string) => Promise<void>
   sendMessage: (sessionId: string, content: string) => Promise<void>
   loadArtifacts: () => Promise<void>
+  loadGroups: () => Promise<void>
   selectArtifact: (artifactId: string) => Promise<void>
   clearArtifactSelection: () => void
   stopSession: (sessionId: string) => void
@@ -121,6 +123,7 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   isStalled: false,
   pendingSuggestions: null,
   suggestionsSessionId: null,
+  suggestionsGroupTitle: null,
   pendingChoices: null,
   autoMode: false,
   sessionTokens: { input: 0, output: 0 },
@@ -364,6 +367,21 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
     set({ artifacts })
   },
 
+  loadGroups: async () => {
+    const result = await safeIpc(
+      () => window.api.workshop.listGroups(),
+      { groups: [], groupTasks: {} } as { groups: any[]; groupTasks: Record<number, any[]> },
+      'Failed to load groups'
+    )
+    console.log('[Workshop] loadGroups result:', result.groups.length, 'groups')
+    // Import canvasStore dynamically to avoid circular deps
+    const { useCanvasStore } = await import('./canvasStore')
+    useCanvasStore.getState().setGroups(result.groups)
+    for (const [groupId, tasks] of Object.entries(result.groupTasks)) {
+      useCanvasStore.getState().setGroupTasks(Number(groupId), tasks)
+    }
+  },
+
   selectArtifact: async (artifactId) => {
     set({ selectedArtifactId: artifactId, artifactLoading: true, artifactContent: null })
     const result = await safeIpc(
@@ -377,15 +395,17 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
   clearArtifactSelection: () => set({ selectedArtifactId: null, artifactContent: null, artifactLoading: false }),
 
   approveSuggestions: async (sessionId, tasks, autoMode) => {
+    const groupTitle = get().suggestionsGroupTitle
     await safeIpc(
-      () => window.api.workshop.createTasks(sessionId, tasks.map((t) => ({ ...t, autoMode }))),
+      () => window.api.workshop.createTasks(sessionId, tasks.map((t) => ({ ...t, autoMode })), groupTitle ?? undefined),
       undefined,
       'Failed to create tasks'
     )
-    set({ pendingSuggestions: null, suggestionsSessionId: null })
+    set({ pendingSuggestions: null, suggestionsSessionId: null, suggestionsGroupTitle: null })
+    get().loadGroups()
   },
 
-  dismissSuggestions: () => set({ pendingSuggestions: null, suggestionsSessionId: null }),
+  dismissSuggestions: () => set({ pendingSuggestions: null, suggestionsSessionId: null, suggestionsGroupTitle: null }),
 
   selectChoice: (label: string) => {
     const { pendingChoices } = get()
@@ -573,17 +593,21 @@ export const useWorkshopStore = create<WorkshopState>((set, get) => ({
     })
 
     const cleanupToolEvent = window.api.workshop.onToolEvent((event: any) => {
+      console.log('[Workshop] Tool event received:', event.type)
       if (event.type === 'artifact_created' || event.type === 'artifact_updated') {
         get().loadArtifacts()
       } else if (event.type === 'tasks_suggested') {
         set({
           pendingSuggestions: event.tasks,
-          suggestionsSessionId: event.sessionId
+          suggestionsSessionId: event.sessionId,
+          suggestionsGroupTitle: event.groupTitle ?? null
         })
       } else if (event.type === 'task_created') {
-        // Task was created directly (e.g. via autoMode) — reload tasks
-        // so the dashboard reflects the new task even without a modal
-        get().loadArtifacts()
+        // Task was created directly (e.g. via autoMode) — reload groups & tasks
+        get().loadGroups()
+      } else if (event.type === 'group_created') {
+        // Group was created — reload groups to populate the Groups tab
+        get().loadGroups()
       }
     })
 

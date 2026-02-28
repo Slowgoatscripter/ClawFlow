@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Pause, Play, RotateCcw, Archive } from 'lucide-react'
+import { X, Pause, Play, RotateCcw, Archive, Rocket, Trash2, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
 import { useTaskStore } from '../../stores/taskStore'
 import { useLayoutStore } from '../../stores/layoutStore'
 import { usePipelineStore } from '../../stores/pipelineStore'
 import { useProjectStore } from '../../stores/projectStore'
-import { colors } from '../../theme'
 import { StageTabs } from './StageTabs'
 import { AgentLog } from './AgentLog'
 import { ContextWindowBar } from '../WorkshopPanel/ContextWindowBar'
+import { InterventionPanel } from '../InterventionPanel/InterventionPanel'
 import { TIER_STAGES } from '../../../../shared/constants'
 import type { PipelineStage } from '../../../../shared/types'
 
@@ -24,31 +24,58 @@ const statusColors: Record<string, string> = {
   paused: 'bg-text-muted/20 text-text-muted',
 }
 
+const streamTypeBadgeColors: Record<string, string> = {
+  tool_use: 'bg-accent-cyan/20 text-accent-cyan',
+  text: 'bg-text-muted/20 text-text-muted',
+  thinking: 'bg-accent-violet/20 text-accent-violet',
+  error: 'bg-accent-magenta/20 text-accent-magenta',
+}
+
 export function TaskDetailOverlay() {
   const taskDetailOverlayId = useLayoutStore((s) => s.taskDetailOverlayId)
   const closeTaskDetail = useLayoutStore((s) => s.closeTaskDetail)
   const tasks = useTaskStore((s) => s.tasks)
   const contextByTaskId = usePipelineStore((s) => s.contextByTaskId)
+  const streamEvents = usePipelineStore((s) => s.streamEvents)
   const [visible, setVisible] = useState(false)
   const [restartMenuOpen, setRestartMenuOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [liveOutputOpen, setLiveOutputOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
+  const liveOutputRef = useRef<HTMLDivElement>(null)
 
   const task = tasks.find((t) => t.id === taskDetailOverlayId)
   const context = taskDetailOverlayId != null ? contextByTaskId[taskDetailOverlayId] : undefined
 
+  // Filter stream events for this task
+  const taskStreamEvents = taskDetailOverlayId != null
+    ? streamEvents.filter((e: any) => e.taskId === taskDetailOverlayId)
+    : []
+
+  // Auto-scroll live output
+  useEffect(() => {
+    if (liveOutputRef.current && liveOutputOpen) {
+      liveOutputRef.current.scrollTop = liveOutputRef.current.scrollHeight
+    }
+  }, [taskStreamEvents.length, liveOutputOpen])
+
   // Animate in on mount
   useEffect(() => {
     if (taskDetailOverlayId !== null) {
-      // Trigger enter animation on next frame
       requestAnimationFrame(() => setVisible(true))
     } else {
       setVisible(false)
     }
   }, [taskDetailOverlayId])
 
+  // Reset state when task changes
+  useEffect(() => {
+    setRestartMenuOpen(false)
+    setConfirmDelete(false)
+  }, [taskDetailOverlayId])
+
   const handleClose = () => {
     setVisible(false)
-    // Wait for exit animation before actually closing
     setTimeout(() => closeTaskDetail(), 200)
   }
 
@@ -117,6 +144,15 @@ export function TaskDetailOverlay() {
     }
   }
 
+  const handleStart = async () => {
+    if (!task) return
+    usePipelineStore.getState().startPipeline(task.id).catch(console.error)
+    const project = useProjectStore.getState().currentProject
+    if (project) {
+      setTimeout(() => useTaskStore.getState().loadTasks(project.dbPath), 500)
+    }
+  }
+
   const handleArchive = async () => {
     if (!task) return
     const project = useProjectStore.getState().currentProject
@@ -125,10 +161,25 @@ export function TaskDetailOverlay() {
     handleClose()
   }
 
+  const handleDelete = async () => {
+    if (!task) return
+    const project = useProjectStore.getState().currentProject
+    if (!project) return
+    await useTaskStore.getState().deleteTask(project.dbPath, task.id)
+    handleClose()
+  }
+
   if (taskDetailOverlayId === null) return null
 
+  const isBacklog = task?.status === 'backlog'
   const isActive = task && !['backlog', 'done', 'blocked', 'paused'].includes(task.status)
   const isPaused = task?.status === 'paused'
+  const isBlocked = task?.status === 'blocked'
+
+  // Find last error from agent log
+  const lastError = task?.agentLog?.slice().reverse().find(
+    (entry) => entry.action === 'error' || entry.action === 'stage:error'
+  )
 
   return (
     <div
@@ -164,6 +215,19 @@ export function TaskDetailOverlay() {
 
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              {/* Error banner */}
+              {isBlocked && lastError && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-accent-magenta/10 border border-accent-magenta/30">
+                  <AlertTriangle size={14} className="text-accent-magenta flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-accent-magenta">Task Blocked</p>
+                    <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 break-words">
+                      {lastError.details}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Status bar */}
               <div className="flex items-center gap-2 flex-wrap">
                 <span
@@ -261,7 +325,16 @@ export function TaskDetailOverlay() {
               )}
 
               {/* Action buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {isBacklog && (
+                  <button
+                    onClick={handleStart}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-cyan/15 text-accent-cyan hover:bg-accent-cyan/25 transition-colors"
+                  >
+                    <Rocket size={12} />
+                    Start
+                  </button>
+                )}
                 {isActive && (
                   <button
                     onClick={handlePause}
@@ -323,7 +396,78 @@ export function TaskDetailOverlay() {
                     )}
                   </div>
                 )}
+                {/* Delete with confirmation */}
+                {!confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-accent-magenta/40 text-accent-magenta hover:bg-accent-magenta/10 transition-colors"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleDelete}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-magenta/20 text-accent-magenta hover:bg-accent-magenta/30 transition-colors"
+                    >
+                      Confirm Delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="px-2 py-1.5 rounded-lg text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {/* Intervention panel (questions, review gates, circuit breaker) */}
+              <InterventionPanel task={task} />
+
+              {/* Live Output (compact, collapsible) */}
+              {taskStreamEvents.length > 0 && (
+                <div className="space-y-1.5">
+                  <button
+                    onClick={() => setLiveOutputOpen(!liveOutputOpen)}
+                    className="flex items-center gap-1.5 w-full text-left"
+                  >
+                    {liveOutputOpen ? (
+                      <ChevronDown size={12} className="text-[var(--color-text-muted)]" />
+                    ) : (
+                      <ChevronRight size={12} className="text-[var(--color-text-muted)]" />
+                    )}
+                    <h3 className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
+                      Live Output
+                    </h3>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-cyan/15 text-accent-cyan tabular-nums">
+                      {taskStreamEvents.length}
+                    </span>
+                  </button>
+                  {liveOutputOpen && (
+                    <div
+                      ref={liveOutputRef}
+                      className="max-h-[200px] overflow-y-auto bg-[var(--color-bg)] rounded-lg border border-[var(--color-border)] p-2 space-y-0.5"
+                    >
+                      {taskStreamEvents.slice(-50).map((event: any, i: number) => (
+                        <div key={i} className="flex items-start gap-1.5 text-[11px] leading-relaxed">
+                          <span
+                            className={`flex-shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold ${
+                              streamTypeBadgeColors[event.type] ?? 'bg-text-muted/20 text-text-muted'
+                            }`}
+                          >
+                            {event.type}
+                          </span>
+                          <span className="text-[var(--color-text-secondary)] break-all line-clamp-2">
+                            {typeof event.content === 'string' ? event.content.slice(0, 200) : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Stage output tabs */}
               <div className="space-y-1.5">

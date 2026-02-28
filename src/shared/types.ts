@@ -163,7 +163,7 @@ export type TaskGroupStatus = 'planning' | 'queued' | 'running' | 'paused' | 'co
 export interface TaskGroup {
   id: number
   title: string
-  sessionId: number
+  sessionId: string
   status: TaskGroupStatus
   designArtifactId: number | null
   sharedContext: string
@@ -173,7 +173,7 @@ export interface TaskGroup {
 
 export interface CreateTaskGroupInput {
   title: string
-  sessionId: number
+  sessionId: string
   designArtifactId?: number
   sharedContext: string
 }

@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import type { StreamEvent, ApprovalRequest } from '../../../shared/types'
+import { useCanvasStore } from './canvasStore'
+import { useTaskStore } from './taskStore'
+import { useProjectStore } from './projectStore'
 
 interface PipelineState {
   activeTaskId: number | null
@@ -128,6 +131,20 @@ export const usePipelineStore = create<PipelineState>((set) => ({
       set(state => ({
         streamEvents: [...state.streamEvents, event]
       }))
+
+      // Feed tool_use events into canvas timeline as file-change events
+      if (event.taskId && event.type === 'tool_use') {
+        const summary = typeof event.content === 'string'
+          ? event.content.slice(0, 80)
+          : 'Tool use'
+        useCanvasStore.getState().addTimelineEvent(event.taskId, {
+          id: `stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          taskId: event.taskId,
+          type: 'file-change',
+          summary,
+          timestamp: new Date().toISOString()
+        })
+      }
     })
     const cleanupApproval = window.api.pipeline.onApprovalRequest((request) => {
       set({ approvalRequest: request })
@@ -156,6 +173,31 @@ export const usePipelineStore = create<PipelineState>((set) => ({
             countdown: (event as any).countdown
           }
         })
+      }
+
+      // Feed status events into canvas timeline
+      if (event.taskId) {
+        const timelineType =
+          event.type === 'complete' || event.type === 'group-task-stage-complete' ? 'stage-complete' :
+          event.type === 'error' || event.type === 'circuit-breaker' ? 'error' :
+          event.type === 'awaiting-review' ? 'agent-question' :
+          null
+        if (timelineType) {
+          useCanvasStore.getState().addTimelineEvent(event.taskId, {
+            id: `status-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            taskId: event.taskId,
+            type: timelineType,
+            summary: `${event.type}${event.stage ? ` (${event.stage})` : ''}`,
+            timestamp: new Date().toISOString()
+          })
+        }
+      }
+
+      // Refresh task data so UI (overlay buttons, canvas cards) stays in sync
+      const project = useProjectStore.getState().currentProject
+      if (project) {
+        useTaskStore.getState().loadTasks(project.dbPath)
+        useCanvasStore.getState().refreshAll(project.dbPath)
       }
     })
     const cleanupTodos = window.api.pipeline.onTodosUpdated((event: any) => {

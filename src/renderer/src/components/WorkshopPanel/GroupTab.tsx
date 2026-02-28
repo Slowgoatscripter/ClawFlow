@@ -1,4 +1,4 @@
-import { MessageSquare, Eye, PauseCircle, PlayCircle } from 'lucide-react'
+import { MessageSquare, Eye, PauseCircle, PlayCircle, Trash2 } from 'lucide-react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { usePipelineStore } from '../../stores/pipelineStore'
 import { ContextWindowBar } from './ContextWindowBar'
@@ -224,6 +224,15 @@ function GroupSection({ group, tasks }: { group: TaskGroup; tasks: Task[] }) {
     }
   }
 
+  const handleDelete = async () => {
+    if (!confirm(`Delete group "${group.title}"? Tasks will be unlinked but not deleted.`)) return
+    try {
+      await useCanvasStore.getState().deleteGroup(group.id)
+    } catch (err) {
+      console.error('deleteGroup failed', err)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {/* Group header */}
@@ -241,6 +250,16 @@ function GroupSection({ group, tasks }: { group: TaskGroup; tasks: Task[] }) {
           {group.title}
         </span>
         <StatusBadge status={group.status} />
+        <button
+          onClick={handleDelete}
+          className="flex-shrink-0 p-1 rounded transition-all hover:opacity-80 active:scale-95"
+          style={{
+            color: 'var(--color-text-muted)',
+          }}
+          title="Delete group"
+        >
+          <Trash2 size={12} />
+        </button>
       </div>
 
       {/* Task cards */}

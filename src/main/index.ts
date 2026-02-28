@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { registerIpcHandlers } from './ipc-handlers'
-import { closeAllDbs, listWorkshopMessages, listProjects, updateProjectBaseBranch, createWorkshopMessage, updateWorkshopSession } from './db'
+import { closeAllDbs, listWorkshopMessages, listProjects, updateProjectBaseBranch, createWorkshopMessage, updateWorkshopSession, listTaskGroups, getTasksByGroup, createTaskGroup, deleteTaskGroup } from './db'
 import { PipelineEngine } from './pipeline-engine'
 import type { PipelineStage } from '../shared/types'
 import { WorkshopEngine } from './workshop-engine'
@@ -346,6 +346,12 @@ function registerPipelineIpc() {
     if (!currentEngine) throw new Error('Pipeline not initialized')
     return currentEngine.getGroupStatus(groupId)
   })
+
+  ipcMain.handle('pipeline:deleteGroup', async (_e, groupId: number) => {
+    if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+    const dbPath = currentWorkshopEngine['dbPath']
+    deleteTaskGroup(dbPath, groupId)
+  })
 }
 
 function ensureWorkshopEngine(dbPath: string, projectPath: string, projectId: string, projectName: string): WorkshopEngine {
@@ -357,6 +363,11 @@ function ensureWorkshopEngine(dbPath: string, projectPath: string, projectId: st
     currentWorkshopEngine = new WorkshopEngine(dbPath, projectPath, projectId, projectName)
     const sdkRunner = createSdkRunner(mainWindow!)
     currentWorkshopEngine.setSdkRunner(sdkRunner)
+
+    // Wire pipeline engine if it already exists (workshop may init after pipeline)
+    if (currentEngine) {
+      currentWorkshopEngine.setPipelineEngine(currentEngine)
+    }
 
     currentWorkshopEngine.on('stream', (event) => {
       mainWindow?.webContents.send('workshop:stream', event)
@@ -372,6 +383,9 @@ function ensureWorkshopEngine(dbPath: string, projectPath: string, projectId: st
     })
     currentWorkshopEngine.on('task:created', (data) => {
       mainWindow?.webContents.send('workshop:tool-event', { type: 'task_created', ...data })
+    })
+    currentWorkshopEngine.on('group:created', (data) => {
+      mainWindow?.webContents.send('workshop:tool-event', { type: 'group_created', ...data })
     })
     currentWorkshopEngine.on('session:renamed', (data) => {
       mainWindow?.webContents.send('workshop:session-renamed', data)
@@ -430,12 +444,42 @@ function registerWorkshopIpc() {
     return { artifact, content }
   })
 
-  ipcMain.handle('workshop:create-tasks', async (_e, sessionId, tasks) => {
+  ipcMain.handle('workshop:list-groups', () => {
+    if (!currentWorkshopEngine) {
+      console.log('[Workshop] list-groups: no engine')
+      return { groups: [], groupTasks: {} }
+    }
+    const dbPath = currentWorkshopEngine['dbPath']
+    console.log('[Workshop] list-groups: dbPath =', dbPath)
+    const groups = listTaskGroups(dbPath)
+    console.log('[Workshop] list-groups: found', groups.length, 'groups')
+    const groupTasks: Record<number, any[]> = {}
+    for (const g of groups) {
+      groupTasks[g.id] = getTasksByGroup(dbPath, g.id)
+    }
+    return { groups, groupTasks }
+  })
+
+  ipcMain.handle('workshop:create-tasks', async (_e, sessionId, tasks, groupTitle?: string) => {
     if (!currentWorkshopEngine) throw new Error('Workshop not initialized')
+
+    // Create a group if groupTitle is provided and there are multiple tasks
+    let groupId: number | undefined
+    if (groupTitle && tasks.length > 1) {
+      const group = createTaskGroup(currentWorkshopEngine['dbPath'], {
+        title: groupTitle,
+        sessionId,
+        sharedContext: ''
+      })
+      groupId = group.id
+      currentWorkshopEngine['activeGroupId'] = group.id
+      mainWindow?.webContents.send('workshop:tool-event', { type: 'group_created', group })
+    }
+
     let created = 0
     for (const task of tasks) {
       try {
-        await currentWorkshopEngine.createPipelineTask(sessionId, task)
+        await currentWorkshopEngine.createPipelineTask(sessionId, task, groupId)
         created++
       } catch (err: any) {
         console.error(`[Workshop] Failed to create task ${created + 1}/${tasks.length}:`, err.message)

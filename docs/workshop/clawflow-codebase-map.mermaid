@@ -1,0 +1,64 @@
+graph TD
+    subgraph ElectronMain ["⚙️ Main Process (src/main/)"]
+        WE[workshop-engine.ts]
+        PE[pipeline-engine.ts]
+        TE[template-engine.ts]
+        SDK[sdk-manager.ts]
+        SL[skill-loader.ts]
+        KE[knowledge-engine.ts]
+        DB[db.ts]
+        GIT[git-engine.ts]
+        HR[hook-runner.ts]
+        CB[context-budget.ts]
+    end
+
+    subgraph Renderer ["🖥️ Renderer (src/renderer/)"]
+        Workshop[Workshop.tsx]
+        WPanel[WorkshopPanel.tsx]
+        Pipeline[Canvas / Dashboard]
+        Settings[Settings]
+        Stores["Zustand Stores\n(workshopStore, pipelineStore, etc.)"]
+    end
+
+    subgraph Templates ["📄 Templates (src/templates/)"]
+        WA[workshop-agent.md]
+        BA[brainstorm-agent.md]
+        PA[plan-agent.md]
+        IA[implement-agent.md]
+        GA[grouped-implement-agent.md]
+        VA[verify-agent.md]
+        CR[code-review-agent.md]
+        HO[_handoff.md]
+    end
+
+    subgraph Skills ["🧠 Skills (src/skills/defaults/)"]
+        direction LR
+        S1[brainstorming]
+        S2[test-driven-development]
+        S3[writing-plans]
+        S4[code-review]
+        S5[verification]
+        S6[completion]
+        S7[design-review]
+    end
+
+    subgraph Shared ["🔗 Shared (src/shared/)"]
+        Types[types.ts]
+        Constants[constants.ts]
+        Rules[pipeline-rules.ts]
+        Settings2[settings.ts]
+    end
+
+    WE --> TE
+    WE --> SDK
+    WE --> KE
+    WE --> SL
+    PE --> TE
+    PE --> SDK
+    PE --> KE
+    TE --> Templates
+    SL --> Skills
+    WE --> DB
+    PE --> DB
+    Renderer -->|IPC| ElectronMain
+    Stores -->|IPC| ElectronMain

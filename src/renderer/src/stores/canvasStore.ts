@@ -35,6 +35,7 @@ interface CanvasState {
   addTimelineEvent: (taskId: number, event: TimelineEvent) => void
 
   refreshAll: (dbPath: string) => Promise<void>
+  deleteGroup: (groupId: number) => Promise<void>
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -80,6 +81,32 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       groupMap[t.groupId!].push(t)
     }
 
-    set({ standaloneTasks: standalone, groupTasks: groupMap })
+    // Also load groups so GroupTab and CanvasGroup render correctly
+    let groups: TaskGroup[] = []
+    try {
+      const result = await window.api.workshop.listGroups()
+      groups = result.groups ?? []
+    } catch {
+      // workshop may not be initialized yet — that's fine
+    }
+
+    set({ standaloneTasks: standalone, groupTasks: groupMap, groups })
+  },
+
+  deleteGroup: async (groupId: number) => {
+    await window.api.pipeline.deleteGroup(groupId)
+    set((s) => {
+      const groups = s.groups.filter((g) => g.id !== groupId)
+      const { [groupId]: _removed, ...groupTasks } = s.groupTasks
+      // Unlinked tasks become standalone
+      const unlinked = s.groupTasks[groupId] ?? []
+      const standaloneTasks = [...s.standaloneTasks, ...unlinked.map(t => ({ ...t, groupId: null }))]
+      return {
+        groups,
+        groupTasks,
+        standaloneTasks,
+        selectedGroupId: s.selectedGroupId === groupId ? null : s.selectedGroupId,
+      }
+    })
   },
 }))

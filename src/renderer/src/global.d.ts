@@ -41,6 +41,7 @@ interface WindowApi {
     pauseGroup: (groupId: number) => Promise<any>
     resumeGroup: (groupId: number) => Promise<any>
     getGroupStatus: (groupId: number) => Promise<any>
+    deleteGroup: (groupId: number) => Promise<void>
   }
   usage: {
     getSnapshot: () => Promise<any>
@@ -58,8 +59,9 @@ interface WindowApi {
     triggerDiscuss: (sessionId: string) => Promise<void>
     listMessages: (dbPath: string, sessionId: string) => Promise<any[]>
     listArtifacts: () => Promise<any[]>
+    listGroups: () => Promise<{ groups: any[]; groupTasks: Record<number, any[]> }>
     getArtifact: (artifactId: string) => Promise<{ artifact: any; content: string | null }>
-    createTasks: (sessionId: string, tasks: any[]) => Promise<void>
+    createTasks: (sessionId: string, tasks: any[], groupTitle?: string) => Promise<void>
     recoverSession: (sessionId: string) => Promise<void>
     renameSession: (sessionId: string, title: string) => Promise<any>
     startPanelSession: (dbPath: string, projectPath: string, projectId: string, projectName: string, title: string, panelPersonas: any[]) => Promise<any>

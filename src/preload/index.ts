@@ -89,6 +89,7 @@ contextBridge.exposeInMainWorld('api', {
     pauseGroup: (groupId: number) => ipcRenderer.invoke('pipeline:pauseGroup', groupId),
     resumeGroup: (groupId: number) => ipcRenderer.invoke('pipeline:resumeGroup', groupId),
     getGroupStatus: (groupId: number) => ipcRenderer.invoke('pipeline:getGroupStatus', groupId),
+    deleteGroup: (groupId: number) => ipcRenderer.invoke('pipeline:deleteGroup', groupId),
   },
   usage: {
     getSnapshot: () => ipcRenderer.invoke('usage:get-snapshot'),
@@ -119,8 +120,10 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('workshop:list-artifacts'),
     getArtifact: (artifactId: string) =>
       ipcRenderer.invoke('workshop:get-artifact', artifactId),
-    createTasks: (sessionId: string, tasks: any[]) =>
-      ipcRenderer.invoke('workshop:create-tasks', sessionId, tasks),
+    createTasks: (sessionId: string, tasks: any[], groupTitle?: string) =>
+      ipcRenderer.invoke('workshop:create-tasks', sessionId, tasks, groupTitle),
+    listGroups: () =>
+      ipcRenderer.invoke('workshop:list-groups'),
     recoverSession: (sessionId: string) =>
       ipcRenderer.invoke('workshop:recover-session', sessionId),
     renameSession: (sessionId: string, title: string) =>

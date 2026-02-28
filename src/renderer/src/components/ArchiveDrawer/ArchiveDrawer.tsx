@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTaskStore } from '../../stores/taskStore'
 import { useLayoutStore } from '../../stores/layoutStore'
 import { useProjectStore } from '../../stores/projectStore'
@@ -16,9 +17,11 @@ function formatDate(dateStr: string): string {
 export function ArchiveDrawer() {
   const tasks = useTaskStore((s) => s.tasks)
   const unarchiveTask = useTaskStore((s) => s.unarchiveTask)
+  const deleteTask = useTaskStore((s) => s.deleteTask)
   const archiveDrawerOpen = useLayoutStore((s) => s.archiveDrawerOpen)
   const toggleArchiveDrawer = useLayoutStore((s) => s.toggleArchiveDrawer)
   const currentProject = useProjectStore((s) => s.currentProject)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   if (!archiveDrawerOpen) return null
 
@@ -32,6 +35,12 @@ export function ArchiveDrawer() {
   const handleUnarchive = async (taskId: number) => {
     if (!currentProject) return
     await unarchiveTask(currentProject.dbPath, taskId)
+  }
+
+  const handleDelete = async (taskId: number) => {
+    if (!currentProject) return
+    await deleteTask(currentProject.dbPath, taskId)
+    setConfirmDeleteId(null)
   }
 
   return (
@@ -105,13 +114,38 @@ export function ArchiveDrawer() {
                     )}
                   </div>
 
-                  {/* Unarchive button */}
-                  <button
-                    onClick={() => handleUnarchive(task.id)}
-                    className="w-full text-xs font-medium px-3 py-1.5 rounded-md bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors cursor-pointer"
-                  >
-                    Unarchive
-                  </button>
+                  {/* Action buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleUnarchive(task.id)}
+                      className="flex-1 text-xs font-medium px-3 py-1.5 rounded-md bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors cursor-pointer"
+                    >
+                      Unarchive
+                    </button>
+                    {confirmDeleteId === task.id ? (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleDelete(task.id)}
+                          className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent-magenta/20 text-accent-magenta hover:bg-accent-magenta/30 transition-colors cursor-pointer"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="text-xs px-2 py-1.5 rounded-md text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(task.id)}
+                        className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent-magenta/10 text-accent-magenta hover:bg-accent-magenta/20 transition-colors cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

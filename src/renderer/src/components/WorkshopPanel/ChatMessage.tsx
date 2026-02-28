@@ -63,13 +63,15 @@ function SegmentList({ segments, isStreaming }: SegmentListProps) {
         const isLast = i === segments.length - 1
 
         if (seg.type === 'text') {
+          const cleaned = stripLegacyToolXml(seg.content)
+          if (!cleaned) return null
           return (
             <div key={i} className="prose prose-sm prose-invert max-w-none text-sm">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={markdownComponents}
               >
-                {seg.content}
+                {cleaned}
               </ReactMarkdown>
             </div>
           )
@@ -182,7 +184,7 @@ export function ChatMessage({ message, isStreaming = false, streamingSegments }:
   // Tool calls stored in metadata (for completed messages with no segments)
   const metaToolCalls = (message.metadata?.toolCalls as ToolCallData[] | undefined) ?? []
 
-  if (!segments && !displayContent) return null
+  if (!segments && !displayContent && metaToolCalls.length === 0) return null
 
   // ── User message ──────────────────────────────────────────────────────────
   if (isUser) {

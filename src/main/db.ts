@@ -228,7 +228,7 @@ function initProjectDb(dbPath: string): Database.Database {
     CREATE TABLE IF NOT EXISTS task_groups (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
-      session_id INTEGER NOT NULL,
+      session_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'planning',
       design_artifact_id INTEGER,
       shared_context TEXT NOT NULL DEFAULT '',

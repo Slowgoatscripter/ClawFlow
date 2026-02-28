@@ -24,6 +24,7 @@ import {
   getTasksByGroup,
   getTask,
   updateTask,
+  deleteTaskGroup,
 } from './db'
 import { abortSession } from './sdk-manager'
 import type { PipelineEngine } from './pipeline-engine'
@@ -391,7 +392,7 @@ export class WorkshopEngine extends EventEmitter {
       const skillLoaded = await this.handleToolCalls(sessionId, result)
 
       // Strip tool_call XML blocks from the displayed message
-      const cleanOutput = (result.output ?? '').replace(/<tool_call name="\w+">\s*[\s\S]*?<\/tool_call>/g, '').trim()
+      const cleanOutput = (result.output ?? '').replace(/<tool_call name="[\w-]+">\s*[\s\S]*?<\/tool_call>/g, '').trim()
       const metadata = segments.length > 0 || toolCalls.length > 0
         ? { segments, toolCalls }
         : null
@@ -727,6 +728,14 @@ export class WorkshopEngine extends EventEmitter {
     const toolCallRegex = /<tool_call name="([\w-]+)">([\s\S]*?)<\/tool_call>/g
     let match
 
+    // Log whether output contains tool calls for debugging
+    const toolCallMatches = [...output.matchAll(/<tool_call name="([\w-]+)">/g)]
+    if (toolCallMatches.length > 0) {
+      console.log(`[Workshop] Found ${toolCallMatches.length} tool call(s): ${toolCallMatches.map(m => m[1]).join(', ')}`)
+    } else if (output.length > 0) {
+      console.log(`[Workshop] No tool calls found in output (${output.length} chars)`)
+    }
+
     while ((match = toolCallRegex.exec(output)) !== null) {
       const toolName = match[1]
       let toolInput: any
@@ -932,6 +941,9 @@ export class WorkshopEngine extends EventEmitter {
         case 'resume_group':
           await this.handleResumeGroup(sessionId)
           break
+        case 'delete_group':
+          await this.handleDeleteGroup(sessionId, toolInput)
+          break
         case 'message_agent':
           await this.handleMessageAgent(sessionId, toolInput)
           break
@@ -949,12 +961,14 @@ export class WorkshopEngine extends EventEmitter {
   // Group Orchestration Handlers
 
   private async handleCreateTaskGroup(sessionId: string, input: any): Promise<void> {
+    console.log('[Workshop] handleCreateTaskGroup: creating group', input.title, 'sessionId =', sessionId)
     const group = createTaskGroup(this.dbPath, {
       title: input.title,
-      sessionId: parseInt(sessionId),
+      sessionId,
       designArtifactId: input.designArtifactId,
       sharedContext: input.sharedContext ?? ''
     })
+    console.log('[Workshop] handleCreateTaskGroup: created group #', group.id)
     this.activeGroupId = group.id
     this.emit('stream', { sessionId, content: `[Created task group #${group.id}: "${group.title}"]`, type: 'tool_call' })
     this.emit('group:created', { sessionId, group })
@@ -996,6 +1010,27 @@ export class WorkshopEngine extends EventEmitter {
     if (!this.pipelineEngine || !this.activeGroupId) return
     const count = await this.pipelineEngine.resumeGroup(this.activeGroupId)
     this.emit('stream', { sessionId, content: `[Resumed group: ${count} tasks resumed]`, type: 'tool_call' })
+  }
+
+  private async handleDeleteGroup(sessionId: string, input: any): Promise<void> {
+    const groupId = input.groupId ?? this.activeGroupId
+    if (!groupId) {
+      this.emit('stream', { sessionId, content: '[Error: No group specified to delete]', type: 'tool_call' })
+      return
+    }
+    // Stop running tasks in the group first
+    if (this.pipelineEngine) {
+      const group = getTaskGroup(this.dbPath, groupId)
+      if (group && group.status === 'running') {
+        await this.pipelineEngine.pauseGroup(groupId)
+      }
+    }
+    deleteTaskGroup(this.dbPath, groupId)
+    if (this.activeGroupId === groupId) {
+      this.activeGroupId = null
+    }
+    this.emit('stream', { sessionId, content: `[Deleted group #${groupId}. Tasks unlinked.]`, type: 'tool_call' })
+    this.emit('group:deleted', { sessionId, groupId })
   }
 
   private async handleMessageAgent(sessionId: string, input: any): Promise<void> {
@@ -1080,10 +1115,13 @@ export class WorkshopEngine extends EventEmitter {
   async suggestTasks(sessionId: string, tasks: WorkshopSuggestedTask[], groupTitle?: string): Promise<void> {
     if (this.autoMode) {
       let groupId: number | undefined
-      if (groupTitle && tasks.length > 1) {
+      if (this.activeGroupId) {
+        // Use existing group from prior create_task_group call
+        groupId = this.activeGroupId
+      } else if (groupTitle && tasks.length > 1) {
         const group = createTaskGroup(this.dbPath, {
           title: groupTitle,
-          sessionId: parseInt(sessionId),
+          sessionId,
           sharedContext: ''
         })
         groupId = group.id
@@ -1111,7 +1149,7 @@ export class WorkshopEngine extends EventEmitter {
         }
       }
     } else {
-      this.emit('tasks:suggested', { sessionId, tasks, groupTitle })
+      this.emit('tasks:suggested', { sessionId, tasks, groupTitle, groupId: this.activeGroupId ?? undefined })
     }
   }
 

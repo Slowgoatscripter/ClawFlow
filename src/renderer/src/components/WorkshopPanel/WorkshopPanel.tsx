@@ -6,6 +6,7 @@ import { useProjectStore } from '../../stores/projectStore'
 import { ChatTab } from './ChatTab'
 import { ArtifactsTab } from './ArtifactsTab'
 import { GroupTab } from './GroupTab'
+import { TaskSuggestionModal } from '../Workshop/TaskSuggestionModal'
 
 type TabId = 'chat' | 'artifacts' | 'group'
 
@@ -27,6 +28,7 @@ export function WorkshopPanel() {
   const sessions = useWorkshopStore((s) => s.sessions)
   const currentSessionId = useWorkshopStore((s) => s.currentSessionId)
   const selectSession = useWorkshopStore((s) => s.selectSession)
+  const pendingSuggestions = useWorkshopStore((s) => s.pendingSuggestions)
 
   // Project state (for session creation)
   const currentProject = useProjectStore((s) => s.currentProject)
@@ -42,6 +44,7 @@ export function WorkshopPanel() {
         currentProject.name
       )
       useWorkshopStore.getState().loadArtifacts()
+      useWorkshopStore.getState().loadGroups()
     }
     return cleanup
   }, [currentProject])
@@ -175,6 +178,9 @@ export function WorkshopPanel() {
         {activeTab === 'artifacts' && <ArtifactsTab />}
         {activeTab === 'group' && <GroupTab />}
       </div>
+
+      {/* Task suggestion modal */}
+      {pendingSuggestions && <TaskSuggestionModal />}
     </div>
   )
 }

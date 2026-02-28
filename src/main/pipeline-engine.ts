@@ -1453,9 +1453,11 @@ ${feedback}`
         dbPath: this.dbPath,
         onStream: (content: string, type: string) => {
           if (type === 'context') {
-            const parsed = JSON.parse(content)
-            this.contextUsage.set(taskId, { tokens: parsed.contextTokens, max: parsed.contextMax })
-            this.emit('context-update', { taskId, stage, ...parsed })
+            const parts = content.replace('__context:', '').split(':')
+            const contextTokens = parseInt(parts[0], 10)
+            const contextMax = parseInt(parts[1], 10)
+            this.contextUsage.set(taskId, { tokens: contextTokens, max: contextMax })
+            this.emit('context-update', { taskId, stage, contextTokens, contextMax })
           } else {
             this.emit('stream', { taskId, stage, content, type })
           }

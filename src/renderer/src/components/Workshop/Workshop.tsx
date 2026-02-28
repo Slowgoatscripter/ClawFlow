@@ -24,6 +24,7 @@ export function Workshop() {
         currentProject.name
       )
       useWorkshopStore.getState().loadArtifacts()
+      useWorkshopStore.getState().loadGroups()
     }
     return cleanup
   }, [currentProject])

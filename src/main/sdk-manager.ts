@@ -360,7 +360,9 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
         cost = result.total_cost_usd ?? 0
         turns = result.num_turns ?? 0
         if (result.subtype === 'success') {
-          output = result.result || output
+          // Prefer the streamed output which preserves XML tool calls from all turns.
+          // Only fall back to result.result if streaming produced nothing.
+          output = output || result.result || ''
         }
       }
     }
