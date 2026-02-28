@@ -78,6 +78,29 @@ export function Canvas() {
       onMouseLeave={handleMouseUp}
       onWheel={handleWheel}
     >
+      {/* Background orb swarm */}
+      <div className="canvas-orb canvas-orb-1" />
+      <div className="canvas-orb canvas-orb-2" />
+      <div className="canvas-orb canvas-orb-3" />
+      <div className="canvas-orb canvas-orb-4" />
+      <div className="canvas-orb canvas-orb-5" />
+      <div className="canvas-orb canvas-orb-6" />
+      <div className="canvas-orb canvas-orb-7" />
+      <div className="canvas-orb canvas-orb-8" />
+      <div className="canvas-orb canvas-orb-9" />
+      <div className="canvas-orb canvas-orb-10" />
+      <div className="canvas-orb canvas-orb-11" />
+      <div className="canvas-orb canvas-orb-12" />
+      <div className="canvas-orb canvas-orb-13" />
+      <div className="canvas-orb canvas-orb-14" />
+      <div className="canvas-orb canvas-orb-15" />
+
+      {/* Dot grid */}
+      <div className="canvas-dot-grid" />
+
+      {/* Vignette */}
+      <div className="canvas-vignette" />
+
       {/* Transformed content layer */}
       <div
         data-canvas-content
