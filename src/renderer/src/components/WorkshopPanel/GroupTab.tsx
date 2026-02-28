@@ -103,10 +103,14 @@ function TaskCard({
   task,
   contextTokens,
   contextMax,
+  seqNumber,
+  isNext,
 }: {
   task: Task
   contextTokens?: number
   contextMax?: number
+  seqNumber?: number | null
+  isNext?: boolean
 }) {
   const stageLabel = taskStageLabel(task)
   const stageColor = taskStageColor(task)
@@ -123,12 +127,45 @@ function TaskCard({
       {/* Row 1: Title + stage chip */}
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <p
-            className="text-[11px] font-medium leading-tight truncate"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            {task.title}
-          </p>
+          <div className="flex items-center gap-1.5">
+            {seqNumber != null && task.status !== 'done' && (
+              <span
+                className="flex-shrink-0 text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded"
+                style={{
+                  backgroundColor: ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying'].includes(task.status)
+                    ? 'color-mix(in srgb, var(--color-accent-cyan) 20%, transparent)'
+                    : task.status === 'blocked'
+                      ? 'color-mix(in srgb, var(--color-text-muted) 15%, transparent)'
+                      : 'color-mix(in srgb, var(--color-text-primary) 15%, transparent)',
+                  color: ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying'].includes(task.status)
+                    ? 'var(--color-accent-cyan)'
+                    : task.status === 'blocked'
+                      ? 'var(--color-text-muted)'
+                      : 'var(--color-text-primary)',
+                }}
+              >
+                {seqNumber}
+              </span>
+            )}
+            {isNext && (
+              <span
+                className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-accent-cyan) 20%, transparent)',
+                  color: 'var(--color-accent-cyan)',
+                  border: '1px solid color-mix(in srgb, var(--color-accent-cyan) 35%, transparent)',
+                }}
+              >
+                next
+              </span>
+            )}
+            <p
+              className="text-[11px] font-medium leading-tight truncate"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              {task.title}
+            </p>
+          </div>
           {task.currentAgent && (
             <p
               className="text-[9px] mt-0.5 truncate"
@@ -205,6 +242,9 @@ function TaskCard({
 
 function GroupSection({ group, tasks }: { group: TaskGroup; tasks: Task[] }) {
   const contextByTaskId = usePipelineStore((s) => s.contextByTaskId)
+  const groupExecutionOrder = useCanvasStore((s) => s.groupExecutionOrder)
+  const nextTaskId = useCanvasStore((s) => s.nextTaskId)
+  const orderList = groupExecutionOrder[group.id] ?? []
   const isRunning = group.status === 'running'
   const isPaused = group.status === 'paused'
 
@@ -264,18 +304,88 @@ function GroupSection({ group, tasks }: { group: TaskGroup; tasks: Task[] }) {
 
       {/* Task cards */}
       {tasks.length > 0 ? (
-        <div className="flex flex-col gap-2 pl-2">
-          {tasks.map((task) => {
-            const ctx = contextByTaskId[task.id]
-            return (
-              <TaskCard
-                key={task.id}
-                task={task}
-                contextTokens={ctx?.tokens}
-                contextMax={ctx?.max}
-              />
-            )
-          })}
+        <div className="flex flex-col gap-0 pl-2">
+          {[...tasks]
+            .sort((a, b) => {
+              const ai = orderList.indexOf(a.id)
+              const bi = orderList.indexOf(b.id)
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+            })
+            .map((task, index, sortedTasks) => {
+              const ctx = contextByTaskId[task.id]
+              const seqIndex = orderList.indexOf(task.id)
+              const seqNumber = seqIndex >= 0 ? seqIndex + 1 : null
+              const isNext = task.id === nextTaskId
+              const isLast = index === sortedTasks.length - 1
+              const hasDeps = (task.dependencyIds ?? []).length > 0
+              const depsAllDone = (task.dependencyIds ?? []).every(depId =>
+                tasks.find(t => t.id === depId)?.status === 'done'
+              )
+
+              return (
+                <div key={task.id} className="relative">
+                  {/* Connector line from previous task */}
+                  {index > 0 && (
+                    <div
+                      className="absolute left-[7px] -top-1 w-0.5 h-2"
+                      style={{
+                        backgroundColor: hasDeps && !depsAllDone
+                          ? 'var(--color-accent-amber)'
+                          : 'var(--color-accent-green)',
+                        opacity: 0.5
+                      }}
+                    />
+                  )}
+                  {/* Connector dot */}
+                  {sortedTasks.length > 1 && (
+                    <div
+                      className="absolute left-[4px] top-3 w-2 h-2 rounded-full"
+                      style={{
+                        backgroundColor: hasDeps && !depsAllDone
+                          ? 'var(--color-accent-amber)'
+                          : 'var(--color-accent-green)',
+                        opacity: 0.6
+                      }}
+                    />
+                  )}
+                  {/* Connector line to next task */}
+                  {!isLast && (
+                    <div
+                      className="absolute left-[7px] bottom-0 w-0.5 h-2"
+                      style={{
+                        backgroundColor: 'var(--color-accent-green)',
+                        opacity: 0.3
+                      }}
+                    />
+                  )}
+                  <div className={sortedTasks.length > 1 ? 'ml-5 mb-2' : 'mb-2'}>
+                    <TaskCard
+                      task={task}
+                      contextTokens={ctx?.tokens}
+                      contextMax={ctx?.max}
+                      seqNumber={seqNumber}
+                      isNext={isNext}
+                    />
+                    {hasDeps && !depsAllDone && (
+                      <div
+                        className="text-[9px] mt-1 px-1.5 py-0.5 rounded inline-block"
+                        style={{
+                          color: 'var(--color-accent-amber)',
+                          backgroundColor: 'color-mix(in srgb, var(--color-accent-amber) 10%, transparent)',
+                        }}
+                      >
+                        Blocked by #{(() => {
+                          const blockingTask = tasks.find(t => task.dependencyIds?.includes(t.id) && t.status !== 'done')
+                          if (!blockingTask) return '?'
+                          const blockIdx = orderList.indexOf(blockingTask.id)
+                          return blockIdx >= 0 ? blockIdx + 1 : '?'
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
         </div>
       ) : (
         <p
