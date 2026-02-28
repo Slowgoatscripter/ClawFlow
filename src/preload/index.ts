@@ -18,7 +18,8 @@ contextBridge.exposeInMainWorld('api', {
     unarchiveTask: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:unarchive', dbPath, taskId),
     archiveAllDone: (dbPath: string) => ipcRenderer.invoke('tasks:archive-all-done', dbPath),
     getDependencies: (dbPath: string, taskId: number) => ipcRenderer.invoke('tasks:get-dependencies', dbPath, taskId),
-    createBatch: (dbPath: string, tasks: any[]) => ipcRenderer.invoke('tasks:create-batch', dbPath, tasks)
+    createBatch: (dbPath: string, tasks: any[]) => ipcRenderer.invoke('tasks:create-batch', dbPath, tasks),
+    executionOrder: (dbPath: string) => ipcRenderer.invoke('tasks:execution-order', dbPath)
   },
   pipeline: {
     init: (dbPath: string, projectPath: string) => ipcRenderer.invoke('pipeline:init', dbPath, projectPath),

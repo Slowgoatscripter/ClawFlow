@@ -7,6 +7,7 @@ import {
   getProjectSetting, getAllProjectSettings, setProjectSetting, deleteProjectSetting,
   addTaskDependencies, getTaskDependencies
 } from './db'
+import { computeExecutionOrder } from './task-graph'
 import type { CreateTaskInput } from '../shared/types'
 
 export function registerIpcHandlers() {
@@ -55,6 +56,11 @@ export function registerIpcHandlers() {
     }
 
     return createdTasks.map(ct => getTask(dbPath, ct.id))
+  })
+
+  ipcMain.handle('tasks:execution-order', (_e, dbPath: string) => {
+    const tasks = listTasks(dbPath)
+    return computeExecutionOrder(tasks)
   })
 
   // --- Filesystem ---
