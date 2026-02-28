@@ -2,6 +2,7 @@ import type { Task } from '../../../../shared/types'
 import { getTaskStages } from '../../../../shared/constants'
 import { STAGE_TO_STATUS } from '../../../../shared/constants'
 import { useLayoutStore } from '../../stores/layoutStore'
+import { useCanvasStore } from '../../stores/canvasStore'
 import { CanvasStageCard } from './CanvasStageCard'
 import { CanvasTimeline } from './CanvasTimeline'
 
@@ -36,6 +37,21 @@ function getStageStatus(
 export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps) {
   const stages = getTaskStages(task.tier, !!task.groupId)
 
+  const executionOrder = useCanvasStore((s) => s.executionOrder)
+  const groupExecutionOrder = useCanvasStore((s) => s.groupExecutionOrder)
+  const nextTaskId = useCanvasStore((s) => s.nextTaskId)
+
+  const orderList = task.groupId != null
+    ? (groupExecutionOrder[task.groupId] ?? [])
+    : executionOrder
+  const seqIndex = orderList.indexOf(task.id)
+  const seqNumber = seqIndex >= 0 ? seqIndex + 1 : null
+
+  const isNext = task.id === nextTaskId
+  const isRunning = ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying'].includes(task.status)
+  const isBlocked = task.status === 'blocked'
+  const isDone = task.status === 'done'
+
   const handleClick = () => {
     useLayoutStore.getState().openTaskDetail(task.id)
   }
@@ -43,12 +59,45 @@ export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps
   const content = (
     <div className="flex flex-col gap-1 min-w-[160px] cursor-pointer" onClick={handleClick}>
       <div className="flex items-center justify-between gap-2 mb-0.5">
-        <span
-          className="text-xs font-medium truncate"
-          style={{ color: 'var(--color-text-primary)' }}
-        >
-          {task.title}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {seqNumber != null && !isDone && (
+            <span
+              className="flex-shrink-0 text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded"
+              style={{
+                backgroundColor: isRunning
+                  ? 'color-mix(in srgb, var(--color-accent-cyan) 20%, transparent)'
+                  : isBlocked
+                    ? 'color-mix(in srgb, var(--color-text-muted) 15%, transparent)'
+                    : 'color-mix(in srgb, var(--color-text-primary) 15%, transparent)',
+                color: isRunning
+                  ? 'var(--color-accent-cyan)'
+                  : isBlocked
+                    ? 'var(--color-text-muted)'
+                    : 'var(--color-text-primary)',
+              }}
+            >
+              {seqNumber}
+            </span>
+          )}
+          {isNext && (
+            <span
+              className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-accent-cyan) 20%, transparent)',
+                color: 'var(--color-accent-cyan)',
+                border: '1px solid color-mix(in srgb, var(--color-accent-cyan) 35%, transparent)',
+              }}
+            >
+              next
+            </span>
+          )}
+          <span
+            className="text-xs font-medium truncate"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            {task.title}
+          </span>
+        </div>
         {task.currentAgent && (
           <span
             className="text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
