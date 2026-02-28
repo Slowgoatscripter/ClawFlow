@@ -128,6 +128,7 @@ export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps
   if (standalone) {
     return (
       <div
+        data-task-id={task.id}
         className="p-3 rounded-lg"
         style={{
           backgroundColor: 'var(--color-elevated)',
@@ -139,5 +140,5 @@ export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps
     )
   }
 
-  return <div className="p-2">{content}</div>
+  return <div data-task-id={task.id} className="p-2">{content}</div>
 }

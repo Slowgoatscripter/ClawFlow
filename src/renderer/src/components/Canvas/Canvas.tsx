@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { CanvasGroup } from './CanvasGroup'
 import { CanvasTaskLane } from './CanvasTaskLane'
+import { CanvasDependencyArrows } from './CanvasDependencyArrows'
 
 export function Canvas() {
   const panX = useCanvasStore((s) => s.panX)
@@ -86,6 +87,7 @@ export function Canvas() {
           willChange: 'transform'
         }}
       >
+        <CanvasDependencyArrows />
         {hasContent ? (
           <div className="flex flex-col gap-4 p-6">
             {/* Groups */}
