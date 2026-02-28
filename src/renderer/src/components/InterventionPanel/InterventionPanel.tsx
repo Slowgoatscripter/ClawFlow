@@ -4,6 +4,7 @@ import { usePipelineStore } from '../../stores/pipelineStore'
 import { isAwaitingReviewFromHandoffs } from '../../utils/taskHelpers'
 import { PlanReviewGate } from './PlanReviewGate'
 import { CodeReviewGate } from './CodeReviewGate'
+import { CompletionReviewGate } from './CompletionReviewGate'
 import { CircuitBreakerPanel } from './CircuitBreakerPanel'
 import { OpenQuestionsPanel } from './OpenQuestionsPanel'
 import { FDRLSection } from './FDRLSection'
@@ -62,6 +63,15 @@ export function InterventionPanel({ task }: Props) {
     )
   }
 
-  // 5. No intervention needed
+  // 5. Completion review gate — task finished, approve or send back
+  if (task.status === 'done' && awaitingReview && !isStreamingThisTask) {
+    return (
+      <div className="bg-surface/80 backdrop-blur-md border border-accent-green/40 rounded-lg p-6 my-4">
+        <CompletionReviewGate task={task} />
+      </div>
+    )
+  }
+
+  // 6. No intervention needed
   return null
 }

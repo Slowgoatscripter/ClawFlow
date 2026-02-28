@@ -74,9 +74,19 @@ export function TaskDetailOverlay() {
     setConfirmDelete(false)
   }, [taskDetailOverlayId])
 
+  // Close on Escape key
+  useEffect(() => {
+    if (taskDetailOverlayId === null) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [taskDetailOverlayId])
+
   const handleClose = () => {
     setVisible(false)
-    setTimeout(() => closeTaskDetail(), 200)
+    setTimeout(() => closeTaskDetail(), 150)
   }
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -183,22 +193,23 @@ export function TaskDetailOverlay() {
 
   return (
     <div
-      className={`fixed inset-0 z-40 transition-colors duration-200 ${
-        visible ? 'bg-black/40' : 'bg-transparent'
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-colors duration-150 ${
+        visible ? 'bg-black/60 backdrop-blur-sm' : 'bg-transparent'
       }`}
       onClick={handleBackdropClick}
     >
-      {/* Slide-over panel */}
+      {/* Modal */}
       <div
         ref={panelRef}
-        className={`fixed top-0 right-0 h-full w-[480px] max-w-[90vw] bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-2xl overflow-y-auto transition-transform duration-200 ease-out ${
-          visible ? 'translate-x-0' : 'translate-x-full'
+        className={`relative w-full max-w-5xl max-h-[90vh] mx-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-2xl flex flex-col transition-all duration-150 ease-out ${
+          visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
         {task ? (
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-[var(--color-border)] flex-shrink-0">
+            <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-[var(--color-border)] flex-shrink-0">
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold text-[var(--color-text-primary)] leading-tight">
                   {task.title}
@@ -207,14 +218,14 @@ export function TaskDetailOverlay() {
               <button
                 onClick={handleClose}
                 className="w-7 h-7 flex items-center justify-center rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-elevated)] transition-all flex-shrink-0"
-                title="Close"
+                title="Close (Esc)"
               >
                 <X size={16} />
               </button>
             </div>
 
             {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
               {/* Error banner */}
               {isBlocked && lastError && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-accent-magenta/10 border border-accent-magenta/30">

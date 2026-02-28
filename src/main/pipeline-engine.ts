@@ -274,6 +274,7 @@ export class PipelineEngine extends EventEmitter {
         currentAgent: 'done',
         completedAt: new Date().toISOString()
       })
+      this.emit('stage:complete', { taskId, stage: currentStage })
       return this.getTaskOrThrow(taskId)
     }
 

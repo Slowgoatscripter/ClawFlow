@@ -10,6 +10,7 @@ import { STATUS_TO_STAGE } from '../../../shared/constants'
  */
 export function isAwaitingReviewFromHandoffs(task: Task): boolean {
   if (task.handoffs.length === 0) return false
+  if (task.completedAt) return false
   const currentStage = STATUS_TO_STAGE[task.status]
   if (!currentStage) return false
   const lastHandoff = task.handoffs[task.handoffs.length - 1]
