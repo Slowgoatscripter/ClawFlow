@@ -95,3 +95,90 @@ export function isTaskBlocked(
   const blockedBy = deps.filter((depId) => taskStatuses.get(depId) !== 'done')
   return { blocked: blockedBy.length > 0, blockedBy }
 }
+
+// --- Execution Order (Topological Sort) ---
+
+const PRIORITY_RANK: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3
+}
+
+export interface ExecutionOrderResult {
+  global: number[]
+  byGroup: Record<number, number[]>
+}
+
+export function computeExecutionOrder(tasks: Task[]): ExecutionOrderResult {
+  // 1. Filter to non-done tasks
+  const active = tasks.filter((t) => t.status !== 'done')
+  const activeIds = new Set(active.map((t) => t.id))
+  const taskMap = new Map(active.map((t) => [t.id, t]))
+
+  // 2. Build in-degree map (only count deps within active set)
+  const inDegree = new Map<number, number>()
+  const dependents = new Map<number, number[]>() // dep -> tasks that depend on it
+
+  for (const task of active) {
+    inDegree.set(task.id, 0)
+    dependents.set(task.id, [])
+  }
+
+  for (const task of active) {
+    const deps = (task.dependencyIds ?? []).filter((d) => activeIds.has(d))
+    inDegree.set(task.id, deps.length)
+    for (const dep of deps) {
+      dependents.get(dep)!.push(task.id)
+    }
+  }
+
+  // 3. Kahn's algorithm with sorted frontier
+  const compareTasks = (a: number, b: number): number => {
+    const ta = taskMap.get(a)!
+    const tb = taskMap.get(b)!
+    const pa = PRIORITY_RANK[ta.priority] ?? 2
+    const pb = PRIORITY_RANK[tb.priority] ?? 2
+    if (pa !== pb) return pa - pb
+    return ta.createdAt.localeCompare(tb.createdAt)
+  }
+
+  // Collect initial frontier (in-degree 0), sort it
+  const frontier: number[] = []
+  for (const task of active) {
+    if (inDegree.get(task.id) === 0) frontier.push(task.id)
+  }
+  frontier.sort(compareTasks)
+
+  const globalOrder: number[] = []
+
+  while (frontier.length > 0) {
+    const current = frontier.shift()!
+    globalOrder.push(current)
+
+    for (const dep of dependents.get(current) ?? []) {
+      const newDeg = inDegree.get(dep)! - 1
+      inDegree.set(dep, newDeg)
+      if (newDeg === 0) {
+        // Insert into sorted position
+        let insertIdx = 0
+        while (insertIdx < frontier.length && compareTasks(frontier[insertIdx], dep) <= 0) {
+          insertIdx++
+        }
+        frontier.splice(insertIdx, 0, dep)
+      }
+    }
+  }
+
+  // 4. Build per-group order
+  const byGroup: Record<number, number[]> = {}
+  for (const id of globalOrder) {
+    const task = taskMap.get(id)!
+    if (task.groupId != null) {
+      if (!byGroup[task.groupId]) byGroup[task.groupId] = []
+      byGroup[task.groupId].push(id)
+    }
+  }
+
+  return { global: globalOrder, byGroup }
+}
