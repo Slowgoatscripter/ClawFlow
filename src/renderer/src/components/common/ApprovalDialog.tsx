@@ -7,7 +7,12 @@ const toolIcons: Record<string, string> = {
   Edit: 'E',
   Read: 'R',
   Glob: 'G',
-  Grep: 'S'
+  Grep: 'S',
+  AskUserQuestion: '?',
+  Skill: 'SK',
+  EnterWorktree: 'WT',
+  EnterPlanMode: 'PM',
+  ExitPlanMode: 'PM',
 }
 
 export function ApprovalDialog() {

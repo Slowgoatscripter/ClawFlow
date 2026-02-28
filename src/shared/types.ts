@@ -427,6 +427,8 @@ export type IpcChannel =
   | 'usage:get-snapshot'
   | 'usage:snapshot'
   | 'fs:pick-directory'
+  | 'pipeline:user-question'
+  | 'pipeline:resolve-question'
   | 'window:minimize'
   | 'window:maximize'
   | 'window:close'
@@ -447,4 +449,23 @@ export interface ApprovalRequest {
   toolUseId: string
   toolName: string
   toolInput: Record<string, unknown>
+}
+
+export interface UserQuestionOption {
+  label: string
+  description: string
+  markdown?: string
+}
+
+export interface UserQuestionItem {
+  question: string
+  header: string
+  options: UserQuestionOption[]
+  multiSelect: boolean
+}
+
+export interface UserQuestionRequest {
+  requestId: string
+  taskId: number
+  questions: UserQuestionItem[]
 }

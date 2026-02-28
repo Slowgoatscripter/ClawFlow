@@ -3,8 +3,11 @@ import { getTaskStages } from '../../../../shared/constants'
 import { STAGE_TO_STATUS } from '../../../../shared/constants'
 import { useLayoutStore } from '../../stores/layoutStore'
 import { useCanvasStore } from '../../stores/canvasStore'
+import { usePipelineStore } from '../../stores/pipelineStore'
+import { hasOpenQuestions, isAwaitingReviewFromHandoffs } from '../../utils/taskHelpers'
 import { CanvasStageCard } from './CanvasStageCard'
 import { CanvasTimeline } from './CanvasTimeline'
+import { CanvasTodoStrip } from './CanvasTodoStrip'
 
 interface CanvasTaskLaneProps {
   task: Task
@@ -37,6 +40,10 @@ function getStageStatus(
 export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps) {
   const stages = getTaskStages(task.tier, !!task.groupId)
 
+  const hasTodos = usePipelineStore(
+    (s) => !!s.todosByTaskId[task.id] && Object.keys(s.todosByTaskId[task.id]).length > 0
+  )
+
   const executionOrder = useCanvasStore((s) => s.executionOrder)
   const groupExecutionOrder = useCanvasStore((s) => s.groupExecutionOrder)
   const nextTaskId = useCanvasStore((s) => s.nextTaskId)
@@ -47,10 +54,20 @@ export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps
   const seqIndex = orderList.indexOf(task.id)
   const seqNumber = seqIndex >= 0 ? seqIndex + 1 : null
 
+  const awaitingReviewEvent = usePipelineStore((s) => s.awaitingReview[task.id] ?? false)
+  const needsApproval = awaitingReviewEvent || isAwaitingReviewFromHandoffs(task)
+  const hasQuestions = hasOpenQuestions(task)
+
   const isNext = task.id === nextTaskId
   const isRunning = ['brainstorming', 'design_review', 'planning', 'implementing', 'code_review', 'verifying'].includes(task.status)
   const isBlocked = task.status === 'blocked'
   const isDone = task.status === 'done'
+
+  const indicatorColor = hasQuestions
+    ? 'var(--color-accent-magenta)'
+    : needsApproval
+      ? 'var(--color-accent-amber)'
+      : null
 
   const handleClick = () => {
     useLayoutStore.getState().openTaskDetail(task.id)
@@ -91,6 +108,30 @@ export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps
               next
             </span>
           )}
+          {hasQuestions && (
+            <span
+              className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-accent-magenta) 20%, transparent)',
+                color: 'var(--color-accent-magenta)',
+                border: '1px solid color-mix(in srgb, var(--color-accent-magenta) 35%, transparent)',
+              }}
+            >
+              question
+            </span>
+          )}
+          {needsApproval && !hasQuestions && (
+            <span
+              className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-accent-amber) 20%, transparent)',
+                color: 'var(--color-accent-amber)',
+                border: '1px solid color-mix(in srgb, var(--color-accent-amber) 35%, transparent)',
+              }}
+            >
+              approval
+            </span>
+          )}
           <span
             className="text-xs font-medium truncate"
             style={{ color: 'var(--color-text-primary)' }}
@@ -121,6 +162,8 @@ export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps
         ))}
       </div>
 
+      {hasTodos && <CanvasTodoStrip taskId={task.id} />}
+
       <CanvasTimeline taskId={task.id} />
     </div>
   )
@@ -132,7 +175,12 @@ export function CanvasTaskLane({ task, standalone = false }: CanvasTaskLaneProps
         className="p-3 rounded-lg"
         style={{
           backgroundColor: 'var(--color-elevated)',
-          border: '1px solid var(--color-border)'
+          border: indicatorColor
+            ? `1px solid color-mix(in srgb, ${indicatorColor} 50%, transparent)`
+            : '1px solid var(--color-border)',
+          boxShadow: indicatorColor
+            ? `0 0 8px color-mix(in srgb, ${indicatorColor} 15%, transparent)`
+            : undefined,
         }}
       >
         {content}

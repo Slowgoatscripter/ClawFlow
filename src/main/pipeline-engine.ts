@@ -4,7 +4,7 @@ import path from 'path'
 import type { PipelineStage, Task, TaskStatus, Handoff, StageConfig, TaskArtifacts, TaskGroup } from '../shared/types'
 import { STAGE_CONFIGS, TIER_STAGES, STAGE_TO_STATUS, getClearFieldsPayload, GROUPED_STAGES } from '../shared/constants'
 import { getNextStage, getFirstStage, canTransition, isCircuitBreakerTripped } from '../shared/pipeline-rules'
-import { getTask, updateTask, appendAgentLog, appendHandoff, getGlobalSetting, getProjectSetting, areDependenciesMet, getTaskDependencies, getTaskDependents, setTaskArtifacts, listTasks, getTaskGroup, updateTaskGroup, getTasksByGroup } from './db'
+import { getTask, updateTask, appendAgentLog, appendHandoff, clearLastHandoffQuestions, getGlobalSetting, getProjectSetting, areDependenciesMet, getTaskDependencies, getTaskDependents, setTaskArtifacts, listTasks, getTaskGroup, updateTaskGroup, getTasksByGroup } from './db'
 import { createKnowledgeEntry, listCandidates } from './knowledge-engine'
 import { SETTING_KEYS } from '../shared/settings'
 import { constructPrompt, constructContinuationPrompt, constructGroupedPrompt, parseHandoff } from './template-engine'
@@ -401,6 +401,9 @@ ${feedback}`
     }
 
     const sessionId = this.sessionIds.get(taskId)
+
+    // Clear open questions immediately so they don't persist if user navigates away
+    clearLastHandoffQuestions(this.dbPath, taskId)
 
     appendAgentLog(this.dbPath, taskId, {
       timestamp: new Date().toISOString(),

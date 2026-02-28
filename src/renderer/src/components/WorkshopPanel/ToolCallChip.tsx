@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Search, Check, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
+import { FileText, Search, Check, Terminal, ChevronDown, ChevronUp, HelpCircle, Zap, ClipboardList, ClipboardCheck, GitBranch, ListPlus, ListChecks, ListTodo, List, FileSearch, Users, UserMinus, Send, FileOutput, Square } from 'lucide-react'
 import type { ToolCallData } from '../../../../shared/types'
 
 // Tool-specific icon mapping (mirrors ToolCallCard but uses Check for test-like tools)
@@ -14,6 +14,21 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   Write: Terminal,
   Bash: Terminal,
   Task: Terminal,
+  AskUserQuestion: HelpCircle,
+  Skill: Zap,
+  EnterPlanMode: ClipboardList,
+  ExitPlanMode: ClipboardCheck,
+  EnterWorktree: GitBranch,
+  TaskCreate: ListPlus,
+  TaskUpdate: ListChecks,
+  TodoWrite: ListTodo,
+  TaskList: List,
+  TaskGet: FileSearch,
+  TeamCreate: Users,
+  TeamDelete: UserMinus,
+  SendMessage: Send,
+  TaskOutput: FileOutput,
+  TaskStop: Square,
 }
 
 const TOOL_COLORS: Record<string, string> = {
@@ -27,6 +42,21 @@ const TOOL_COLORS: Record<string, string> = {
   Write: 'var(--color-accent-amber)',
   Bash: 'var(--color-accent-green)',
   Task: 'var(--color-text-secondary)',
+  AskUserQuestion: 'var(--color-accent-amber)',
+  Skill: 'var(--color-accent-cyan)',
+  EnterPlanMode: 'var(--color-accent-violet)',
+  ExitPlanMode: 'var(--color-accent-violet)',
+  EnterWorktree: 'var(--color-accent-green)',
+  TaskCreate: 'var(--color-text-secondary)',
+  TaskUpdate: 'var(--color-text-secondary)',
+  TodoWrite: 'var(--color-text-secondary)',
+  TaskList: 'var(--color-text-secondary)',
+  TaskGet: 'var(--color-text-secondary)',
+  TeamCreate: 'var(--color-text-secondary)',
+  TeamDelete: 'var(--color-text-secondary)',
+  SendMessage: 'var(--color-text-secondary)',
+  TaskOutput: 'var(--color-text-secondary)',
+  TaskStop: 'var(--color-text-secondary)',
 }
 
 function getIcon(toolName: string): React.ElementType {
@@ -40,6 +70,10 @@ function getColor(toolName: string): string {
 function getContext(tool: ToolCallData): string {
   const input = tool.toolInput
   if (!input || typeof input !== 'object') return ''
+  if (input.questions) return (input.questions as any[])[0]?.question?.slice(0, 60) || ''
+  if (input.skill) return String(input.skill)
+  if (input.subject) return String(input.subject)
+  if (input.recipient) return String(input.recipient)
   if (input.file_path) return String(input.file_path).split('/').slice(-2).join('/')
   if (input.path) return String(input.path).split('/').slice(-2).join('/')
   if (input.pattern) return String(input.pattern).slice(0, 35)

@@ -20,3 +20,14 @@ export function isAwaitingReviewFromHandoffs(task: Task): boolean {
   if (q && q !== 'none' && q.trim() !== '') return false
   return true
 }
+
+/**
+ * Check if a task has open questions from the last handoff.
+ * Reusable helper matching the logic in InterventionPanel.
+ */
+export function hasOpenQuestions(task: Task): boolean {
+  if (task.handoffs.length === 0) return false
+  const lastHandoff = task.handoffs[task.handoffs.length - 1]
+  const q = lastHandoff.openQuestions
+  return !!(q && q !== 'none' && q.trim() !== '')
+}

@@ -1,6 +1,7 @@
 import { MessageSquare, Eye, PauseCircle, PlayCircle, Trash2 } from 'lucide-react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { usePipelineStore } from '../../stores/pipelineStore'
+import { hasOpenQuestions, isAwaitingReviewFromHandoffs } from '../../utils/taskHelpers'
 import { ContextWindowBar } from './ContextWindowBar'
 import type { TaskGroup, Task, TaskGroupStatus } from '../../../../shared/types'
 
@@ -112,6 +113,16 @@ function TaskCard({
   seqNumber?: number | null
   isNext?: boolean
 }) {
+  const awaitingReviewEvent = usePipelineStore((s) => s.awaitingReview[task.id] ?? false)
+  const needsApproval = awaitingReviewEvent || isAwaitingReviewFromHandoffs(task)
+  const taskHasQuestions = hasOpenQuestions(task)
+
+  const indicatorColor = taskHasQuestions
+    ? 'var(--color-accent-magenta)'
+    : needsApproval
+      ? 'var(--color-accent-amber)'
+      : null
+
   const stageLabel = taskStageLabel(task)
   const stageColor = taskStageColor(task)
   const hasContext = contextTokens !== undefined && contextMax !== undefined && contextMax > 0
@@ -121,7 +132,12 @@ function TaskCard({
       className="rounded-lg p-3 flex flex-col gap-2"
       style={{
         background: 'var(--color-elevated)',
-        border: '1px solid var(--color-border)',
+        border: indicatorColor
+          ? `1px solid color-mix(in srgb, ${indicatorColor} 50%, transparent)`
+          : '1px solid var(--color-border)',
+        boxShadow: indicatorColor
+          ? `0 0 8px color-mix(in srgb, ${indicatorColor} 15%, transparent)`
+          : undefined,
       }}
     >
       {/* Row 1: Title + stage chip */}
@@ -157,6 +173,30 @@ function TaskCard({
                 }}
               >
                 next
+              </span>
+            )}
+            {taskHasQuestions && (
+              <span
+                className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-accent-magenta) 20%, transparent)',
+                  color: 'var(--color-accent-magenta)',
+                  border: '1px solid color-mix(in srgb, var(--color-accent-magenta) 35%, transparent)',
+                }}
+              >
+                question
+              </span>
+            )}
+            {needsApproval && !taskHasQuestions && (
+              <span
+                className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-accent-amber) 20%, transparent)',
+                  color: 'var(--color-accent-amber)',
+                  border: '1px solid color-mix(in srgb, var(--color-accent-amber) 35%, transparent)',
+                }}
+              >
+                approval
               </span>
             )}
             <p

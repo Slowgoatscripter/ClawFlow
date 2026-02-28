@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { StreamEvent, ApprovalRequest } from '../../../shared/types'
+import type { StreamEvent, ApprovalRequest, UserQuestionRequest } from '../../../shared/types'
 import { useCanvasStore } from './canvasStore'
 import { useTaskStore } from './taskStore'
 import { useProjectStore } from './projectStore'
@@ -16,6 +16,7 @@ interface PipelineState {
   usageSnapshot: { connected: boolean; error: string | null; fiveHour: { utilization: number; countdown: string } | null; sevenDay: { utilization: number; countdown: string } | null; sevenDayOpus: { utilization: number; countdown: string } | null; sevenDaySonnet: { utilization: number; countdown: string } | null } | null
   usagePausedToast: { pausedCount: number; utilization: number; countdown: string } | null
   lastUnblockedTaskId: number | null
+  userQuestion: UserQuestionRequest | null
   pendingCandidateReview: any | null
   contextDegradedWarning: string | null
   startPipeline: (taskId: number) => Promise<void>
@@ -33,16 +34,19 @@ interface PipelineState {
   pauseAll: () => Promise<void>
   approveContextHandoff: (taskId: number) => Promise<void>
   dismissContextHandoff: (taskId: number) => Promise<void>
+  setUserQuestion: (question: UserQuestionRequest | null) => void
+  resolveUserQuestion: (requestId: string, answers: Record<string, string>) => void
   dismissContextDegradedWarning: () => void
   dismissUsagePausedToast: () => void
   clearUnblockedTask: () => void
 }
 
-export const usePipelineStore = create<PipelineState>((set) => ({
+export const usePipelineStore = create<PipelineState>((set, get) => ({
   activeTaskId: null,
   streaming: false,
   streamEvents: [],
   approvalRequest: null,
+  userQuestion: null,
   awaitingReview: {},
   todosByTaskId: {},
   contextByTaskId: {},
@@ -121,6 +125,11 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   approveContextHandoff: async (taskId) => {
     set({ contextHandoff: null, streaming: true })
     await window.api.pipeline.approveContextHandoff(taskId)
+  },
+  setUserQuestion: (question) => set({ userQuestion: question }),
+  resolveUserQuestion: (requestId, answers) => {
+    window.api.pipeline.resolveQuestion(requestId, answers)
+    set({ userQuestion: null })
   },
   dismissContextHandoff: () => set({ contextHandoff: null }),
   dismissUsagePausedToast: () => set({ usagePausedToast: null }),
@@ -234,6 +243,9 @@ export const usePipelineStore = create<PipelineState>((set) => ({
     const cleanupMerged = window.api.pipeline.onTaskMerged((_data: any) => {
       // Could update task status or show notification
     })
+    const cleanupQuestion = window.api.pipeline.onUserQuestion((data: any) => {
+      get().setUserQuestion(data)
+    })
     window.api.usage.getSnapshot().then((snapshot) => {
       if (snapshot) set({ usageSnapshot: snapshot })
     })
@@ -248,6 +260,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
       cleanupTaskUnblocked()
       cleanupCandidates()
       cleanupMerged()
+      cleanupQuestion()
     }
   }
 }))

@@ -55,6 +55,7 @@ interface PendingApproval {
 }
 
 const pendingApprovals = new Map<string, PendingApproval>()
+const pendingQuestions = new Map<string, { resolve: (result: any) => void }>()
 const activeControllers = new Map<string, AbortController>()
 
 export function abortSession(sessionKey: string): boolean {
@@ -74,6 +75,17 @@ export function resolveApproval(requestId: string, approved: boolean, message?: 
     pending.resolve({ behavior: 'allow' })
   } else {
     pending.resolve({ behavior: 'deny', message: message ?? 'User denied tool use' })
+  }
+}
+
+export function resolveQuestion(requestId: string, answers: Record<string, string>): void {
+  const pending = pendingQuestions.get(requestId)
+  if (pending) {
+    pending.resolve({
+      behavior: 'deny',
+      message: JSON.stringify({ answers })
+    })
+    pendingQuestions.delete(requestId)
   }
 }
 
@@ -194,6 +206,22 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
         includePartialMessages: true,
         ...(params.resumeSessionId ? { resume: params.resumeSessionId } : {}),
         canUseTool: params.autoMode ? undefined : async (toolName, toolInput, options) => {
+          // Intercept AskUserQuestion — block until user responds via UI
+          if (toolName === 'AskUserQuestion') {
+            const requestId = `question-${Date.now()}-${Math.random().toString(36).slice(2)}`
+            const questions = (toolInput as any).questions || []
+
+            win.webContents.send('pipeline:user-question', {
+              requestId,
+              taskId: params.taskId,
+              questions
+            })
+
+            return new Promise((resolve) => {
+              pendingQuestions.set(requestId, { resolve })
+            })
+          }
+
           // Auto-approve reads and searches
           const readOnlyTools = ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch']
           if (readOnlyTools.includes(toolName)) {
@@ -201,7 +229,7 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
           }
 
           // Auto-approve orchestration tools (read/write ~/.claude/teams/ and ~/.claude/tasks/ — no destructive codebase side effects)
-          const orchestrationTools = ['TeamCreate', 'TeamDelete', 'Task', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'SendMessage', 'TaskOutput', 'TaskStop']
+          const orchestrationTools = ['TeamCreate', 'TeamDelete', 'Task', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'SendMessage', 'TaskOutput', 'TaskStop', 'Skill', 'EnterWorktree', 'EnterPlanMode', 'ExitPlanMode']
           if (orchestrationTools.includes(toolName)) {
             return { behavior: 'allow' } as PermissionResult
           }
@@ -307,6 +335,19 @@ async function runSdkSessionOnce(win: BrowserWindow, params: SdkRunnerParams, ab
                       updateTask(params.dbPath, params.taskId, { todos: todoState })
                     }
                   }, 500)
+                }
+
+                // Emit plan mode status events
+                if (block.name === 'EnterPlanMode' || block.name === 'ExitPlanMode') {
+                  const planStatus = block.name === 'EnterPlanMode' ? 'plan_mode_entered' : 'plan_mode_exited'
+                  params.onStream(`__status:${planStatus}`, 'status')
+                  win.webContents.send('pipeline:stream', {
+                    taskId: params.taskId,
+                    agent: params.model,
+                    type: 'status',
+                    content: planStatus,
+                    timestamp: new Date().toISOString()
+                  })
                 }
 
                 params.onStream(`Tool: ${block.name}`, 'tool_use', { toolName: block.name, toolInput: block.input })

@@ -30,6 +30,13 @@ contextBridge.exposeInMainWorld('api', {
     respond: (taskId: number, response: string) => ipcRenderer.invoke('pipeline:respond', taskId, response),
     resolveApproval: (requestId: string, approved: boolean, message?: string) =>
       ipcRenderer.invoke('pipeline:resolve-approval', requestId, approved, message),
+    resolveQuestion: (requestId: string, answers: Record<string, string>) =>
+      ipcRenderer.invoke('pipeline:resolve-question', requestId, answers),
+    onUserQuestion: (callback: (data: any) => void) => {
+      const handler = (_e: any, data: any) => callback(data)
+      ipcRenderer.on('pipeline:user-question', handler)
+      return () => ipcRenderer.removeListener('pipeline:user-question', handler)
+    },
     onStream: (callback: (event: any) => void) => {
       const handler = (_e: any, data: any) => callback(data)
       ipcRenderer.on('pipeline:stream', handler)

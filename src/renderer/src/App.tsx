@@ -11,6 +11,7 @@ import { TitleBar } from './components/common/TitleBar'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { ToastContainer } from './components/common/Toast'
 import { ApprovalDialog } from './components/common/ApprovalDialog'
+import UserQuestionDialog from './components/common/UserQuestionDialog'
 import { ArchiveDrawer } from './components/ArchiveDrawer/ArchiveDrawer'
 import { AppShell } from './components/AppShell'
 import { WorkshopPanel } from './components/WorkshopPanel/WorkshopPanel'
@@ -53,6 +54,7 @@ export default function App() {
       </ErrorBoundary>
       <TaskDetailOverlay />
       {approvalRequest && <ApprovalDialog />}
+      <UserQuestionDialog />
       <ArchiveDrawer />
       <ToastContainer />
       {usagePausedToast && (

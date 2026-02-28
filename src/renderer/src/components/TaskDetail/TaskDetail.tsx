@@ -57,6 +57,18 @@ export function TaskDetail() {
     }
   }, [streamEvents.length])
 
+  // Track plan mode state from stream events
+  useEffect(() => {
+    const lastStatusEvent = [...streamEvents]
+      .reverse()
+      .find((e) => e.type === 'status' && (e.content === 'plan_mode_entered' || e.content === 'plan_mode_exited'))
+    if (lastStatusEvent) {
+      setInPlanMode(lastStatusEvent.content === 'plan_mode_entered')
+    } else {
+      setInPlanMode(false)
+    }
+  }, [streamEvents])
+
   const handleBack = async () => {
     const project = useProjectStore.getState().currentProject
     if (project) {
@@ -85,6 +97,7 @@ export function TaskDetail() {
   }
 
   const [restartMenuOpen, setRestartMenuOpen] = useState(false)
+  const [inPlanMode, setInPlanMode] = useState(false)
 
   const getCompletedStages = (): PipelineStage[] => {
     if (!task) return []
@@ -228,6 +241,11 @@ export function TaskDetail() {
           ) : (
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-cyan/20 text-accent-cyan">
               GATED
+            </span>
+          )}
+          {inPlanMode && (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-violet/20 text-accent-violet">
+              Plan Mode
             </span>
           )}
         </div>

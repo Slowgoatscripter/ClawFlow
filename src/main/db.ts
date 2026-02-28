@@ -347,6 +347,15 @@ export function appendHandoff(dbPath: string, taskId: number, handoff: Handoff):
   db.prepare('UPDATE tasks SET handoffs = ? WHERE id = ?').run(JSON.stringify(handoffs), taskId)
 }
 
+export function clearLastHandoffQuestions(dbPath: string, taskId: number): void {
+  const task = getTask(dbPath, taskId)
+  if (!task || task.handoffs.length === 0) return
+  const handoffs = [...task.handoffs]
+  handoffs[handoffs.length - 1] = { ...handoffs[handoffs.length - 1], openQuestions: '' }
+  const db = getProjectDb(dbPath)
+  db.prepare('UPDATE tasks SET handoffs = ? WHERE id = ?').run(JSON.stringify(handoffs), taskId)
+}
+
 export function getProjectStats(dbPath: string): ProjectStats {
   const tasks = listTasks(dbPath)
 

@@ -63,8 +63,8 @@ export function InterventionPanel({ task }: Props) {
     )
   }
 
-  // 5. Completion review gate — task finished, approve or send back
-  if (task.status === 'done' && awaitingReview && !isStreamingThisTask) {
+  // 5. Completion review gate — task finished or verify stage done, approve or send back
+  if (((task.status === 'done' || task.status === 'verifying') && awaitingReview) && !isStreamingThisTask) {
     return (
       <div className="bg-surface/80 backdrop-blur-md border border-accent-green/40 rounded-lg p-6 my-4">
         <CompletionReviewGate task={task} />

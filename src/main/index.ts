@@ -6,7 +6,7 @@ import { closeAllDbs, listWorkshopMessages, listProjects, updateProjectBaseBranc
 import { PipelineEngine } from './pipeline-engine'
 import type { PipelineStage } from '../shared/types'
 import { WorkshopEngine } from './workshop-engine'
-import { createSdkRunner, resolveApproval } from './sdk-manager'
+import { createSdkRunner, resolveApproval, resolveQuestion } from './sdk-manager'
 import { GitEngine } from './git-engine'
 import { UsageMonitor } from './usage-monitor'
 import {
@@ -291,6 +291,10 @@ function registerPipelineIpc() {
 
   ipcMain.handle('pipeline:resolve-approval', (_e, requestId: string, approved: boolean, message?: string) => {
     resolveApproval(requestId, approved, message)
+  })
+
+  ipcMain.handle('pipeline:resolve-question', (_e, requestId: string, answers: Record<string, string>) => {
+    resolveQuestion(requestId, answers)
   })
 
   ipcMain.handle('pipeline:pause', async (_e, taskId: number) => {
